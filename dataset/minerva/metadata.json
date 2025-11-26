@@ -1,0 +1,15 @@
+{
+  "summary": {
+    "nvd_records": 19553,
+    "capec_patterns": 559,
+    "procedure_scenarios": 10625,
+    "cve_to_cwe": 9341,
+    "cve_to_cvss": 10000,
+    "scenario_to_technique": 5000,
+    "scenario_to_tactics": 5000,
+    "scenario_to_mitigations": 5000,
+    "scenario_to_detections": 5000,
+    "cve_to_attack_chain": 4575,
+    "cwe_code_to_cwe": 0
+  }
+}

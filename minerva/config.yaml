@@ -1,0 +1,53 @@
+COMMON:
+  log_dir: dataset/logs
+  nvd_start_date: 2023-01-01
+  nvd_end_date: 2024-12-31
+  nvd_data_dir: dataset/nvd
+  metadata_path: dataset/minerva/metadata.json
+
+NVD:
+  delay_s: 6.0
+
+MITRE_ATTACK:
+  attack_url: "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json"
+  cache_path: dataset/mitre/enterprise-attack.json
+
+CAPEC:
+  capec_url: "https://raw.githubusercontent.com/mitre/cti/master/capec/2.1/stix-capec.json"
+  cache_path: dataset/capec/stix-capec.json
+
+TASKS:
+  CVE_CWE:
+    min_words: 30
+    output_path: dataset/minerva/cve_to_cwe.jsonl
+    seed: 1337
+    max_items: 10000
+  CVE_CVSS:
+    min_words: 30
+    prefer_nvd: true
+    output_path: dataset/minerva/cve_to_cvss.jsonl
+    seed: 1337
+    max_items: 10000
+  SCENARIO_TECHNIQUE:
+    max_items: 5000
+    output_path: dataset/minerva/scenario_to_technique.jsonl
+    seed: 1337
+  SCENARIO_TACTIC:
+    output_path: dataset/minerva/scenario_to_tactics.jsonl
+    seed: 1337
+    max_items: 0
+  SCENARIO_MITIGATION:
+    output_path: dataset/minerva/scenario_to_mitigations.jsonl
+    seed: 1337
+    max_items: 0
+  SCENARIO_DETECTION:
+    output_path: dataset/minerva/scenario_to_detections.jsonl
+    seed: 1337
+    max_items: 0
+  CVE_ATTACK_CHAIN:
+    min_words: 15
+    output_path: dataset/minerva/cve_to_attack_chain.jsonl
+    seed: 1337
+    max_items: 0
+  CWE_CODE:
+    output_path: dataset/minerva/cwe_code_to_cwe.jsonl
