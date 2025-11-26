@@ -1,0 +1,16 @@
+[project]
+name = "minerva"
+version = "0.1.0"
+description = "RLVR dataset builder for CTI tasks using MITRE, CAPEC, CWE, and NVD data."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.66.0",
+    "cvss>=3.2",
+]
+
+[build-system]
+requires = ["setuptools>=62"]
+build-backend = "setuptools.build_meta"
