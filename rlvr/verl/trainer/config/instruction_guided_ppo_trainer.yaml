@@ -1,0 +1,46 @@
+defaults:
+  - ppo_trainer
+  - _self_
+
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false
+
+critic:
+  enable: false
+
+instruction_guided:
+  enable: true
+  instruction_samples: 3
+  max_instruction_tokens: 128
+  temperature: 0.7
+  answer_rollouts_per_instruction: 1
+  reward_dither:
+    enable: true
+    first_n_tokens: 32
+    scale: 0.03
+    keep_sum: true
+  instruction_reward:
+    enable: true
+    weight: 0.5           # scale of instruction-head advantages
+    length_penalty: 0.0   # optional
+    success_power: 1.0    # optional shaping; >1 makes the head focus on high pass-rate plans
+  rescale:
+    enable: false
+  prompt:
+      instruction_template: |
+          You are given a math problem. Propose a high-level plan to solve it without performing calculations or symbolic manipulations.
+          Write a short bullet list; start each bullet with an imperative verb (e.g., "Define", "Set up", "Apply", "Use", "Conclude").
+          Keep it abstract: you may name variables, define expressions, or cite theorems/lemmas, but do not plug in values, estimate, or state the final answer.
+          Limit each bullet to one sentence.
+          End with a final 'Check' bullet describing how one would verify the result (units, bounds, substitution, special cases) without carrying it out.
+          Output only the bullet list—no preamble or conclusion.
+    
+      instruction_guided_template: |
+          You are given a math problem. Your goal is to solve it by faithfully executing the provided high-level plan.
+          Follow the instructions step by step, expanding each bullet into the necessary reasoning and computations.
+          Carry out all steps carefully and completely, justifying each transition as needed.
+          If the plan includes a 'Check' step, perform a concise verification immediately before stating the final answer.
+          Present the final answer clearly inside \boxed{}.
+
+

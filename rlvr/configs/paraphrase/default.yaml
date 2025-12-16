@@ -1,0 +1,4 @@
+num_paraphrases_per_failure: 2
+samples_per_prompt: 8
+gamma_mix: 0.1
+extra_templates: []

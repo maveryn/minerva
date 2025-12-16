@@ -1,0 +1,23 @@
+gamma: 1.0
+lam: 1.0
+adv_estimator: grpo
+norm_adv_by_std_in_grpo: true
+use_kl_in_reward: false
+kl_penalty: kl
+kl_ctrl:
+  type: fixed
+  kl_coef: 0.001
+  horizon: 10000
+  target_kl: 0.1
+use_pf_ppo: false
+pf_ppo: {}
+filter_groups:
+  enable: false
+  metric: null
+  max_num_gen_batches: 0
+clip_higher:
+  enabled: false
+  eps_low: 0.0
+  eps_high: 0.0
+dynamic_sampling:
+  enabled: false

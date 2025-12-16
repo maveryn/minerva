@@ -1,0 +1,18 @@
+# Enable bridged dataset & mandatory CE
+bridging:
+  enable: true
+  # not used directly here; paraphrases are loaded from parquet
+actor_rollout_ref:
+  actor:
+    mandatory_distill:
+      enable: true
+      lambda_ce: 0.5   # tune 0.1~1.0
+  rollout:
+    name: vllm
+    n: 8   # GRPO pass@8
+# Standard GRPO setup knobs
+algorithm:
+  adv_estimator: grpo
+data:
+  return_raw_chat: true
+  # we will point train_files/val_files on the CLI
