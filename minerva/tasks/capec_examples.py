@@ -74,6 +74,7 @@ def build_capec_example_tasks(
                     "task": "capec_example_to_capec",
                     "input": {"example": ex, "prompt": EXAMPLE_TO_CAPEC_PROMPT.format(EXAMPLE_TEXT=ex)},
                     "ground_truth": {"capec_id": capec_id},
+                    "answer": capec_id,
                     "reward_fn": "binary_id",
                     "metadata": {"capec_name": pat.get("name", "")},
                 }
@@ -90,6 +91,7 @@ def build_capec_example_tasks(
                             ),
                         },
                         "ground_truth": {"cwe_ids": cwes},
+                        "answer": cwes,
                         "reward_fn": "reward_cwe_ids",
                         "metadata": {"capec_id": capec_id},
                     }
@@ -103,6 +105,7 @@ def build_capec_example_tasks(
                             "prompt": EXAMPLE_TO_ATTACK_PROMPT.format(EXAMPLE_TEXT=ex),
                         },
                         "ground_truth": {"technique_id": atks[0]},
+                        "answer": atks[0],
                         "reward_fn": "reward_technique_id",
                         "metadata": {"capec_id": capec_id},
                     }

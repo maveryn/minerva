@@ -66,6 +66,7 @@ def build_scenario_to_technique(records: List[Dict[str, any]], max_items: int, o
                     "prompt": SCENARIO_TECHNIQUE_PROMPT.format(SCENARIO_TEXT=scenario_text),
                 },
                 "ground_truth": {"technique_id": r.get("technique_id")},
+                "answer": r.get("technique_id"),
                 "reward_fn": "reward_technique_id",
                 "metadata": {
                     "tactics": r.get("tactics", []),
@@ -102,6 +103,7 @@ def build_scenario_to_tactics(records: List[Dict[str, any]], output_path: str, s
                     ),
                 },
                 "ground_truth": {"tactic_ids": tactics},
+                "answer": tactics,
                 "reward_fn": "reward_tactic_ids",
                 "metadata": {"technique_id": r["ground_truth"].get("technique_id")},
             }
@@ -135,6 +137,7 @@ def build_scenario_to_mitigations(records: List[Dict[str, any]], output_path: st
                     ),
                 },
                 "ground_truth": {"mitigation_ids": mits},
+                "answer": mits,
                 "reward_fn": "reward_mitigation_ids",
                 "metadata": {"technique_id": r["ground_truth"].get("technique_id")},
             }
@@ -166,6 +169,7 @@ def build_scenario_to_detections(records: List[Dict[str, any]], output_path: str
                     "prompt": SCENARIO_DETECTION_PROMPT.format(SCENARIO_TEXT=scenario_text),
                 },
                 "ground_truth": {"detection_id": det_id},
+                "answer": det_id,
                 "reward_fn": "reward_detection_id",
                 "metadata": {"technique_id": r["ground_truth"].get("technique_id")},
             }

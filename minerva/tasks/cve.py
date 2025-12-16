@@ -45,6 +45,7 @@ def build_cve_to_cwe(records: List[Dict[str, Any]], min_words: int, output_path:
                     "prompt": prompt,
                 },
                 "ground_truth": {"cwe_ids": cwes},
+                "answer": cwes,
                 "reward_fn": "reward_cwe_ids",
                 "metadata": {
                     "published_date": r.get("published_date"),
@@ -79,6 +80,7 @@ def build_cve_to_cvss_v31(records: List[Dict[str, Any]], min_words: int, output_
                 "task": "cve_to_cvss_v31",
                 "input": {"cve_id": r.get("cve_id"), "description": desc, "prompt": prompt},
                 "ground_truth": {"cvss_v31_vector": vec, "score": score},
+                "answer": vec,
                 "reward_fn": "reward_cvss_v31",
                 "metadata": {"published_date": r.get("published_date")},
             }
@@ -111,6 +113,7 @@ def build_cve_to_cvss_v40(records: List[Dict[str, Any]], min_words: int, output_
                 "task": "cve_to_cvss_v40",
                 "input": {"cve_id": r.get("cve_id"), "description": desc, "prompt": prompt},
                 "ground_truth": {"cvss_v4_vector": vec, "score": score},
+                "answer": vec,
                 "reward_fn": "reward_cvss_v40",
                 "metadata": {"published_date": r.get("published_date")},
             }
