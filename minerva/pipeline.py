@@ -1,7 +1,8 @@
 import argparse
 import json
+import random
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from minerva.data_sources.capec import load_bundle as load_capec_bundle
 from minerva.data_sources.mitre import collect_procedure_scenarios
@@ -9,15 +10,67 @@ from minerva.data_sources.nvd import ensure_records as ensure_nvd_records
 from minerva.logger import get_logger
 from minerva.tasks import (
     build_cve_to_capec_attack,
+    build_capec_example_tasks,
     build_cve_to_cwe,
-    build_cve_to_cvss,
-    build_cwe_code_to_cwe,
+    build_cve_to_cvss_v31,
+    build_cve_to_cvss_v40,
+    build_cve_attack_datasets,
     build_scenario_to_detections,
     build_scenario_to_mitigations,
     build_scenario_to_tactics,
     build_scenario_to_technique,
+    build_sigma_datasets,
+    build_threat_actor_tasks,
 )
 from minerva.utils import dedupe_by_text, load_yaml
+
+
+def _pick_random_jsonl(path: Path) -> Optional[Dict]:
+    if not path.exists():
+        return None
+    chosen = None
+    with path.open("r", encoding="utf-8", errors="ignore") as f:
+        for i, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if random.randint(1, i) == 1:
+                chosen = rec
+    return chosen
+
+
+def _dedupe_jsonl(path: Path) -> tuple[int, int]:
+    """
+    Dedupe a JSONL file by the input prompt (falls back to serialized input).
+    Returns (kept_count, removed_count).
+    """
+    if not path.exists():
+        return 0, 0
+    seen = set()
+    rows = []
+    removed = 0
+    with path.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            key = json.dumps(rec.get("input", {}), sort_keys=True)
+            if key in seen:
+                removed += 1
+                continue
+            seen.add(key)
+            rows.append(rec)
+    if removed > 0:
+        path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8")
+    return len(rows), removed
 
 
 def main() -> None:
@@ -31,6 +84,7 @@ def main() -> None:
 
     logger.info("=== Minerva dataset build starting ===")
     summary: Dict[str, int] = {}
+    examples: Dict[str, Dict] = {}
 
     # Load data sources
     logger.info("Loading NVD CVE records")
@@ -40,17 +94,62 @@ def main() -> None:
         text_fn=lambda r: r.get("description", ""),
         prefer_ts_fn=lambda r: r.get("published_date") or r.get("last_modified_date"),
     )
-    summary["nvd_records"] = len(nvd_records)
 
     logger.info("Loading CAPEC bundle")
     capec_data = load_capec_bundle(cfg.get("CAPEC", {}), logger=logger)
-    summary["capec_patterns"] = len(capec_data["patterns"])
 
     logger.info("Loading ATT&CK procedure scenarios")
     scenario_records = collect_procedure_scenarios(cfg.get("MITRE_ATTACK", {}), logger=logger)
-    summary["procedure_scenarios"] = len(scenario_records)
+
+    # Mapping-explorer CVE -> ATT&CK datasets
+    try:
+        common_cfg = cfg.get("COMMON", {})
+        mappings_path = common_cfg.get(
+            "mappings_path", "dataset/mappings-explorer/kev-02.13.2025_attack-15.1-enterprise.yaml"
+        )
+        minerva_out = common_cfg.get("minerva_out", "dataset/minerva")
+        mappings = build_cve_attack_datasets(mappings_path, output_dir=minerva_out, logger=logger)
+        summary["cve_to_attack_exploitation"] = len(mappings.get("exploitation", []))
+        summary["cve_to_attack_primary_impact"] = len(mappings.get("primary_impact", []))
+        summary["cve_to_attack_secondary_impact"] = len(mappings.get("secondary_impact", []))
+    except Exception as exc:
+        logger.error("Failed mapping-explorer build: %s", exc)
+
+    # CAPEC example tasks
+    try:
+        cap_cfg = cfg.get("TASKS", {})
+        capec_out = cap_cfg.get("CAPEC_EXAMPLE_CAPEC", {}).get("output_path", "dataset/minerva/capec_example_to_capec.jsonl")
+        cwe_out = cap_cfg.get("CAPEC_EXAMPLE_CWE", {}).get("output_path", "dataset/minerva/capec_example_to_cwe.jsonl")
+        atk_out = cap_cfg.get("CAPEC_EXAMPLE_ATTACK", {}).get("output_path", "dataset/minerva/capec_example_to_attack.jsonl")
+        cap_seed = int(cap_cfg.get("CAPEC_EXAMPLE_CAPEC", {}).get("seed", 1337))
+        capec_tasks = build_capec_example_tasks(
+            capec_data["patterns"],
+            capec_out=capec_out,
+            cwe_out=cwe_out,
+            attack_out=atk_out,
+            seed=cap_seed,
+            logger=logger,
+        )
+        summary["capec_example_to_capec"] = len(capec_tasks.get("capec", []))
+        summary["capec_example_to_cwe"] = len(capec_tasks.get("cwe", []))
+        summary["capec_example_to_attack"] = len(capec_tasks.get("attack", []))
+    except Exception as exc:
+        logger.error("Failed CAPEC example tasks: %s", exc)
+
+    # Sigma rule datasets
+    try:
+        sigma_dirs = cfg.get("SIGMA", {}).get(
+            "rule_dirs", ["dataset/sigma/rules", "dataset/sigma/rules-threat-hunting"]
+        )
+        minerva_out = cfg.get("COMMON", {}).get("minerva_out", "dataset/minerva")
+        sigma_sets = build_sigma_datasets(sigma_dirs, output_dir=minerva_out, logger=logger)
+        summary["sigma_to_attack_technique"] = len(sigma_sets.get("technique", []))
+        summary["sigma_to_attack_tactics"] = len(sigma_sets.get("tactic", []))
+    except Exception as exc:
+        logger.error("Failed sigma build: %s", exc)
 
     tasks_cfg = cfg.get("TASKS", {})
+    cap_cfg = tasks_cfg
 
     # CVE -> CWE
     try:
@@ -67,21 +166,37 @@ def main() -> None:
     except Exception as exc:
         logger.error("Failed CVE->CWE: %s", exc)
 
-    # CVE -> CVSS
+    # CVE -> CVSS v3.1
     try:
-        cvss_cfg = tasks_cfg.get("CVE_CVSS", {})
-        cvss_tasks = build_cve_to_cvss(
+        cvss31_cfg = tasks_cfg.get("CVE_CVSS_V31", {})
+        cvss31_tasks = build_cve_to_cvss_v31(
             nvd_records,
-            min_words=int(cvss_cfg.get("min_words", 25)),
-            output_path=cvss_cfg.get("output_path", "data/processed/minerva/cve_to_cvss.jsonl"),
-            prefer_nvd=bool(cvss_cfg.get("prefer_nvd", True)),
-            seed=int(cvss_cfg.get("seed", 1337)),
-            max_items=int(cvss_cfg.get("max_items", 10000)),
+            min_words=int(cvss31_cfg.get("min_words", 25)),
+            output_path=cvss31_cfg.get("output_path", "data/processed/minerva/cve_to_cvss_v31.jsonl"),
+            prefer_nvd=bool(cvss31_cfg.get("prefer_nvd", True)),
+            seed=int(cvss31_cfg.get("seed", 1337)),
+            max_items=int(cvss31_cfg.get("max_items", 10000)),
             logger=logger,
         )
-        summary["cve_to_cvss"] = len(cvss_tasks)
+        summary["cve_to_cvss_v31"] = len(cvss31_tasks)
     except Exception as exc:
-        logger.error("Failed CVE->CVSS: %s", exc)
+        logger.error("Failed CVE->CVSS v3.1: %s", exc)
+
+    # CVE -> CVSS v4.0
+    try:
+        cvss40_cfg = tasks_cfg.get("CVE_CVSS_V40", {})
+        cvss40_tasks = build_cve_to_cvss_v40(
+            nvd_records,
+            min_words=int(cvss40_cfg.get("min_words", 25)),
+            output_path=cvss40_cfg.get("output_path", "data/processed/minerva/cve_to_cvss_v40.jsonl"),
+            prefer_nvd=bool(cvss40_cfg.get("prefer_nvd", True)),
+            seed=int(cvss40_cfg.get("seed", 1337)),
+            max_items=int(cvss40_cfg.get("max_items", 10000)),
+            logger=logger,
+        )
+        summary["cve_to_cvss_v40"] = len(cvss40_tasks)
+    except Exception as exc:
+        logger.error("Failed CVE->CVSS v4.0: %s", exc)
 
     # Scenario -> technique (base set reused downstream)
     scenario_tasks = []
@@ -140,39 +255,54 @@ def main() -> None:
     except Exception as exc:
         logger.error("Failed scenario->detection: %s", exc)
 
-    # CVE -> CAPEC -> ATT&CK
+    # Threat actor MCQ
     try:
-        chain_cfg = tasks_cfg.get("CVE_ATTACK_CHAIN", {})
-        chain_tasks = build_cve_to_capec_attack(
-            nvd_records,
-            cwe_to_capec=capec_data["cwe_to_capec"],
-            capec_patterns=capec_data["patterns"],
-            output_path=chain_cfg.get("output_path", "data/processed/minerva/cve_to_attack_chain.jsonl"),
-            min_words=int(chain_cfg.get("min_words", 15)),
-            seed=int(chain_cfg.get("seed", 1337)),
-            max_items=int(chain_cfg.get("max_items", 0)),
-            logger=logger,
-        )
-        summary["cve_to_attack_chain"] = len(chain_tasks)
+        ta_cfg = tasks_cfg.get("THREAT_ACTOR", {})
+        ta_out = ta_cfg.get("output_path", "dataset/minerva/threat_actor_mcq.jsonl")
+        ta_seed = int(ta_cfg.get("seed", 1337))
+        ta_tasks = build_threat_actor_tasks(cfg.get("MITRE_ATTACK", {}), output_path=ta_out, seed=ta_seed, logger=logger)
+        summary["threat_actor_mcq"] = len(ta_tasks)
     except Exception as exc:
-        logger.error("Failed CVE->CAPEC->ATT&CK: %s", exc)
-
-    # CWE code snippet placeholder (logged skip)
-    try:
-        code_cfg = tasks_cfg.get("CWE_CODE", {})
-        code_tasks = build_cwe_code_to_cwe(
-            output_path=code_cfg.get("output_path", "data/processed/minerva/cwe_code_to_cwe.jsonl"),
-            logger=logger,
-        )
-        summary["cwe_code_to_cwe"] = len(code_tasks)
-    except Exception as exc:
-        logger.error("Failed CWE code snippet task: %s", exc)
+        logger.error("Failed threat actor task: %s", exc)
 
     # Persist metadata
     meta_path = Path(cfg.get("COMMON", {}).get("metadata_path", "data/processed/minerva/metadata.json"))
     meta_path.parent.mkdir(parents=True, exist_ok=True)
-    meta_path.write_text(json.dumps({"summary": summary}, indent=2), encoding="utf-8")
+
+    # Collect one random example per summarized task and dedupe datasets by prompt
+    common_cfg = cfg.get("COMMON", {})
+    minerva_out = common_cfg.get("minerva_out", "dataset/minerva")
+    task_paths = {
+        "cve_to_attack_exploitation": Path(minerva_out) / "cve_to_attack_exploitation.jsonl",
+        "cve_to_attack_primary_impact": Path(minerva_out) / "cve_to_attack_primary_impact.jsonl",
+        "cve_to_attack_secondary_impact": Path(minerva_out) / "cve_to_attack_secondary_impact.jsonl",
+        "cve_to_cwe": Path(tasks_cfg.get("CVE_CWE", {}).get("output_path", "dataset/minerva/cve_to_cwe.jsonl")),
+        "cve_to_cvss_v31": Path(tasks_cfg.get("CVE_CVSS_V31", {}).get("output_path", "dataset/minerva/cve_to_cvss_v31.jsonl")),
+        "cve_to_cvss_v40": Path(tasks_cfg.get("CVE_CVSS_V40", {}).get("output_path", "dataset/minerva/cve_to_cvss_v40.jsonl")),
+        "sigma_to_attack_technique": Path(minerva_out) / "sigma_to_attack_technique.jsonl",
+        "sigma_to_attack_tactics": Path(minerva_out) / "sigma_to_attack_tactics.jsonl",
+        "capec_example_to_capec": Path(cap_cfg.get("CAPEC_EXAMPLE_CAPEC", {}).get("output_path", "dataset/minerva/capec_example_to_capec.jsonl")),
+        "capec_example_to_cwe": Path(cap_cfg.get("CAPEC_EXAMPLE_CWE", {}).get("output_path", "dataset/minerva/capec_example_to_cwe.jsonl")),
+        "capec_example_to_attack": Path(cap_cfg.get("CAPEC_EXAMPLE_ATTACK", {}).get("output_path", "dataset/minerva/capec_example_to_attack.jsonl")),
+        "threat_actor_mcq": Path(tasks_cfg.get("THREAT_ACTOR", {}).get("output_path", "dataset/minerva/threat_actor_mcq.jsonl")),
+        "scenario_to_technique": Path(tasks_cfg.get("SCENARIO_TECHNIQUE", {}).get("output_path", "dataset/minerva/scenario_to_technique.jsonl")),
+        "scenario_to_tactics": Path(tasks_cfg.get("SCENARIO_TACTIC", {}).get("output_path", "dataset/minerva/scenario_to_tactics.jsonl")),
+        "scenario_to_mitigations": Path(tasks_cfg.get("SCENARIO_MITIGATION", {}).get("output_path", "dataset/minerva/scenario_to_mitigations.jsonl")),
+        "scenario_to_detections": Path(tasks_cfg.get("SCENARIO_DETECTION", {}).get("output_path", "dataset/minerva/scenario_to_detections.jsonl")),
+    }
+    dedupe_info: Dict[str, int] = {}
+    for task_name, path in task_paths.items():
+        if task_name in summary:
+            kept, removed = _dedupe_jsonl(path)
+            if removed:
+                dedupe_info[task_name] = removed
+                summary[task_name] = kept
+            examples[task_name] = _pick_random_jsonl(path)
+
+    meta_path.write_text(json.dumps({"summary": summary, "examples": examples, "dedupe_removed": dedupe_info}, indent=2), encoding="utf-8")
     logger.info("Wrote metadata -> %s", meta_path)
+    if dedupe_info:
+        logger.info("Dedupe removed entries: %s", dedupe_info)
     logger.info("=== Finished Minerva build ===")
 
 

@@ -21,33 +21,51 @@ TASKS:
     min_words: 30
     output_path: dataset/minerva/cve_to_cwe.jsonl
     seed: 1337
-    max_items: 10000
-  CVE_CVSS:
+    max_items: 999999999
+  CVE_CVSS_V31:
     min_words: 30
     prefer_nvd: true
-    output_path: dataset/minerva/cve_to_cvss.jsonl
+    output_path: dataset/minerva/cve_to_cvss_v31.jsonl
     seed: 1337
-    max_items: 10000
+    max_items: 999999999
+  CVE_CVSS_V40:
+    min_words: 30
+    prefer_nvd: true
+    output_path: dataset/minerva/cve_to_cvss_v40.jsonl
+    seed: 1337
+    max_items: 999999999
   SCENARIO_TECHNIQUE:
-    max_items: 5000
+    max_items: 999999999
     output_path: dataset/minerva/scenario_to_technique.jsonl
     seed: 1337
   SCENARIO_TACTIC:
     output_path: dataset/minerva/scenario_to_tactics.jsonl
     seed: 1337
-    max_items: 0
+    max_items: 999999999
   SCENARIO_MITIGATION:
     output_path: dataset/minerva/scenario_to_mitigations.jsonl
     seed: 1337
-    max_items: 0
+    max_items: 999999999
   SCENARIO_DETECTION:
     output_path: dataset/minerva/scenario_to_detections.jsonl
     seed: 1337
-    max_items: 0
+    max_items: 999999999
   CVE_ATTACK_CHAIN:
     min_words: 15
     output_path: dataset/minerva/cve_to_attack_chain.jsonl
     seed: 1337
     max_items: 0
+  CAPEC_EXAMPLE_CAPEC:
+    output_path: dataset/minerva/capec_example_to_capec.jsonl
+    seed: 1337
+  CAPEC_EXAMPLE_CWE:
+    output_path: dataset/minerva/capec_example_to_cwe.jsonl
+    seed: 1337
+  CAPEC_EXAMPLE_ATTACK:
+    output_path: dataset/minerva/capec_example_to_attack.jsonl
+    seed: 1337
+  THREAT_ACTOR:
+    output_path: dataset/minerva/threat_actor_mcq.jsonl
+    seed: 1337
   CWE_CODE:
     output_path: dataset/minerva/cwe_code_to_cwe.jsonl
