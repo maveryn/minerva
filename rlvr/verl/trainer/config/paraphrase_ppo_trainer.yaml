@@ -1,0 +1,51 @@
+# verl/trainer/config/paraphrase_ppo_trainer.yaml
+# Paraphrase PPO trainer configuration extending base PPO
+defaults:
+  - ppo_trainer
+  - _self_
+
+# Task name for registry
+task: paraphrase_ppo
+
+# Use GRPO by default (no critic needed)
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false
+  clip_coef: inf  # Disable PPO clipping
+
+critic:
+  enable: false  # GRPO doesn't need critic
+
+# Paraphrase-specific configuration
+paraphrase:
+  variant: answer                    # {answer|question}
+  k_rollouts: 8                      # Total per context (plain or paraphrased)
+  paraphrase_per_x: 1                # Number of question paraphrases per x
+  target_solve_rate: 0.5             # Only for question variant (≈ "sweet spot")
+  
+  select:
+    correct_topk: 4                  # Target number of correct in group
+    incorrect_fill: 'high'           # {'high'|'low'} entropy for incorrect fill
+    seed_correct: 'lowest_entropy'   # For answer variant; tie→shortest
+  
+  answer_styles:                     # Candidate styles for rewrites
+    - "condense; keep only decisive steps"
+    - "number key steps and final check"
+    - "self-verify then present final concise solution"
+  
+  max_new_tokens: 512                # For paraphrase generations
+  
+  ce_distill:
+    enabled: true
+    weight: 0.1                      # λ_ce
+    buffer_size: 2048                # Max verified pairs to keep in RAM
+  
+  transport:
+    enabled: true
+    clip_ratio: 0.2                  # PPO/GRPO style clip (1±ε). ε=0.2 is typical
+    log_ratio_cap: 8.0               # |log ρ_t| cap for stability
+  
+  logging:
+    debug_rows: true
+    write_every_steps: 50
+    dir: "${trainer.default_local_dir}/paraphrase_logs"

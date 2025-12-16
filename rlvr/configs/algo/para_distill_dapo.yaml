@@ -1,0 +1,7 @@
+clip_higher:
+  enabled: true
+  eps_low: 0.20
+  eps_high: 0.28
+
+dynamic_sampling:
+  enabled: true

@@ -1,0 +1,15 @@
+defaults:
+  - ppo_trainer  # pull in VeRL's baseline PPO config
+
+# knobs for your new phases
+para_distill:
+  lambda_distill: 0.3
+
+paraphrase:
+  num_paraphrases_per_failure: 2
+  samples_per_prompt: 8
+  gamma_mix: 0.0  # set >0 only if you really want ref-policy generation
+
+# Optional: turn off model-based reward worker, keep your custom function only
+reward_model:
+  enable: false

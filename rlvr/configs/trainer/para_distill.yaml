@@ -1,0 +1,36 @@
+defaults:
+  - /algo/base@algorithm
+  - /paraphrase/default@paraphrase
+  - _self_
+
+trainer:
+  name: para_distill
+  seed: 1234
+
+algorithm:
+  adv_estimator: grpo
+  clip_higher:
+    enabled: true
+    eps_low: 0.20
+    eps_high: 0.28
+  dynamic_sampling:
+    enabled: true
+
+para_distill:
+  lambda_distill: 0.3
+  small_kl_coef: 0.001
+
+paraphrase:
+  num_paraphrases_per_failure: 2
+  samples_per_prompt: 8
+  gamma_mix: 0.1
+  extra_templates:
+    - "{text}\nPlease include explicit intermediate computations."
+
+data:
+  train_files: ["${oc.env:DATA_DIR}/train.parquet"]
+  val_files: ["${oc.env:DATA_DIR}/val.parquet"]
+
+custom_reward_function:
+  path: ${oc.env:REWARD_PY}
+  name: reward_all_weighted

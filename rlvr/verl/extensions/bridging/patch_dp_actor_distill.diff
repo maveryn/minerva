@@ -1,0 +1,64 @@
+*** a/verl/workers/actor/dp_actor.py
+--- b/verl/workers/actor/dp_actor.py
+@@
+-        pg_loss, pg_clipfrac, ppo_kl, pg_clipfrac_lower = policy_loss_fn(
+-            old_log_prob=old_log_prob, log_prob=log_prob,
+-            advantages=advantages, response_mask=response_mask,
+-            loss_agg_mode=self.config.loss_agg_mode, config=self.config)
++        pg_loss, pg_clipfrac, ppo_kl, pg_clipfrac_lower = policy_loss_fn(
++            old_log_prob=old_log_prob, log_prob=log_prob,
++            advantages=advantages, response_mask=response_mask,
++            loss_agg_mode=self.config.loss_agg_mode, config=self.config)
++
++        # ======== MANDATORY SELF-DISTILLATION (additive CE on successes) ========
++        # Guarded by config flag: actor_rollout_ref.actor.mandatory_distill.enable
++        if getattr(self.config, "mandatory_distill", None) and self.config.mandatory_distill.enable:
++            lambda_ce = float(getattr(self.config.mandatory_distill, "lambda_ce", 0.5))
++            # success mask: score==1  (VeRL reward tensor summed on tokens; GSM8K/MATH return {0,0.1,1})
++            token_scores = micro_batch.batch["token_level_scores"].sum(dim=-1)  # (bs,)
++            success_mask = (token_scores >= 0.999).float()             # (bs,)
++            if success_mask.sum() > 0:
++                # Re-encode (orig_prompt, response) pairs and compute CE
++                # Collect texts
++                inputs_txt = self.tokenizer.batch_decode(micro_batch.batch["prompts"], skip_special_tokens=True)
++                outputs_txt = self.tokenizer.batch_decode(micro_batch.batch["responses"], skip_special_tokens=True)
++                # Recover orig prompts passed via non_tensor_batch.extra_info.orig_prompt
++                orig_prompts = []
++                extra_info = micro_batch.non_tensor_batch.get("extra_info", [None]*len(inputs_txt))
++                for i in range(len(inputs_txt)):
++                    ei = extra_info[i] if isinstance(extra_info, (list, tuple)) else extra_info
++                    if isinstance(ei, dict) and "orig_prompt" in ei and ei["orig_prompt"]:
++                        orig_prompts.append(ei["orig_prompt"])
++                    else:
++                        # fallback to the current input text if not provided
++                        orig_prompts.append(inputs_txt[i])
++                # Build new chat prompts with original wording
++                chat_prompts = [[{"role":"user","content":p}] for p in orig_prompts]
++                # Tokenize (orig_prompt + response) with response as labels
++                enc = self.tokenizer.apply_chat_template(
++                    chat_prompts, add_generation_prompt=True, tokenize=True, return_tensors="pt"
++                ).to(self.actor_module.device)
++                # Append response as labels
++                resp_ids = self.tokenizer(outputs_txt, return_tensors="pt", add_special_tokens=False).input_ids.to(self.actor_module.device)
++                # Concatenate and make labels mask only response tokens
++                input_ids = torch.nn.utils.rnn.pad_sequence(
++                    [torch.cat([enc.input_ids[i], resp_ids[i]], dim=0) for i in range(len(resp_ids))],
++                    batch_first=True, padding_value=self.tokenizer.pad_token_id
++                ).to(self.actor_module.device)
++                # labels: -100 for prompt part, response ids for response part
++                labels = input_ids.clone()
++                for i in range(len(resp_ids)):
++                    pref_len = enc.input_ids[i].shape[0]
++                    labels[i, :pref_len] = -100
++                attn = (input_ids != self.tokenizer.pad_token_id).long()
++                # Forward pass
++                out = self.actor_module(input_ids=input_ids, attention_mask=attn)
++                ce_loss = torch.nn.functional.cross_entropy(
++                    out.logits.view(-1, out.logits.size(-1)), labels.view(-1), reduction="none", ignore_index=-100
++                ).view(labels.shape)
++                ce_per_ex = (ce_loss * (labels != -100)).sum(dim=-1) / (labels != -100).sum(dim=-1)
++                # Weight only successes
++                ce_weighted = (ce_per_ex * success_mask.to(ce_per_ex.device)).sum() / (success_mask.sum())
++                pg_loss = pg_loss + lambda_ce * ce_weighted
++                metrics["actor/mandatory_ce"] = ce_weighted.detach().item()
++        # =========================================================================

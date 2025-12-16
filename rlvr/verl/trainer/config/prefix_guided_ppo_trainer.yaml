@@ -1,0 +1,63 @@
+false  # 3) Reward dithering (Entropy)
+  reward_dither:
+    enable: true
+    first_n_tokens: 32
+    scale: 0.03
+    eps: 1.0e-8102519  force_serial_gen: true
+# verl/trainer/config/prefix_guided_ppo_trainer.yaml
+# Compose from the stock PPO config; we only add a small "prefix_guided" block.
+defaults:
+  - ppo_trainer
+  - _self_
+
+# Use GRPO by default (no critic needed).
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false   # you can override to true and keep KL-in-reward from veRL
+
+critic:
+  enable: false             # turn on only if you really want GAE
+  model:
+    path: ${actor_rollout_ref.model.path}  # safe default if you enable critic later
+
+# Our prefix-guided knobs (all override-able via CLI)
+prefix_guided:
+  # 1) Off-policy → on-policy rescaling (Eq. 1)
+  rescale:
+    enable: false              # default: false
+    method: "affine_match"  
+    scope: "per_uid"
+
+  # 2) Anchor bonus (exploration)
+  anchor:
+    enable: true             
+    weight: 0.1               
+    max_pairs_per_item: 2     # cap number of prefix-guided prompts kept per original uid
+  # 3) Reward dithering (Entropy)
+  reward_dither:
+    enable: true
+    first_n_tokens: 32
+    scale: 0.03
+    eps: 1.0e-8
+    
+  ans_cot_samples: 8
+  warmup_prefix_steps: 100
+  frac_bins: 10
+  target_success: 0.25
+  min_prefix_frac: 0.1
+  max_prefix_frac: 0.9
+  force_serial_gen: true
+
+  prompt:
+    answer_guided_template: |-
+        You are given a math problem and its correct final answer.
+        Derive a clear, logically sound step-by-step solution that leads directly to the final answer.
+        Write the solution as numbered steps, with each step separated by a blank line (two newline characters \n\n).
+        You must not contradict, challenge, or re-evaluate the Correct Answer under any circumstances.
+        Do not introduce alternative answers or possibilities.
+        Do not reveal or restate the final answer before the last step of your solution.
+        Present the final answer clearly inside \boxed{}.
+    prefix_hint_template: |-
+        You are given a math problem and a partial solution written as numbered steps.
+        Continue the reasoning from these steps, extending the solution step by step in a clear and logical way until you reach the final conclusion.
+        Present the final answer clearly inside \boxed{}.
