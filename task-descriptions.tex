@@ -1,0 +1,267 @@
+\documentclass{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{longtable}
+\usepackage{array}
+\begin{document}
+
+\section*{Task Definitions and Prompts}
+
+Structured reference for how each dataset is built, the inputs/outputs, reward used, and the prompt. Train/dev counts come from \texttt{dataset/minerva\_split/}.
+
+\subsection*{Mapping-explorer: CVE to ATT\&CK}
+Source: \texttt{dataset/mappings-explorer/kev-02.13.2025\_attack-15.1-enterprise.yaml}; CVE description from comments (CVE IDs replaced with ``This vulnerability''/``this vulnerability''); label from \texttt{attack\_object\_id}. \\
+Input: CVE description. Output: ATT\&CK technique ID. Reward: \texttt{reward\_technique\_id}.
+
+\paragraph{Exploitation Technique}
+\begin{verbatim}
+Given the vulnerability description below, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
+
+Exploitation Technique - the method (technique) used to exploit the vulnerability.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise technique IDs only.
+- Return exactly ONE technique ID.
+- Prefer a sub-technique ID (e.g., T1059.003) if it is more suitable; otherwise return the parent technique ID (e.g., T1059).
+
+Vulnerability description:
+{CVE_DESCRIPTION}
+\end{verbatim}
+
+\paragraph{Primary Impact}
+\begin{verbatim}
+Given the vulnerability description below, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
+
+Primary Impact - the initial benefit (impact) gained through exploitation of the vulnerability.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise technique IDs only.
+- Return exactly ONE technique ID.
+- Prefer a sub-technique ID (e.g., T1059.003) if it is more suitable; otherwise return the parent technique ID (e.g., T1059).
+
+Vulnerability description:
+{CVE_DESCRIPTION}
+\end{verbatim}
+
+\paragraph{Secondary Impact}
+\begin{verbatim}
+Given the vulnerability description and the primary impact already obtained, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
+
+Secondary Impact - what the adversary can do by gaining the benefit of the primary impact.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise technique IDs only.
+- Return exactly ONE technique ID.
+- Prefer a sub-technique ID (e.g., T1059.003) if it is more suitable; otherwise return the parent technique ID (e.g., T1059).
+
+Vulnerability description:
+{CVE_DESCRIPTION}
+
+Primary impact:
+{PRIMARY_IMPACT_TECHNIQUE_ID}
+\end{verbatim}
+
+\subsection*{CVE to CWE / CVSS (NVD)}
+Built from NVD CVEs.
+
+\paragraph{CVE -> CWE} Input: CVE description. Output: CWE IDs. Reward: \texttt{reward\_cwe\_ids}.
+\begin{verbatim}
+Given the Common Vulnerabilities and Exposures (CVE) description below, list EXACTLY {COUNT} Common Weakness Enumeration (CWE) ID{S_SUFFIX} in CWE-<number> format.
+
+CVE description:
+{CVE_DESCRIPTION}
+\end{verbatim}
+
+\paragraph{CVE -> CVSS v3.1 base vector} Input: CVE description. Output: CVSS v3.1 base vector string. Reward: \texttt{reward\_cvss\_v31}.
+\begin{verbatim}
+Given the Common Vulnerabilities and Exposures (CVE) description below, provide the CVSS v3.1 base vector string (format: CVSS:3.1/AV:X/AC:X/PR:X/UI:X/S:X/C:X/I:X/A:X).
+
+CVE description:
+{CVE_DESCRIPTION}
+\end{verbatim}
+
+\paragraph{CVE -> CVSS v4.0 base vector} Input: CVE description. Output: CVSS v4.0 base vector string. Reward: \texttt{reward\_cvss\_v40}.
+\begin{verbatim}
+Given the Common Vulnerabilities and Exposures (CVE) description below, provide the CVSS v4.0 base vector string (format: CVSS:4.0/AV:X/AC:X/AT:X/PR:X/UI:X/VC:X/VI:X/VA:X/SC:X/SI:X/SA:X).
+
+CVE description:
+{CVE_DESCRIPTION}
+\end{verbatim}
+
+\subsection*{Sigma to ATT\&CK}
+Built from Sigma rules in \texttt{dataset/sigma/rules} and \texttt{dataset/sigma/rules-threat-hunting}; excerpt includes title, logsource, detection.
+
+\paragraph{Technique} Input: Sigma excerpt. Output: ATT\&CK technique ID. Reward: \texttt{reward\_technique\_id}.
+\begin{verbatim}
+Given the Sigma rule excerpt below (log source + detection logic), provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the adversary behavior this rule is intended to detect.
+
+Technique - how an adversary achieves a tactical objective by performing an action.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise technique IDs only.
+- Return exactly ONE technique ID.
+- Prefer a sub-technique ID (e.g., T1059.003) if it is more suitable than the parent technique; otherwise return the parent technique ID (e.g., T1059).
+
+Sigma rule excerpt:
+{SIGMA_RULE_EXCERPT}
+\end{verbatim}
+
+\paragraph{Tactics} Input: Sigma excerpt. Output: ATT\&CK tactic IDs (multiple). Reward: \texttt{reward\_tactic\_ids}.
+\begin{verbatim}
+Given the Sigma rule excerpt below (log source + detection logic), enumerate all MITRE ATT&CK Enterprise tactic IDs (TA000x) that are valid for the adversary behavior this rule is intended to detect.
+
+Tactic - why an adversary performs an action (the adversary's tactical objective).
+
+Requirements:
+- Use MITRE ATT&CK Enterprise tactic IDs (TA000x) only.
+- List ALL applicable tactic IDs (multiple may apply).
+
+Sigma rule excerpt:
+{SIGMA_RULE_EXCERPT}
+\end{verbatim}
+
+\subsection*{Scenario to ATT\&CK (MITRE procedures)}
+Built from MITRE ATT\&CK procedure scenarios.
+
+\paragraph{Technique} Input: procedure description. Output: ATT\&CK technique ID. Reward: \texttt{reward\_technique\_id}.
+\begin{verbatim}
+Given the adversary procedure description below, provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the behavior.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise technique IDs only.
+- Return exactly ONE technique ID.
+- Prefer a sub-technique ID (e.g., T1059.003) if it is more suitable; otherwise return the parent technique ID (e.g., T1059).
+
+Adversary procedure:
+{SCENARIO_TEXT}
+\end{verbatim}
+
+\paragraph{Tactics} Input: procedure description. Output: ATT\&CK tactic IDs (count provided). Reward: \texttt{reward\_tactic\_ids}.
+\begin{verbatim}
+Given the adversary procedure description below, list EXACTLY {COUNT} MITRE ATT&CK Enterprise tactic ID{S_SUFFIX} (TA000x) that apply to this behavior.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise tactic IDs (TA000x) only.
+- List EXACTLY {COUNT} tactic ID{S_SUFFIX} that are most appropriate.
+
+Adversary procedure:
+{SCENARIO_TEXT}
+\end{verbatim}
+
+\paragraph{Mitigations} Input: procedure description. Output: ATT\&CK mitigation IDs. Reward: \texttt{reward\_mitigation\_ids}.
+\begin{verbatim}
+Given the adversary procedure description below, list EXACTLY {COUNT} MITRE ATT&CK Enterprise mitigation ID{S_SUFFIX} (M####) that best mitigate this behavior.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise mitigation IDs only.
+- List EXACTLY {COUNT} mitigation ID{S_SUFFIX} that are most appropriate.
+
+Adversary procedure:
+{SCENARIO_TEXT}
+\end{verbatim}
+
+\paragraph{Detection Strategy} Input: procedure description. Output: ATT\&CK detection strategy ID (DET####). Reward: \texttt{reward\_detection\_id}.
+\begin{verbatim}
+Given the adversary procedure description below, provide the single most appropriate MITRE ATT&CK Enterprise detection strategy ID (DET####) that best detects this behavior.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise detection strategy IDs only.
+- Return exactly ONE detection strategy ID.
+
+Adversary procedure:
+{SCENARIO_TEXT}
+\end{verbatim}
+
+\subsection*{CAPEC example tasks}
+Built from CAPEC example instances (parent fallback for ATT\&CK mappings). CWE limited to $\leq$3 per example; ATT\&CK only when a single mapping exists.
+
+\paragraph{Example -> CAPEC ID} Input: example description. Output: CAPEC-<number>. Reward: \texttt{binary\_id}.
+\begin{verbatim}
+Given the example attack description below, provide the single best matching CAPEC ID in CAPEC-<number> format.
+
+Example description:
+{EXAMPLE_TEXT}
+\end{verbatim}
+
+\paragraph{Example -> CWE IDs} Input: example description. Output: CWE IDs (count provided). Reward: \texttt{reward\_cwe\_ids}.
+\begin{verbatim}
+Given the example attack description below, list EXACTLY {COUNT} Common Weakness Enumeration (CWE) ID{S_SUFFIX} in CWE-<number> format that apply.
+
+Example description:
+{EXAMPLE_TEXT}
+\end{verbatim}
+
+\paragraph{Example -> ATT\&CK Technique ID} Input: example description. Output: ATT\&CK technique ID (single). Reward: \texttt{reward\_technique\_id}.
+\begin{verbatim}
+Given the example attack description below, provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the adversary behavior.
+
+Technique - how an adversary achieves a tactical objective by performing an action.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise technique IDs only.
+- Return exactly ONE technique ID.
+- Prefer a sub-technique ID (e.g., T1059.003) if it is more suitable; otherwise return the parent technique ID (e.g., T1059).
+
+Example description:
+{EXAMPLE_TEXT}
+\end{verbatim}
+
+\subsection*{Threat actor MCQ (procedures)}
+Built from MITRE ATT\&CK intrusion-set procedure descriptions. For each actor alias, five variants are generated by sampling 60--100\% of procedures; distractors do not cover the sampled techniques.
+
+Input: list of procedures. Output: option letter (A--E). Reward: \texttt{binary\_id}.
+\begin{verbatim}
+Given the observed adversary procedures below, choose the most likely threat actor.
+
+Observed procedures:
+{PROCEDURE_LIST}
+
+Select the correct option (A-E) and return the option letter.
+
+Options:
+{OPTIONS_TEXT}
+\end{verbatim}
+
+\section*{Dataset Statistics}
+Counts from \texttt{dataset/minerva\_split/metadata.json}.
+
+\begin{table}[h]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}rlllrr@{}}
+\toprule
+\# & file & Input & Output & Reward fn & Train / Val \\
+\midrule
+1 & cve\_to\_attack\_exploitation & CVE description & ATT\&CK Technique ID & reward\_technique\_id & 212 / 53 \\
+2 & cve\_to\_attack\_primary\_impact & CVE description & ATT\&CK Technique ID & reward\_technique\_id & 184 / 46 \\
+3 & cve\_to\_attack\_secondary\_impact & CVE description & ATT\&CK Technique ID & reward\_technique\_id & 59 / 15 \\
+4 & sigma\_to\_attack\_technique & Sigma detection + logsource & ATT\&CK Technique ID & reward\_technique\_id & 1200 / 300 \\
+5 & sigma\_to\_attack\_tactics & Sigma detection + logsource & ATT\&CK Tactic IDs & reward\_tactic\_ids & 1200 / 300 \\
+6 & scenario\_to\_technique & ATT\&CK procedure scenario & ATT\&CK Technique ID & reward\_technique\_id & 6400 / 1600 \\
+7 & scenario\_to\_tactics & ATT\&CK procedure scenario & ATT\&CK Tactic IDs & reward\_tactic\_ids & 2400 / 600 \\
+8 & scenario\_to\_detections & ATT\&CK procedure scenario & ATT\&CK Detection ID & reward\_detection\_id & 2400 / 600 \\
+9 & scenario\_to\_mitigations & ATT\&CK procedure scenario & ATT\&CK Mitigation IDs & reward\_mitigation\_ids & 2400 / 600 \\
+10 & cve\_to\_cwe & CVE description & CWE IDs & reward\_cwe\_ids & 8000 / 2000 \\
+11 & cve\_to\_cvss\_v31 & CVE description & CVSS v3.1 vector & reward\_cvss\_v31 & 3265 / 816 \\
+12 & cve\_to\_cvss\_v40 & CVE description & CVSS v4.0 vector & reward\_cvss\_v40 & 800 / 200 \\
+13 & capec\_example\_to\_capec & CAPEC example text & CAPEC ID & binary\_id & 304 / 76 \\
+14 & capec\_example\_to\_cwe & CAPEC example text & CWE IDs & reward\_cwe\_ids & 157 / 39 \\
+15 & capec\_example\_to\_attack & CAPEC example text & ATT\&CK Technique ID & reward\_technique\_id & 115 / 29 \\
+16 & threat\_actor\_mcq & Procedures list & Threat actor option (A-E) & binary\_id & 2904 / 726 \\
+\midrule
+ & \textbf{Total} &  &  &  & \textbf{32000 / 8000} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\section*{Reward Function Notes}
+\begin{itemize}
+  \item \texttt{reward\_technique\_id}: 1.0 if technique+subtechnique match; 0.5 if parent technique matches but subtech differs/is missing; else 0.
+  \item \texttt{reward\_tactic\_ids}: F1 over predicted vs. ground-truth tactic ID sets.
+  \item \texttt{reward\_cwe\_ids}: F1 over predicted vs. ground-truth CWE ID sets.
+  \item \texttt{reward\_cvss\_v31} / \texttt{reward\_cvss\_v40}: parse base metrics from vectors (v3.1: AV, AC, PR, UI, S, C, I, A; v4.0: AV, AC, AT, PR, UI, VC, VI, VA, SC, SI, SA) and compute per-metric F1.
+  \item \texttt{reward\_mitigation\_ids}: F1 over predicted vs. ground-truth mitigation ID sets.
+  \item \texttt{reward\_detection\_id}: 1.0 if detection ID matches; else 0.
+  \item \texttt{binary\_id}: 1.0 if IDs match; else 0.
+\end{itemize}
+
+\end{document}

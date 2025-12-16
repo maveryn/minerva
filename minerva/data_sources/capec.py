@@ -41,7 +41,7 @@ def download_bundle(url: str, cache_path: Path, logger=None) -> Path:
 def load_bundle(cfg: Dict[str, Any], logger=None) -> Dict[str, Any]:
     """
     Load CAPEC bundle. Returns:
-      - patterns: capec_id -> {name, description, cwe_ids, attack_techniques}
+      - patterns: capec_id -> {name, description, cwe_ids, attack_techniques, example_instances, parent_ids}
       - cwe_to_capec: cwe_id -> set of capec_ids
     """
     if logger is None:
@@ -56,6 +56,14 @@ def load_bundle(cfg: Dict[str, Any], logger=None) -> Dict[str, Any]:
     patterns: Dict[str, Dict[str, Any]] = {}
     cwe_to_capec: Dict[str, Set[str]] = {}
     tid_regex = re.compile(r"T\d{4}(?:\.\d{3})?")
+
+    stix_to_capec: Dict[str, str] = {}
+    for obj in objs:
+        if obj.get("type") != "attack-pattern":
+            continue
+        capec_id = _external_id(obj, "capec", CAPEC_PREFIX)
+        if capec_id:
+            stix_to_capec[obj.get("id")] = capec_id
 
     for obj in objs:
         if obj.get("type") != "attack-pattern":
@@ -76,15 +84,27 @@ def load_bundle(cfg: Dict[str, Any], logger=None) -> Dict[str, Any]:
                 attack_refs.append(eid)
         for cwe in cwe_ids:
             cwe_to_capec.setdefault(cwe, set()).add(capec_id)
+        example_instances = []
+        for ex in obj.get("x_capec_example_instances") or []:
+            text = re.sub(r"<[^>]+>", " ", str(ex))
+            text = " ".join(text.split())
+            if text:
+                example_instances.append(text)
+        parent_ids: List[str] = []
+        for ref in obj.get("x_capec_child_of_refs") or []:
+            pid = stix_to_capec.get(ref)
+            if pid:
+                parent_ids.append(pid)
         patterns[capec_id] = {
             "name": obj.get("name", ""),
             "description": (obj.get("description") or "").strip(),
             "cwe_ids": sorted(set(cwe_ids)),
             "attack_techniques": sorted(set(attack_refs)),
+            "example_instances": example_instances,
+            "parent_ids": parent_ids,
         }
 
     return {
         "patterns": patterns,
         "cwe_to_capec": {k: sorted(v) for k, v in cwe_to_capec.items()},
     }
-
