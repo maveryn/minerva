@@ -127,6 +127,7 @@ def _build_record(
         "task": task,
         "input": input_payload,
         "ground_truth": {"technique_id": obj.get("attack_object_id", "")},
+        "answer": obj.get("attack_object_id", ""),
         "reward_fn": reward_fn,
         "metadata": metadata,
     }

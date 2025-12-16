@@ -144,6 +144,7 @@ def build_sigma_datasets(
                         "prompt": tech_prompt,
                     },
                     "ground_truth": {"technique_id": techniques[0]},
+                    "answer": techniques[0],
                     "reward_fn": "reward_technique_id",
                     "metadata": {**meta_common, "tactics": tactics},
                 }
@@ -160,6 +161,7 @@ def build_sigma_datasets(
                         "prompt": tac_prompt,
                     },
                     "ground_truth": {"tactic_ids": tactics},
+                    "answer": tactics,
                     "reward_fn": "reward_tactic_ids",
                     "metadata": {**meta_common, "techniques": techniques},
                 }

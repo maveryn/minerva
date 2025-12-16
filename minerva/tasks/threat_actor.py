@@ -163,16 +163,17 @@ def build_threat_actor_tasks(
                 rows.append(
                     {
                         "task": "threat_actor_from_procedures_mcq",
-                        "input": {
-                            "procedures": sampled_texts,
-                            "prompt": prompt,
-                        },
-                        "ground_truth": {"answer": chr(ord("A") + correct_idx)},
-                        "reward_fn": "binary_id",
-                        "metadata": {
-                            "correct_actor": actor["name"],
-                            "alias_used": label,
-                            "aliases": actor.get("aliases", []),
+                    "input": {
+                        "procedures": sampled_texts,
+                        "prompt": prompt,
+                    },
+                    "ground_truth": {"answer": chr(ord("A") + correct_idx)},
+                    "answer": chr(ord("A") + correct_idx),
+                    "reward_fn": "binary_id",
+                    "metadata": {
+                        "correct_actor": actor["name"],
+                        "alias_used": label,
+                        "aliases": actor.get("aliases", []),
                             "options": options,
                             "sampled_techniques": sorted(sampled_tids),
                             "variant_idx": variant_idx,

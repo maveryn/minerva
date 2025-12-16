@@ -82,7 +82,7 @@ def _project_row(row: Dict) -> Dict:
     return {
         "task": row.get("task"),
         "prompt": prompt,
-        "ground_truth": row.get("ground_truth"),
+        "answer": row.get("answer", row.get("ground_truth")),
         "reward_fn": row.get("reward_fn"),
     }
 
