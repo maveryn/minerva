@@ -10,7 +10,17 @@ import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-from .myreward_boxed import _clean_freeform, _extract_last_boxed, _fallback_answer
+THIS_DIR = Path(__file__).resolve().parent
+
+# Ensure local imports work when loaded as a standalone file
+if __package__ in (None, ""):
+    sys.path.append(str(THIS_DIR))
+    sys.path.append(str(THIS_DIR.parent.parent.parent.parent))  # project root
+
+try:
+    from rlvr.verl.utils.reward_score.myreward_boxed import _clean_freeform, _extract_last_boxed, _fallback_answer
+except ImportError:
+    from myreward_boxed import _clean_freeform, _extract_last_boxed, _fallback_answer
 
 # Extend path to import minerva reward utils
 try:
