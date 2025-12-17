@@ -175,7 +175,19 @@ def _extract_predicted(data_source: str, solution_str: str) -> str:
 
 
 def _normalize_list(pred: str, pattern: str) -> List[str]:
-    return re.findall(pattern, pred or "", re.IGNORECASE)
+    return [m.upper() for m in re.findall(pattern, pred or "", re.IGNORECASE)]
+
+
+def _truth_ids(truth, pattern: str) -> List[str]:
+    """
+    Normalize truth into a list of IDs matching pattern from strings or iterables.
+    """
+    if truth is None:
+        return []
+    if isinstance(truth, (list, tuple, set)):
+        joined = " ".join([str(t) for t in truth])
+        return _normalize_list(joined, pattern)
+    return _normalize_list(str(truth), pattern)
 
 
 def _get_truth(ground_truth, key: Optional[str] = None):
@@ -202,8 +214,8 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
         truth = _clean_freeform(str(_get_truth(ground_truth))).upper()
         return 1.0 if pred.split(".")[0].upper() == truth.split(".")[0].upper() and truth else 0.0
     if data_source == "athena-cti-rms":
-        truth_vals = set(_normalize_list(str(_get_truth(ground_truth)), r"M\d{4}"))
-        pred_vals = set(_normalize_list(pred, r"M\d{4}"))
+        truth_vals = set(_truth_ids(_get_truth(ground_truth), r"M\d{4}"))
+        pred_vals = set(_truth_ids(pred, r"M\d{4}"))
         if not truth_vals:
             return 0.0
         if not pred_vals:
@@ -220,7 +232,11 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
         if relation == "C":
             return 1.0
         if relation == "P":
-            return 0.0
+            return 0.5
+        if pred and truth:
+            if pred.strip().lower() == truth.strip().lower():
+                return 1.0
+            return 0.5
         return 0.0
     if data_source == "athena-cti-vsp":
         # Fallback simple compare of vectors/base metrics
@@ -245,11 +261,14 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
             truth_key = key_map.get(data_source)
             truth_val = _get_truth(ground_truth, truth_key)
 
-            if data_source == "reward_tactic_ids" or data_source == "reward_mitigation_ids" or data_source == "reward_cwe_ids":
-                pred_vals = _normalize_list(pred, r"[A-Z]{2}\d{4}")
-                if data_source == "reward_cwe_ids":
-                    pred_vals = _normalize_list(pred, r"CWE-\d+")
-                return fn(pred_vals, truth_val)
+            if data_source in {"reward_tactic_ids", "reward_mitigation_ids"}:
+                pred_vals = _truth_ids(pred, r"TA0\d{4}" if data_source == "reward_tactic_ids" else r"M\d{4}")
+                truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"[A-Z]{2}\d{4}")
+                return fn(pred_vals, truth_vals)
+            if data_source == "reward_cwe_ids":
+                pred_vals = _truth_ids(pred, r"CWE-\d+")
+                truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"CWE-\d+")
+                return fn(pred_vals, truth_vals)
             if data_source == "reward_technique_id":
                 match = re.search(r"T\d{4}(?:\.\d{3})?", pred, re.IGNORECASE)
                 pred_val = match.group(0) if match else pred
@@ -257,7 +276,11 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
             if data_source == "reward_detection_id":
                 match = re.search(r"DET\d{4}", pred, re.IGNORECASE)
                 pred_val = match.group(0) if match else pred
-                return fn(pred_val, truth_val)
+                truth_val_norm = truth_val
+                if truth_val_norm and isinstance(truth_val_norm, str):
+                    mtruth = re.search(r"DET\d{4}", truth_val_norm, re.IGNORECASE)
+                    truth_val_norm = mtruth.group(0) if mtruth else truth_val_norm
+                return fn(pred_val, truth_val_norm)
             if data_source == "reward_cvss_v31":
                 return fn(pred, truth_val, None)
             if data_source == "reward_cvss_v40":
