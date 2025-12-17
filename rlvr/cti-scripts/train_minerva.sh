@@ -13,7 +13,7 @@ val_paths=(
   "$DATA_DIR/cti/athena_cti_ate.parquet"
   "$DATA_DIR/cti/athena_cti_rcm.parquet"
   "$DATA_DIR/cti/athena_cti_rms.parquet"
-  "$DATA_DIR/cti/athena_cti_taa.parquet"
+  # "$DATA_DIR/cti/athena_cti_taa.parquet"
   "$DATA_DIR/math500/math500_test.parquet"
   "$DATA_DIR/olympiad/olympiadbench_test.parquet"
 )
@@ -38,7 +38,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=meta-llama/Llama-3.1-8B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=256 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
     actor_rollout_ref.actor.use_dynamic_bsz=True \
     actor_rollout_ref.actor.use_kl_loss=False \
     actor_rollout_ref.actor.kl_loss_coef=0.0 \
@@ -49,7 +49,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.rollout.n=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.use_kl_in_reward=False \
