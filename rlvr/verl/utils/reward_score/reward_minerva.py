@@ -308,7 +308,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                 det_preds = _extract_detection_ids(pred) or _extract_detection_ids(solution_str)
                 pred_val = det_preds[0] if det_preds else pred
                 truth_candidates = _extract_detection_ids(truth_val) if truth_val else []
-                truth_val_norm = truth_candidates[0] if truth_candidates else truth_val
+                truth_val_norm = truth_candidates[0] if truth_candidates else (truth_val or "")
                 return fn(pred_val, truth_val_norm)
             if data_source == "reward_cvss_v31":
                 return fn(pred, truth_val, None)
