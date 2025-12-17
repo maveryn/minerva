@@ -61,6 +61,8 @@ from verl.utils.seqlen_balancing import get_seqlen_balanced_partitions, log_seql
 from verl.utils.torch_functional import masked_mean
 from verl.utils.tracking import ValidationGenerationsLogger
 
+ZERO_SOLVE_THRESH = 1e-3
+
 
 @dataclass
 class ResourcePoolManager:
@@ -965,7 +967,7 @@ class RayPPOTrainer:
 
         num_groups = total // group_size
         scores = seq_scores.view(num_groups, group_size)
-        success = scores > 0.5
+        success = scores > ZERO_SOLVE_THRESH
         zero_group_mask = ~success.any(dim=1)
         return zero_group_mask, num_groups
 
@@ -1001,7 +1003,7 @@ class RayPPOTrainer:
                     pos = len(group_success)
                     uid_index[uid] = pos
                     group_success.append(False)
-                if seq_scores_np[idx] > 0.5:
+                if seq_scores_np[idx] > ZERO_SOLVE_THRESH:
                     group_success[pos] = True
 
             zero_count = group_success.count(False)
