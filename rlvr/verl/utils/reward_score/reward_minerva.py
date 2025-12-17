@@ -178,6 +178,15 @@ def _normalize_list(pred: str, pattern: str) -> List[str]:
     return [m.upper() for m in re.findall(pattern, pred or "", re.IGNORECASE)]
 
 
+def _split_candidates(text: str) -> List[str]:
+    items: List[str] = []
+    for part in re.split(r"[,\n;]+", text or ""):
+        cleaned = _clean_freeform(part)
+        if cleaned:
+            items.append(cleaned.upper())
+    return items
+
+
 def _truth_ids(truth, pattern: str) -> List[str]:
     """
     Normalize truth into a list of IDs matching pattern from strings or iterables.
@@ -188,6 +197,20 @@ def _truth_ids(truth, pattern: str) -> List[str]:
         joined = " ".join([str(t) for t in truth])
         return _normalize_list(joined, pattern)
     return _normalize_list(str(truth), pattern)
+
+
+def _extract_detection_ids(text: str) -> List[str]:
+    ids = _truth_ids(text, r"DET-?\d{4}")
+    if ids:
+        return [i.replace("-", "") for i in ids]
+    # try split tokens
+    tokens = _split_candidates(text)
+    out = []
+    for tok in tokens:
+        m = re.search(r"DET-?\d{4}", tok, re.IGNORECASE)
+        if m:
+            out.append(m.group(0).replace("-", "").upper())
+    return out
 
 
 def _get_truth(ground_truth, key: Optional[str] = None):
@@ -262,8 +285,16 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
             truth_val = _get_truth(ground_truth, truth_key)
 
             if data_source in {"reward_tactic_ids", "reward_mitigation_ids"}:
-                pred_vals = _truth_ids(pred, r"TA0\d{4}" if data_source == "reward_tactic_ids" else r"M\d{4}")
-                truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"[A-Z]{2}\d{4}")
+                if data_source == "reward_tactic_ids":
+                    pred_vals = _truth_ids(pred, r"TA0?\d{4}")
+                    if not pred_vals:
+                        pred_vals = [p for p in _split_candidates(pred) if p.startswith("TA")]
+                    truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"TA0?\d{4}")
+                else:
+                    pred_vals = _truth_ids(pred, r"M\d{4}")
+                    if not pred_vals:
+                        pred_vals = [p for p in _split_candidates(pred) if p.startswith("M")]
+                    truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"M\d{4}")
                 return fn(pred_vals, truth_vals)
             if data_source == "reward_cwe_ids":
                 pred_vals = _truth_ids(pred, r"CWE-\d+")
@@ -274,12 +305,10 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                 pred_val = match.group(0) if match else pred
                 return fn(pred_val, truth_val)
             if data_source == "reward_detection_id":
-                match = re.search(r"DET\d{4}", pred, re.IGNORECASE)
-                pred_val = match.group(0) if match else pred
-                truth_val_norm = truth_val
-                if truth_val_norm and isinstance(truth_val_norm, str):
-                    mtruth = re.search(r"DET\d{4}", truth_val_norm, re.IGNORECASE)
-                    truth_val_norm = mtruth.group(0) if mtruth else truth_val_norm
+                det_preds = _extract_detection_ids(pred) or _extract_detection_ids(solution_str)
+                pred_val = det_preds[0] if det_preds else pred
+                truth_candidates = _extract_detection_ids(truth_val) if truth_val else []
+                truth_val_norm = truth_candidates[0] if truth_candidates else truth_val
                 return fn(pred_val, truth_val_norm)
             if data_source == "reward_cvss_v31":
                 return fn(pred, truth_val, None)
