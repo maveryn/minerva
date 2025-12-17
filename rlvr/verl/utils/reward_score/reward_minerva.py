@@ -220,7 +220,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
         if relation == "C":
             return 1.0
         if relation == "P":
-            return 0.5
+            return 0.0
         return 0.0
     if data_source == "athena-cti-vsp":
         # Fallback simple compare of vectors/base metrics
