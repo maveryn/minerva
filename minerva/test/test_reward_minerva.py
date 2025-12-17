@@ -79,3 +79,17 @@ def test_minerva_cvss_v31():
     truth = {"cvss_v31_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
     score = reward_minerva.reward_minerva("reward_cvss_v31", pred, truth)
     assert score == 1.0
+
+
+def test_minerva_tactics_extract_list():
+    pred = "Answer: TA0004, TA0005"
+    truth = {"tactic_ids": ["TA0004", "TA0005"]}
+    score = reward_minerva.reward_minerva("reward_tactic_ids", pred, truth)
+    assert score == 1.0
+
+
+def test_minerva_detection_extract():
+    pred = "Detection strategy is DET-0005"
+    truth = {"detection_id": "DET0005"}
+    score = reward_minerva.reward_minerva("reward_detection_id", pred, truth)
+    assert score == 1.0
