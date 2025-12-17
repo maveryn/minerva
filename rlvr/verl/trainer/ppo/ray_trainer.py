@@ -528,6 +528,7 @@ class RayPPOTrainer:
 
     def _validate(self):
         data_source_lst = []
+        source_file_lst = []
         reward_extra_infos_dict: dict[str, list] = defaultdict(list)
 
         # Lists to collect samples for the table
@@ -616,6 +617,10 @@ class RayPPOTrainer:
                 sample_turns.append(test_batch.non_tensor_batch["__num_turns__"])
 
             data_source_lst.append(test_batch.non_tensor_batch.get("data_source", ["unknown"] * reward_tensor.shape[0]))
+            if "source_file" in test_batch.non_tensor_batch:
+                source_file_lst.append(test_batch.non_tensor_batch["source_file"])
+            else:
+                source_file_lst.append(["unknown"] * reward_tensor.shape[0])
 
         self._maybe_log_val_generations(inputs=sample_inputs, outputs=sample_outputs, scores=sample_scores)
 
@@ -635,6 +640,7 @@ class RayPPOTrainer:
             assert len(lst) == 0 or len(lst) == len(sample_scores), f"{key_info}: {len(lst)=}, {len(sample_scores)=}"
 
         data_sources = np.concatenate(data_source_lst, axis=0)
+        source_files = np.concatenate(source_file_lst, axis=0)
 
         data_src2var2metric2val = process_validation_metrics(data_sources, sample_inputs, reward_extra_infos_dict)
         metric_dict = {}
@@ -653,6 +659,18 @@ class RayPPOTrainer:
                         metric_sec = "val-aux"
                     pfx = f"{metric_sec}/{data_source}/{var_name}/{metric_name}"
                     metric_dict[pfx] = metric_val
+
+        # Aggregate reward per source_file when it spans multiple data sources
+        if "reward" in reward_extra_infos_dict and len(source_files) == len(reward_extra_infos_dict["reward"]):
+            rewards = np.array(reward_extra_infos_dict["reward"])
+            for sf in np.unique(source_files):
+                mask = source_files == sf
+                if mask.sum() == 0:
+                    continue
+                # skip files with a single data_source
+                if len(np.unique(data_sources[mask])) <= 1:
+                    continue
+                metric_dict[f"val-core/{sf}/reward/mean"] = float(rewards[mask].mean())
 
         if len(sample_turns) > 0:
             sample_turns = np.concatenate(sample_turns)
