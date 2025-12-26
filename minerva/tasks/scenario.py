@@ -2,7 +2,7 @@ import random
 from typing import Dict, List, Optional
 
 from minerva.logger import get_logger
-from minerva.tasks.common import _balanced_cap
+from minerva.tasks.common import _append_id_name_catalog, _balanced_cap
 from minerva.utils import write_jsonl
 
 
@@ -80,10 +80,20 @@ def build_scenario_to_technique(records: List[Dict[str, any]], max_items: int, o
     return rows
 
 
-def build_scenario_to_tactics(records: List[Dict[str, any]], output_path: str, seed: int = 1337, max_items: Optional[int] = None, logger=None) -> List[Dict[str, any]]:
+def build_scenario_to_tactics(
+    records: List[Dict[str, any]],
+    output_path: str,
+    seed: int = 1337,
+    max_items: Optional[int] = None,
+    *,
+    include_id_names: bool = False,
+    tactic_id_to_name: Optional[Dict[str, str]] = None,
+    logger=None,
+) -> List[Dict[str, any]]:
     if logger is None:
         logger = get_logger("task-tactics")
     rng = random.Random(seed)
+    tactic_id_to_name = tactic_id_to_name or {}
     pool: List[Dict[str, any]] = []
     for r in records:
         tactics = r.get("metadata", {}).get("tactics", [])
@@ -91,16 +101,23 @@ def build_scenario_to_tactics(records: List[Dict[str, any]], output_path: str, s
             continue
         scenario_text = r["input"].get("scenario") or ""
         suffix = "" if len(tactics) == 1 else "s"
+        prompt = SCENARIO_TACTIC_PROMPT.format(
+            SCENARIO_TEXT=scenario_text,
+            COUNT=len(tactics),
+            S_SUFFIX=suffix,
+        )
+        if include_id_names:
+            prompt = _append_id_name_catalog(
+                prompt,
+                "Valid MITRE ATT&CK Enterprise tactic IDs (ID: name):",
+                tactic_id_to_name,
+            )
         pool.append(
             {
                 "task": "scenario_to_attack_tactics",
                 "input": {
                     **r["input"],
-                    "prompt": SCENARIO_TACTIC_PROMPT.format(
-                        SCENARIO_TEXT=scenario_text,
-                        COUNT=len(tactics),
-                        S_SUFFIX=suffix,
-                    ),
+                    "prompt": prompt,
                 },
                 "ground_truth": {"tactic_ids": tactics},
                 "answer": tactics,
@@ -114,10 +131,20 @@ def build_scenario_to_tactics(records: List[Dict[str, any]], output_path: str, s
     return pool
 
 
-def build_scenario_to_mitigations(records: List[Dict[str, any]], output_path: str, seed: int = 1337, max_items: Optional[int] = None, logger=None) -> List[Dict[str, any]]:
+def build_scenario_to_mitigations(
+    records: List[Dict[str, any]],
+    output_path: str,
+    seed: int = 1337,
+    max_items: Optional[int] = None,
+    *,
+    include_id_names: bool = False,
+    mitigation_id_to_name: Optional[Dict[str, str]] = None,
+    logger=None,
+) -> List[Dict[str, any]]:
     if logger is None:
         logger = get_logger("task-mitigations")
     rng = random.Random(seed)
+    mitigation_id_to_name = mitigation_id_to_name or {}
     pool: List[Dict[str, any]] = []
     for r in records:
         mits = r.get("metadata", {}).get("mitigations", [])
@@ -125,16 +152,23 @@ def build_scenario_to_mitigations(records: List[Dict[str, any]], output_path: st
             continue
         scenario_text = r["input"].get("scenario") or ""
         suffix = "" if len(mits) == 1 else "s"
+        prompt = SCENARIO_MITIGATION_PROMPT.format(
+            SCENARIO_TEXT=scenario_text,
+            COUNT=len(mits),
+            S_SUFFIX=suffix,
+        )
+        if include_id_names:
+            prompt = _append_id_name_catalog(
+                prompt,
+                "Valid MITRE ATT&CK Enterprise mitigation IDs (ID: name):",
+                mitigation_id_to_name,
+            )
         pool.append(
             {
                 "task": "scenario_to_attack_mitigations",
                 "input": {
                     **r["input"],
-                    "prompt": SCENARIO_MITIGATION_PROMPT.format(
-                        SCENARIO_TEXT=scenario_text,
-                        COUNT=len(mits),
-                        S_SUFFIX=suffix,
-                    ),
+                    "prompt": prompt,
                 },
                 "ground_truth": {"mitigation_ids": mits},
                 "answer": mits,
@@ -148,10 +182,20 @@ def build_scenario_to_mitigations(records: List[Dict[str, any]], output_path: st
     return pool
 
 
-def build_scenario_to_detections(records: List[Dict[str, any]], output_path: str, seed: int = 1337, max_items: Optional[int] = None, logger=None) -> List[Dict[str, any]]:
+def build_scenario_to_detections(
+    records: List[Dict[str, any]],
+    output_path: str,
+    seed: int = 1337,
+    max_items: Optional[int] = None,
+    *,
+    include_id_names: bool = False,
+    detection_id_to_name: Optional[Dict[str, str]] = None,
+    logger=None,
+) -> List[Dict[str, any]]:
     if logger is None:
         logger = get_logger("task-detections")
     rng = random.Random(seed)
+    detection_id_to_name = detection_id_to_name or {}
     pool: List[Dict[str, any]] = []
     for r in records:
         dets = r.get("metadata", {}).get("detection_strategies", [])
@@ -161,12 +205,19 @@ def build_scenario_to_detections(records: List[Dict[str, any]], output_path: str
         if len(dets) != 1:
             continue
         det_id = dets[0]
+        prompt = SCENARIO_DETECTION_PROMPT.format(SCENARIO_TEXT=scenario_text)
+        if include_id_names:
+            prompt = _append_id_name_catalog(
+                prompt,
+                "Valid MITRE ATT&CK Enterprise detection strategy IDs (ID: name):",
+                detection_id_to_name,
+            )
         pool.append(
             {
                 "task": "scenario_to_attack_detection",
                 "input": {
                     **r["input"],
-                    "prompt": SCENARIO_DETECTION_PROMPT.format(SCENARIO_TEXT=scenario_text),
+                    "prompt": prompt,
                 },
                 "ground_truth": {"detection_id": det_id},
                 "answer": det_id,

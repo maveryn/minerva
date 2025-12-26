@@ -76,9 +76,39 @@ def _dedupe_jsonl(path: Path) -> tuple[int, int]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Minerva RLVR dataset builder")
     parser.add_argument("--config", default="minerva/config.yaml", help="Path to minerva config YAML")
+    parser.add_argument(
+        "--detailed-prompts",
+        action="store_true",
+        help="Append MITRE Enterprise ID->name catalogs to tactic/mitigation/detection prompts; writes datasets to a suffixed output folder",
+    )
+    parser.add_argument(
+        "--detailed-suffix",
+        default="detailed",
+        help="Suffix appended to output folders when --detailed-prompts is set (default: detailed)",
+    )
     args = parser.parse_args()
 
     cfg = load_yaml(args.config)
+
+    def _suffix_minerva_path(path: str, suffix: str) -> str:
+        if not path:
+            return path
+        out = str(path)
+        for base in ("dataset/minerva", "data/processed/minerva"):
+            if base in out:
+                out = out.replace(base, f"{base}_{suffix}")
+        return out
+
+    if args.detailed_prompts:
+        suffix = str(args.detailed_suffix).strip() or "detailed"
+        common_cfg = cfg.setdefault("COMMON", {})
+        common_cfg["minerva_out"] = _suffix_minerva_path(common_cfg.get("minerva_out", "dataset/minerva"), suffix)
+        common_cfg["metadata_path"] = _suffix_minerva_path(common_cfg.get("metadata_path", "dataset/minerva/metadata.json"), suffix)
+
+        tasks_cfg = cfg.setdefault("TASKS", {})
+        for _, task_cfg in list(tasks_cfg.items()):
+            if isinstance(task_cfg, dict) and "output_path" in task_cfg:
+                task_cfg["output_path"] = _suffix_minerva_path(task_cfg["output_path"], suffix)
     log_dir = cfg.get("COMMON", {}).get("log_dir", "data/logs")
     logger = get_logger("minerva", log_dir=log_dir)
 
@@ -100,6 +130,23 @@ def main() -> None:
 
     logger.info("Loading ATT&CK procedure scenarios")
     scenario_records = collect_procedure_scenarios(cfg.get("MITRE_ATTACK", {}), logger=logger)
+
+    tactic_id_to_name: Dict[str, str] = {}
+    mitigation_id_to_name: Dict[str, str] = {}
+    detection_id_to_name: Dict[str, str] = {}
+    if args.detailed_prompts:
+        from minerva.data_sources.mitre import load_bundle as load_mitre_bundle
+
+        mitre_bundle = load_mitre_bundle(cfg.get("MITRE_ATTACK", {}), logger=logger)
+        tactic_id_to_name = {v["id"]: v["name"] for v in (mitre_bundle.get("tactics", {}) or {}).values()}
+        mitigation_id_to_name = {
+            mid: (obj.get("name", "") if isinstance(obj, dict) else "")
+            for mid, obj in (mitre_bundle.get("mitigations", {}) or {}).items()
+        }
+        detection_id_to_name = {
+            det_id: (obj.get("name", "") if isinstance(obj, dict) else "")
+            for det_id, obj in (mitre_bundle.get("detection_strategies", {}) or {}).items()
+        }
 
     # Mapping-explorer CVE -> ATT&CK datasets
     try:
@@ -142,7 +189,13 @@ def main() -> None:
             "rule_dirs", ["dataset/sigma/rules", "dataset/sigma/rules-threat-hunting"]
         )
         minerva_out = cfg.get("COMMON", {}).get("minerva_out", "dataset/minerva")
-        sigma_sets = build_sigma_datasets(sigma_dirs, output_dir=minerva_out, logger=logger)
+        sigma_sets = build_sigma_datasets(
+            sigma_dirs,
+            output_dir=minerva_out,
+            include_id_names=bool(args.detailed_prompts),
+            tactic_id_to_name=tactic_id_to_name,
+            logger=logger,
+        )
         summary["sigma_to_attack_technique"] = len(sigma_sets.get("technique", []))
         summary["sigma_to_attack_tactics"] = len(sigma_sets.get("tactic", []))
     except Exception as exc:
@@ -221,6 +274,8 @@ def main() -> None:
             output_path=tac_cfg.get("output_path", "data/processed/minerva/scenario_to_tactics.jsonl"),
             seed=int(tac_cfg.get("seed", 1337)),
             max_items=int(tac_cfg.get("max_items", 0)),
+            include_id_names=bool(args.detailed_prompts),
+            tactic_id_to_name=tactic_id_to_name,
             logger=logger,
         )
         summary["scenario_to_tactics"] = len(tactic_tasks)
@@ -235,6 +290,8 @@ def main() -> None:
             output_path=mit_cfg.get("output_path", "data/processed/minerva/scenario_to_mitigations.jsonl"),
             seed=int(mit_cfg.get("seed", 1337)),
             max_items=int(mit_cfg.get("max_items", 0)),
+            include_id_names=bool(args.detailed_prompts),
+            mitigation_id_to_name=mitigation_id_to_name,
             logger=logger,
         )
         summary["scenario_to_mitigations"] = len(mit_tasks)
@@ -249,6 +306,8 @@ def main() -> None:
             output_path=det_cfg.get("output_path", "data/processed/minerva/scenario_to_detections.jsonl"),
             seed=int(det_cfg.get("seed", 1337)),
             max_items=int(det_cfg.get("max_items", 0)),
+            include_id_names=bool(args.detailed_prompts),
+            detection_id_to_name=detection_id_to_name,
             logger=logger,
         )
         summary["scenario_to_detections"] = len(det_tasks)
