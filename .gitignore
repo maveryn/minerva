@@ -210,3 +210,15 @@ __marimo__/
 _rlvr/
 athena_data/
 _scratch/
+
+# Minerva datasets (generated / local)
+dataset/**
+
+# RLVR local datasets (keep converters + curated CTI outputs tracked)
+rlvr/mydata/**
+!rlvr/mydata/cti/
+!rlvr/mydata/cti/**
+!rlvr/mydata/data_prepare/
+!rlvr/mydata/data_prepare/**
+rlvr/mydata/data_prepare/**/__pycache__/
+rlvr/mydata/data_prepare/**/*.pyc

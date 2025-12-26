@@ -1,7 +1,8 @@
 import json
 import random
+import argparse
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from minerva.logger import get_logger
 
@@ -26,44 +27,63 @@ TARGET_SAMPLES: Dict[str, int] = {
 }
 
 FILE_MAP: Dict[str, str] = {
-    "cve_to_attack_exploitation": "dataset/minerva/cve_to_attack_exploitation.jsonl",
-    "cve_to_attack_primary_impact": "dataset/minerva/cve_to_attack_primary_impact.jsonl",
-    "cve_to_attack_secondary_impact": "dataset/minerva/cve_to_attack_secondary_impact.jsonl",
-    "sigma_to_attack_technique": "dataset/minerva/sigma_to_attack_technique.jsonl",
-    "sigma_to_attack_tactics": "dataset/minerva/sigma_to_attack_tactics.jsonl",
-    "scenario_to_technique": "dataset/minerva/scenario_to_technique.jsonl",
-    "scenario_to_tactics": "dataset/minerva/scenario_to_tactics.jsonl",
-    "scenario_to_detections": "dataset/minerva/scenario_to_detections.jsonl",
-    "scenario_to_mitigations": "dataset/minerva/scenario_to_mitigations.jsonl",
-    "cve_to_cwe": "dataset/minerva/cve_to_cwe.jsonl",
-    "cve_to_cvss_v31": "dataset/minerva/cve_to_cvss_v31.jsonl",
-    "cve_to_cvss_v40": "dataset/minerva/cve_to_cvss_v40.jsonl",
-    "capec_example_to_capec": "dataset/minerva/capec_example_to_capec.jsonl",
-    "capec_example_to_cwe": "dataset/minerva/capec_example_to_cwe.jsonl",
-    "capec_example_to_attack": "dataset/minerva/capec_example_to_attack.jsonl",
-    "threat_actor_mcq": "dataset/minerva/threat_actor_mcq.jsonl",
+    "cve_to_attack_exploitation": "cve_to_attack_exploitation.jsonl",
+    "cve_to_attack_primary_impact": "cve_to_attack_primary_impact.jsonl",
+    "cve_to_attack_secondary_impact": "cve_to_attack_secondary_impact.jsonl",
+    "sigma_to_attack_technique": "sigma_to_attack_technique.jsonl",
+    "sigma_to_attack_tactics": "sigma_to_attack_tactics.jsonl",
+    "scenario_to_technique": "scenario_to_technique.jsonl",
+    "scenario_to_tactics": "scenario_to_tactics.jsonl",
+    "scenario_to_detections": "scenario_to_detections.jsonl",
+    "scenario_to_mitigations": "scenario_to_mitigations.jsonl",
+    "cve_to_cwe": "cve_to_cwe.jsonl",
+    "cve_to_cvss_v31": "cve_to_cvss_v31.jsonl",
+    "cve_to_cvss_v40": "cve_to_cvss_v40.jsonl",
+    "capec_example_to_capec": "capec_example_to_capec.jsonl",
+    "capec_example_to_cwe": "capec_example_to_cwe.jsonl",
+    "capec_example_to_attack": "capec_example_to_attack.jsonl",
+    "threat_actor_mcq": "threat_actor_mcq.jsonl",
 }
 
 
-def _load_jsonl(path: Path) -> List[Dict]:
-    rows = []
+def _iter_jsonl(path: Path) -> Iterable[Dict]:
     with path.open("r", encoding="utf-8", errors="ignore") as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
             try:
-                rows.append(json.loads(line))
+                obj = json.loads(line)
             except json.JSONDecodeError:
                 continue
-    return rows
+            if isinstance(obj, dict):
+                yield obj
 
 
-def _sample_rows(rows: List[Dict], n: int, rng: random.Random) -> List[Dict]:
-    if n >= len(rows):
-        rng.shuffle(rows)
-        return rows
-    return rng.sample(rows, n)
+def _reservoir_sample_jsonl(path: Path, n: int, rng: random.Random) -> Tuple[List[Dict], int]:
+    """
+    Reservoir-sample n rows from JSONL without loading the full file into memory.
+    Returns (sampled_rows, total_rows_seen).
+    """
+    if n <= 0:
+        total = 0
+        for _ in _iter_jsonl(path):
+            total += 1
+        return [], total
+
+    sample: List[Dict] = []
+    total = 0
+    for row in _iter_jsonl(path):
+        total += 1
+        if len(sample) < n:
+            sample.append(row)
+            continue
+        j = rng.randrange(total)
+        if j < n:
+            sample[j] = row
+    if total <= n:
+        rng.shuffle(sample)
+    return sample, total
 
 
 def _split_rows(rows: List[Dict], train_ratio: float) -> Tuple[List[Dict], List[Dict]]:
@@ -87,9 +107,22 @@ def _project_row(row: Dict) -> Dict:
     }
 
 
-def build_splits(seed: int = 1337) -> None:
+def build_splits(
+    *,
+    input_dir: str = "dataset/minerva",
+    output_dir: Optional[str] = None,
+    seed: int = 1337,
+    train_ratio: float = 0.8,
+    target_train: int = 32000,
+    target_dev: int = 8000,
+) -> None:
     logger = get_logger("split")
     rng = random.Random(seed)
+
+    in_dir = Path(input_dir)
+    if output_dir is None:
+        output_dir = f"{input_dir}_split"
+    out_dir = Path(output_dir)
 
     train_rows: List[Dict] = []
     dev_rows: List[Dict] = []
@@ -98,14 +131,13 @@ def build_splits(seed: int = 1337) -> None:
     per_task: Dict[str, Dict[str, List[Dict]]] = {}
 
     for task, target_n in TARGET_SAMPLES.items():
-        path = Path(FILE_MAP[task])
+        path = in_dir / FILE_MAP[task]
         if not path.exists():
             logger.warning("Missing file for task %s: %s", task, path)
             continue
-        rows = _load_jsonl(path)
-        sampled = _sample_rows(rows, target_n, rng)
+        sampled, total = _reservoir_sample_jsonl(path, target_n, rng)
         rng.shuffle(sampled)
-        train_part, dev_part = _split_rows(sampled, 0.8)
+        train_part, dev_part = _split_rows(sampled, train_ratio)
         per_task[task] = {"train": train_part, "dev": dev_part}
         train_rows.extend(train_part)
         dev_rows.extend(dev_part)
@@ -119,15 +151,13 @@ def build_splits(seed: int = 1337) -> None:
             "dev": _pick_example(dev_part),
         }
         logger.info(
-            "Task %s -> sampled %d (train %d / dev %d)",
+            "Task %s -> sampled %d/%d (train %d / dev %d)",
             task,
             len(sampled),
+            total,
             len(train_part),
             len(dev_part),
         )
-
-    TARGET_TRAIN = 32000
-    TARGET_DEV = 8000
 
     def _move_one(src_key: str, dst_key: str) -> bool:
         # move one item from src (train/dev) to dst for any task with available rows
@@ -149,20 +179,25 @@ def build_splits(seed: int = 1337) -> None:
             stats[task]["train"] += 1
         return True
 
-    while len(train_rows) < TARGET_TRAIN and len(dev_rows) > TARGET_DEV:
+    while len(train_rows) < target_train and len(dev_rows) > target_dev:
         if not _move_one("dev", "train"):
             break
-    while len(train_rows) > TARGET_TRAIN and len(dev_rows) < TARGET_DEV:
+    while len(train_rows) > target_train and len(dev_rows) < target_dev:
         if not _move_one("train", "dev"):
             break
 
-    logger.info("Adjusted splits to train=%d dev=%d (target train=%d dev=%d)", len(train_rows), len(dev_rows), TARGET_TRAIN, TARGET_DEV)
+    logger.info(
+        "Adjusted splits to train=%d dev=%d (target train=%d dev=%d)",
+        len(train_rows),
+        len(dev_rows),
+        target_train,
+        target_dev,
+    )
 
     # Project rows to the minimal schema
     projected_train = [_project_row(r) for r in train_rows]
     projected_dev = [_project_row(r) for r in dev_rows]
 
-    out_dir = Path("dataset/minerva_split")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     train_path = out_dir / "train.jsonl"
@@ -187,7 +222,22 @@ def build_splits(seed: int = 1337) -> None:
 
 
 def main() -> None:
-    build_splits()
+    parser = argparse.ArgumentParser(description="Build train/dev splits from Minerva datasets")
+    parser.add_argument("--input-dir", default="dataset/minerva", help="Input dataset directory (contains per-task JSONL files)")
+    parser.add_argument("--output-dir", default=None, help="Output directory for train/dev JSONL (default: <input-dir>_split)")
+    parser.add_argument("--seed", type=int, default=1337, help="RNG seed (default: 1337)")
+    parser.add_argument("--train-ratio", type=float, default=0.8, help="Train ratio per-task before global adjustment (default: 0.8)")
+    parser.add_argument("--target-train", type=int, default=32000, help="Final target train size (default: 32000)")
+    parser.add_argument("--target-dev", type=int, default=8000, help="Final target dev size (default: 8000)")
+    args = parser.parse_args()
+    build_splits(
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        seed=args.seed,
+        train_ratio=args.train_ratio,
+        target_train=args.target_train,
+        target_dev=args.target_dev,
+    )
 
 
 if __name__ == "__main__":

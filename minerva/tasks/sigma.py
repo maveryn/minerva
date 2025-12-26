@@ -1,10 +1,11 @@
 import argparse
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import yaml
 
 from minerva.logger import get_logger
+from minerva.tasks.common import _append_id_name_catalog
 from minerva.utils import write_jsonl
 
 
@@ -112,10 +113,14 @@ def _collect_rules(root_dirs: List[str], logger) -> List[Tuple[Path, Dict[str, A
 def build_sigma_datasets(
     rule_dirs: List[str],
     output_dir: str = "dataset/minerva",
+    *,
+    include_id_names: bool = False,
+    tactic_id_to_name: Optional[Dict[str, str]] = None,
     logger=None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     if logger is None:
         logger = get_logger("sigma")
+    tactic_id_to_name = tactic_id_to_name or {}
     rules = _collect_rules(rule_dirs, logger)
 
     technique_rows: List[Dict[str, Any]] = []
@@ -152,6 +157,12 @@ def build_sigma_datasets(
 
         if tactics:
             tac_prompt = TACTIC_PROMPT.format(SIGMA_RULE_EXCERPT=excerpt)
+            if include_id_names:
+                tac_prompt = _append_id_name_catalog(
+                    tac_prompt,
+                    "Valid MITRE ATT&CK Enterprise tactic IDs (ID: name):",
+                    tactic_id_to_name,
+                )
             tactic_rows.append(
                 {
                     "task": "sigma_to_attack_tactics",
@@ -199,9 +210,28 @@ def main() -> None:
         default="dataset/minerva",
         help="Directory where JSONL files will be written",
     )
+    parser.add_argument(
+        "--detailed-ids",
+        action="store_true",
+        help="Append MITRE Enterprise tactic ID->name catalog to the prompt (default: false)",
+    )
     args = parser.parse_args()
     logger = get_logger("sigma")
-    build_sigma_datasets(args.rule_dirs, output_dir=args.output_dir, logger=logger)
+
+    tactic_id_to_name = None
+    if args.detailed_ids:
+        from minerva.data_sources.mitre import load_bundle as load_mitre_bundle
+
+        mitre = load_mitre_bundle({"cache_path": "dataset/mitre/enterprise-attack.json"}, logger=logger)
+        tactic_id_to_name = {v["id"]: v["name"] for v in (mitre.get("tactics", {}) or {}).values()}
+
+    build_sigma_datasets(
+        args.rule_dirs,
+        output_dir=args.output_dir,
+        include_id_names=bool(args.detailed_ids),
+        tactic_id_to_name=tactic_id_to_name,
+        logger=logger,
+    )
 
 
 if __name__ == "__main__":

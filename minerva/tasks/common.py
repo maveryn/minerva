@@ -4,6 +4,24 @@ from typing import Any, Dict, List
 from minerva.utils import balanced_sample
 
 
+def _append_id_name_catalog(prompt: str, heading: str, id_to_name: Dict[str, str]) -> str:
+    """
+    Append a stable, human-readable ID->name catalog to a prompt.
+
+    Intended for "closed set" tasks where the model should choose from a known list.
+    """
+    if not id_to_name:
+        return prompt
+    lines: List[str] = [prompt.rstrip(), "", heading]
+    for _id in sorted(id_to_name.keys()):
+        name = (id_to_name.get(_id) or "").strip()
+        if name:
+            lines.append(f"- {_id}: {name}")
+        else:
+            lines.append(f"- {_id}")
+    return "\n".join(lines)
+
+
 def _balanced_cap(
     records: List[Dict[str, Any]],
     max_items: int,
