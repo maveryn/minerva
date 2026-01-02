@@ -63,6 +63,28 @@ def reward_technique_id(predicted: str, truth: str) -> float:
     return 0.0
 
 
+def reward_technique_id_only(predicted: str, truth: str) -> float:
+    """
+    Technique-only reward:
+    - 1.0 if base technique (e.g., T1059) matches (case-insensitive).
+    - 0.0 otherwise.
+    """
+    p = _normalize_id(predicted)
+    t = _normalize_id(truth)
+    if not p or not t:
+        return 0.0
+    return 1.0 if p.split(".")[0] == t.split(".")[0] else 0.0
+
+
+def reward_technique_sub_id(predicted: str, truth: str) -> float:
+    """
+    Sub-technique reward:
+    - 1.0 if technique and sub-technique match exactly (case-insensitive).
+    - 0.0 otherwise.
+    """
+    return 1.0 if _normalize_id(predicted) == _normalize_id(truth) else 0.0
+
+
 def reward_tactic_ids(predicted: Iterable[str], truth: Iterable[str]) -> float:
     """
     Wrapper for tactic-set scoring (TA000x IDs) using multi-label F1.

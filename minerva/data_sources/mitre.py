@@ -180,10 +180,11 @@ def _sanitize_procedure(description: str, placeholder: str, entity_name: str) ->
     if not text:
         return ""
     if entity_name:
-        pattern = re.escape(entity_name)
-        text = re.sub(rf"\b{pattern}'s\b", f"{placeholder}'s", text, flags=re.IGNORECASE)
-        text = re.sub(rf"\b{pattern}\b", placeholder, text, flags=re.IGNORECASE)
-    text, _ = re.subn(r"\[[^\]]+\]\([^)]+\)", placeholder, text)
+        pattern = re.compile(rf"\b{re.escape(entity_name)}('s)?\b", re.IGNORECASE)
+        def _swap_first(match: re.Match) -> str:
+            return f"{placeholder}'s" if match.group(1) else placeholder
+        text = pattern.sub(_swap_first, text, count=1)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
         return ""

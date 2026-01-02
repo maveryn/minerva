@@ -155,7 +155,13 @@ def main() -> None:
             "mappings_path", "dataset/mappings-explorer/kev-02.13.2025_attack-15.1-enterprise.yaml"
         )
         minerva_out = common_cfg.get("minerva_out", "dataset/minerva")
-        mappings = build_cve_attack_datasets(mappings_path, output_dir=minerva_out, logger=logger)
+        mappings_cfg = cfg.get("MAPPINGS_EXPLORER", {})
+        mappings = build_cve_attack_datasets(
+            mappings_path,
+            output_dir=minerva_out,
+            ask_subtechnique=bool(mappings_cfg.get("ask_subtechnique", False)),
+            logger=logger,
+        )
         summary["cve_to_attack_exploitation"] = len(mappings.get("exploitation", []))
         summary["cve_to_attack_primary_impact"] = len(mappings.get("primary_impact", []))
         summary["cve_to_attack_secondary_impact"] = len(mappings.get("secondary_impact", []))
@@ -189,9 +195,11 @@ def main() -> None:
             "rule_dirs", ["dataset/sigma/rules", "dataset/sigma/rules-threat-hunting"]
         )
         minerva_out = cfg.get("COMMON", {}).get("minerva_out", "dataset/minerva")
+        sigma_cfg = cfg.get("SIGMA", {})
         sigma_sets = build_sigma_datasets(
             sigma_dirs,
             output_dir=minerva_out,
+            ask_subtechnique=bool(sigma_cfg.get("ask_subtechnique", False)),
             include_id_names=bool(args.detailed_prompts),
             tactic_id_to_name=tactic_id_to_name,
             logger=logger,
@@ -260,6 +268,7 @@ def main() -> None:
             max_items=int(st_cfg.get("max_items", 5000)),
             output_path=st_cfg.get("output_path", "data/processed/minerva/scenario_to_technique.jsonl"),
             seed=int(st_cfg.get("seed", 1337)),
+            ask_subtechnique=bool(st_cfg.get("ask_subtechnique", False)),
             logger=logger,
         )
         summary["scenario_to_technique"] = len(scenario_tasks)

@@ -1,0 +1,16 @@
+\section{Retrieval Methods}
+\label{sec:retrieval_methods}
+
+\paragraph{BM25 (Sparse) Retrieval.}
+We use BM25 Okapi over the corpus text fields. Each document is tokenized by lowercasing and splitting on non-alphanumeric characters. For a query, BM25 scores are computed against all documents and the top-$k$ document IDs are returned in descending score order. This provides a strong sparse baseline that favors exact term overlap.
+
+\paragraph{Dense Retrieval.}
+We encode each document and query using a sentence-transformer model (\texttt{sentence-transformers/all-MiniLM-L6-v2}). Embeddings are L2-normalized and indexed with FAISS using inner-product similarity, which is equivalent to cosine similarity under normalization. For each query, we retrieve the top-$k$ nearest neighbors from the FAISS index.
+
+\paragraph{Hybrid Retrieval (Weighted Score Fusion).}
+We combine BM25 and dense retrieval with a weighted score fusion. For each query, we first collect candidate documents from the top-$k_{\text{bm25}}$ BM25 results and the top-$k_{\text{dense}}$ dense results, then deduplicate this candidate list. We compute BM25 scores and dense cosine scores for all candidates, apply min--max normalization independently to each score vector, and fuse the scores by
+\begin{equation}
+\label{eq:hybrid_fusion}
+S(d) = (1-\alpha)\,\hat{s}_{\text{bm25}}(d) + \alpha\,\hat{s}_{\text{dense}}(d),
+\end{equation}
+where $\hat{s}_{\text{bm25}}$ and $\hat{s}_{\text{dense}}$ are the normalized scores and $\alpha \in [0,1]$ controls the balance between sparse and dense signals (default $\alpha=0.5$). We rank candidates by $S(d)$ and return the top-$k$ document IDs.
