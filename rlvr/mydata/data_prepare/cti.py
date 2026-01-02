@@ -5,8 +5,9 @@ and Excel files.
 Usage:
     python cti.py --out_dir ./out/cti
 
-Optional:
-    --data_dir path/to/jsonl/dir  # defaults to ../cti relative to this file
+Defaults:
+    --out_dir  ../cti  (relative to this file)
+    --data_dir ../cti-in  (relative to this file)
 
 Dependencies: pandas, pyarrow, openpyxl
 """
@@ -182,9 +183,17 @@ def default_data_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "cti-in"
 
 
+def default_out_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / "cti"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare CTI datasets in Parquet and Excel formats.")
-    parser.add_argument("--out_dir", required=True, help="Directory for the generated files.")
+    parser.add_argument(
+        "--out_dir",
+        default=str(default_out_dir()),
+        help="Directory for the generated files (defaults to ../cti).",
+    )
     parser.add_argument(
         "--data_dir",
         default=str(default_data_dir()),
