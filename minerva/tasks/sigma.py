@@ -28,7 +28,19 @@ TACTIC_MAP = {
     "impact": "TA0040",
 }
 
-TECHNIQUE_PROMPT = """Given the Sigma rule excerpt below (log source + detection logic), provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the adversary behavior this rule is intended to detect.
+TECHNIQUE_PROMPT_ONLY = """Given the Sigma rule excerpt below (log source + detection logic), provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the adversary behavior this rule is intended to detect.
+
+Technique - how an adversary achieves a tactical objective by performing an action.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise technique IDs only.
+- Return exactly ONE technique ID (T####).
+- Do not return sub-technique IDs (e.g., T1059.003).
+
+Sigma rule excerpt:
+{SIGMA_RULE_EXCERPT}"""
+
+TECHNIQUE_PROMPT_SUB = """Given the Sigma rule excerpt below (log source + detection logic), provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the adversary behavior this rule is intended to detect.
 
 Technique - how an adversary achieves a tactical objective by performing an action.
 
@@ -81,6 +93,10 @@ def _extract_tags(tags: Iterable[str]) -> Tuple[List[str], List[str]]:
     return techniques, sorted(set(tactics))
 
 
+def _technique_base(technique_id: str) -> str:
+    return (technique_id or "").split(".", 1)[0]
+
+
 def _build_excerpt(rule: Dict[str, Any]) -> str:
     title = rule.get("title") or ""
     logsource = yaml.safe_dump(rule.get("logsource", {}), sort_keys=False, allow_unicode=True).strip()
@@ -114,6 +130,7 @@ def build_sigma_datasets(
     rule_dirs: List[str],
     output_dir: str = "dataset/minerva",
     *,
+    ask_subtechnique: bool = False,
     include_id_names: bool = False,
     tactic_id_to_name: Optional[Dict[str, str]] = None,
     logger=None,
@@ -139,7 +156,13 @@ def build_sigma_datasets(
         }
 
         if len(techniques) == 1:
-            tech_prompt = TECHNIQUE_PROMPT.format(SIGMA_RULE_EXCERPT=excerpt)
+            technique_id = techniques[0]
+            if not ask_subtechnique:
+                technique_id = _technique_base(technique_id)
+            tech_prompt = (
+                TECHNIQUE_PROMPT_SUB if ask_subtechnique else TECHNIQUE_PROMPT_ONLY
+            ).format(SIGMA_RULE_EXCERPT=excerpt)
+            reward_fn = "reward_technique_sub_id" if ask_subtechnique else "reward_technique_id_only"
             technique_rows.append(
                 {
                     "task": "sigma_to_attack_technique",
@@ -148,9 +171,9 @@ def build_sigma_datasets(
                         "rule_title": rule.get("title", ""),
                         "prompt": tech_prompt,
                     },
-                    "ground_truth": {"technique_id": techniques[0]},
-                    "answer": techniques[0],
-                    "reward_fn": "reward_technique_id",
+                    "ground_truth": {"technique_id": technique_id},
+                    "answer": technique_id,
+                    "reward_fn": reward_fn,
                     "metadata": {**meta_common, "tactics": tactics},
                 }
             )
@@ -215,6 +238,11 @@ def main() -> None:
         action="store_true",
         help="Append MITRE Enterprise tactic ID->name catalog to the prompt (default: false)",
     )
+    parser.add_argument(
+        "--ask-subtechnique",
+        action="store_true",
+        help="Ask for a sub-technique ID in the prompt (default: technique ID only)",
+    )
     args = parser.parse_args()
     logger = get_logger("sigma")
 
@@ -228,6 +256,7 @@ def main() -> None:
     build_sigma_datasets(
         args.rule_dirs,
         output_dir=args.output_dir,
+        ask_subtechnique=bool(args.ask_subtechnique),
         include_id_names=bool(args.detailed_ids),
         tactic_id_to_name=tactic_id_to_name,
         logger=logger,

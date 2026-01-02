@@ -214,6 +214,9 @@ _scratch/
 # Minerva datasets (generated / local)
 dataset/**
 
+# Minerva analysis outputs
+minerva/analysis/results/
+
 # RLVR local datasets (keep converters + curated CTI outputs tracked)
 rlvr/mydata/**
 !rlvr/mydata/cti/

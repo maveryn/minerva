@@ -273,6 +273,8 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
             # pick the right truth value for common keys
             key_map = {
                 "reward_technique_id": "technique_id",
+                "reward_technique_id_only": "technique_id",
+                "reward_technique_sub_id": "technique_id",
                 "reward_tactic_ids": "tactic_ids",
                 "reward_mitigation_ids": "mitigation_ids",
                 "reward_detection_id": "detection_id",
@@ -300,7 +302,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                 pred_vals = _truth_ids(pred, r"CWE-\d+")
                 truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"CWE-\d+")
                 return fn(pred_vals, truth_vals)
-            if data_source == "reward_technique_id":
+            if data_source in {"reward_technique_id", "reward_technique_id_only", "reward_technique_sub_id"}:
                 match = re.search(r"T\d{4}(?:\.\d{3})?", pred, re.IGNORECASE)
                 pred_val = match.group(0) if match else pred
                 return fn(pred_val, truth_val)

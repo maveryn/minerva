@@ -6,7 +6,17 @@ from minerva.tasks.common import _append_id_name_catalog, _balanced_cap
 from minerva.utils import write_jsonl
 
 
-SCENARIO_TECHNIQUE_PROMPT = """Given the adversary procedure description below, provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the behavior.
+SCENARIO_TECHNIQUE_PROMPT_ONLY = """Given the adversary procedure description below, provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the behavior.
+
+Requirements:
+- Use MITRE ATT&CK Enterprise technique IDs only.
+- Return exactly ONE technique ID (T####).
+- Do not return sub-technique IDs (e.g., T1059.003).
+
+Adversary procedure:
+{SCENARIO_TEXT}"""
+
+SCENARIO_TECHNIQUE_PROMPT_SUB = """Given the adversary procedure description below, provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the behavior.
 
 Requirements:
 - Use MITRE ATT&CK Enterprise technique IDs only.
@@ -44,30 +54,51 @@ Adversary procedure:
 {SCENARIO_TEXT}"""
 
 
-def build_scenario_to_technique(records: List[Dict[str, any]], max_items: int, output_path: str, seed: int = 1337, logger=None) -> List[Dict[str, any]]:
+def _technique_base(technique_id: str) -> str:
+    return (technique_id or "").split(".", 1)[0]
+
+
+def build_scenario_to_technique(
+    records: List[Dict[str, any]],
+    max_items: int,
+    output_path: str,
+    seed: int = 1337,
+    *,
+    ask_subtechnique: bool = False,
+    logger=None,
+) -> List[Dict[str, any]]:
     if logger is None:
         logger = get_logger("task-scenario-technique")
     rng = random.Random(seed)
     records = _balanced_cap(
         records,
         max_items,
-        label_fn=lambda r: r.get("technique_id"),
+        label_fn=lambda r: r.get("technique_id") if ask_subtechnique else _technique_base(r.get("technique_id")),
         rng=rng,
     )
     rows: List[Dict[str, any]] = []
     for r in records:
         scenario_text = r.get("scenario") or ""
+        technique_id = r.get("technique_id")
+        if not ask_subtechnique:
+            technique_id = _technique_base(technique_id)
+        prompt = (
+            SCENARIO_TECHNIQUE_PROMPT_SUB
+            if ask_subtechnique
+            else SCENARIO_TECHNIQUE_PROMPT_ONLY
+        )
+        reward_fn = "reward_technique_sub_id" if ask_subtechnique else "reward_technique_id_only"
         rows.append(
             {
                 "task": "scenario_to_attack_technique",
                 "input": {
                     "scenario": scenario_text,
                     "platforms": r.get("platforms", []),
-                    "prompt": SCENARIO_TECHNIQUE_PROMPT.format(SCENARIO_TEXT=scenario_text),
+                    "prompt": prompt.format(SCENARIO_TEXT=scenario_text),
                 },
-                "ground_truth": {"technique_id": r.get("technique_id")},
-                "answer": r.get("technique_id"),
-                "reward_fn": "reward_technique_id",
+                "ground_truth": {"technique_id": technique_id},
+                "answer": technique_id,
+                "reward_fn": reward_fn,
                 "metadata": {
                     "tactics": r.get("tactics", []),
                     "mitigations": r.get("mitigations", []),

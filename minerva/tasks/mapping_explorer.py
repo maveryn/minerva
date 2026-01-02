@@ -9,7 +9,23 @@ from minerva.logger import get_logger
 from minerva.utils import normalize_text, write_jsonl
 
 
-EXPLOITATION_PROMPT = dedent(
+EXPLOITATION_PROMPT_ONLY = dedent(
+    """
+    Given the vulnerability description below, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
+
+    Exploitation Technique - the method (technique) used to exploit the vulnerability.
+
+    Requirements:
+    - Use MITRE ATT&CK Enterprise technique IDs only.
+    - Return exactly ONE technique ID (T####).
+    - Do not return sub-technique IDs (e.g., T1059.003).
+
+    Vulnerability description:
+    {CVE_DESCRIPTION}
+    """
+).strip()
+
+EXPLOITATION_PROMPT_SUB = dedent(
     """
     Given the vulnerability description below, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
 
@@ -26,7 +42,23 @@ EXPLOITATION_PROMPT = dedent(
 ).strip()
 
 
-PRIMARY_IMPACT_PROMPT = dedent(
+PRIMARY_IMPACT_PROMPT_ONLY = dedent(
+    """
+    Given the vulnerability description below, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
+
+    Primary Impact - the initial benefit (impact) gained through exploitation of the vulnerability.
+
+    Requirements:
+    - Use MITRE ATT&CK Enterprise technique IDs only.
+    - Return exactly ONE technique ID (T####).
+    - Do not return sub-technique IDs (e.g., T1059.003).
+
+    Vulnerability description:
+    {CVE_DESCRIPTION}
+    """
+).strip()
+
+PRIMARY_IMPACT_PROMPT_SUB = dedent(
     """
     Given the vulnerability description below, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
 
@@ -43,7 +75,26 @@ PRIMARY_IMPACT_PROMPT = dedent(
 ).strip()
 
 
-SECONDARY_IMPACT_PROMPT = dedent(
+SECONDARY_IMPACT_PROMPT_ONLY = dedent(
+    """
+    Given the vulnerability description and the primary impact already obtained, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
+
+    Secondary Impact - what the adversary can do by gaining the benefit of the primary impact.
+
+    Requirements:
+    - Use MITRE ATT&CK Enterprise technique IDs only.
+    - Return exactly ONE technique ID (T####).
+    - Do not return sub-technique IDs (e.g., T1059.003).
+
+    Vulnerability description:
+    {CVE_DESCRIPTION}
+
+    Primary impact:
+    {PRIMARY_IMPACT_TECHNIQUE_ID}
+    """
+).strip()
+
+SECONDARY_IMPACT_PROMPT_SUB = dedent(
     """
     Given the vulnerability description and the primary impact already obtained, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
 
@@ -87,6 +138,10 @@ def _sanitize_description(text: str, capability_id: str) -> str:
     return pattern.sub(_repl, text)
 
 
+def _technique_base(technique_id: str) -> str:
+    return (technique_id or "").split(".", 1)[0]
+
+
 def _load_mapping_objects(path: Path, logger) -> List[Dict[str, Any]]:
     if not path.exists():
         raise FileNotFoundError(f"Mapping file not found: {path}")
@@ -102,9 +157,11 @@ def _build_record(
     prompt: str,
     *,
     reward_fn: str,
+    technique_id: Optional[str] = None,
     extra_input: Optional[Dict[str, Any]] = None,
     extra_meta: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    technique_id = technique_id if technique_id is not None else obj.get("attack_object_id", "")
     input_payload = {
         "cve_id": obj.get("capability_id", ""),
         "cve_description": obj.get("sanitized_comments", obj.get("comments", "")),
@@ -126,8 +183,8 @@ def _build_record(
     return {
         "task": task,
         "input": input_payload,
-        "ground_truth": {"technique_id": obj.get("attack_object_id", "")},
-        "answer": obj.get("attack_object_id", ""),
+        "ground_truth": {"technique_id": technique_id},
+        "answer": technique_id,
         "reward_fn": reward_fn,
         "metadata": metadata,
     }
@@ -137,6 +194,7 @@ def build_cve_attack_datasets(
     mapping_path: str,
     output_dir: str = "dataset/minerva",
     *,
+    ask_subtechnique: bool = False,
     logger=None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
@@ -185,15 +243,33 @@ def build_cve_attack_datasets(
             continue  # skip non-unique comment/mapping_type combos
         sanitized = _sanitize_description(comment_raw, obj.get("capability_id", ""))
         obj["sanitized_comments"] = sanitized
+        technique_id = obj.get("attack_object_id", "")
+        if not ask_subtechnique:
+            technique_id = _technique_base(technique_id)
+        reward_fn = "reward_technique_sub_id" if ask_subtechnique else "reward_technique_id_only"
         if mtype == "exploitation_technique":
-            prompt = EXPLOITATION_PROMPT.format(CVE_DESCRIPTION=sanitized)
+            prompt_template = EXPLOITATION_PROMPT_SUB if ask_subtechnique else EXPLOITATION_PROMPT_ONLY
+            prompt = prompt_template.format(CVE_DESCRIPTION=sanitized)
             exploitation_rows.append(
-                _build_record("cve_to_attack_exploitation", obj, prompt, reward_fn="reward_technique_id")
+                _build_record(
+                    "cve_to_attack_exploitation",
+                    obj,
+                    prompt,
+                    reward_fn=reward_fn,
+                    technique_id=technique_id,
+                )
             )
         elif mtype == "primary_impact":
-            prompt = PRIMARY_IMPACT_PROMPT.format(CVE_DESCRIPTION=sanitized)
+            prompt_template = PRIMARY_IMPACT_PROMPT_SUB if ask_subtechnique else PRIMARY_IMPACT_PROMPT_ONLY
+            prompt = prompt_template.format(CVE_DESCRIPTION=sanitized)
             primary_rows.append(
-                _build_record("cve_to_attack_primary_impact", obj, prompt, reward_fn="reward_technique_id")
+                _build_record(
+                    "cve_to_attack_primary_impact",
+                    obj,
+                    prompt,
+                    reward_fn=reward_fn,
+                    technique_id=technique_id,
+                )
             )
         elif mtype == "secondary_impact":
             candidates = primary_by_comment.get(comment_key) or primary_by_capability.get(obj.get("capability_id"), [])
@@ -213,7 +289,10 @@ def build_cve_attack_datasets(
                     primary_obj.get("attack_object_id"),
                 )
             primary_id = primary_obj.get("attack_object_id", "")
-            prompt = SECONDARY_IMPACT_PROMPT.format(
+            if not ask_subtechnique:
+                primary_id = _technique_base(primary_id)
+            prompt_template = SECONDARY_IMPACT_PROMPT_SUB if ask_subtechnique else SECONDARY_IMPACT_PROMPT_ONLY
+            prompt = prompt_template.format(
                 CVE_DESCRIPTION=sanitized,
                 PRIMARY_IMPACT_TECHNIQUE_ID=primary_id,
             )
@@ -222,7 +301,8 @@ def build_cve_attack_datasets(
                     "cve_to_attack_secondary_impact",
                     obj,
                     prompt,
-                    reward_fn="reward_technique_id",
+                    reward_fn=reward_fn,
+                    technique_id=technique_id,
                     extra_input={"primary_impact_id": primary_id},
                     extra_meta={
                         "primary_candidates": [p.get("attack_object_id", "") for p in candidates]
@@ -267,10 +347,20 @@ def main() -> None:
         default="dataset/minerva",
         help="Directory where the JSONL files will be written",
     )
+    parser.add_argument(
+        "--ask-subtechnique",
+        action="store_true",
+        help="Ask for a sub-technique ID in the prompt (default: technique ID only)",
+    )
     args = parser.parse_args()
 
     logger = get_logger("mappings-explorer")
-    build_cve_attack_datasets(args.mapping_path, args.output_dir, logger=logger)
+    build_cve_attack_datasets(
+        args.mapping_path,
+        args.output_dir,
+        ask_subtechnique=bool(args.ask_subtechnique),
+        logger=logger,
+    )
 
 
 if __name__ == "__main__":
