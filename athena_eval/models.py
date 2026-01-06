@@ -242,11 +242,13 @@ class VLLMModel(BaseModel):
                 ids.add(val)
         if not ids:
             return None
-        return list(ids) if len(ids) > 1 else next(iter(ids))
+        return list(ids)
 
     def generate(self, prompt: str, temperature: float = 0.0, **_: object) -> str:
         formatted = self._format_prompt(prompt)
         eos = self._eos_ids()
+        if eos is not None and not isinstance(eos, list):
+            eos = [eos]
         params = self._SamplingParams(
             temperature=temperature,
             max_tokens=self.max_new_tokens,
