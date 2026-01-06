@@ -235,33 +235,33 @@ def desc_key(text: str) -> str:
 PROMPT_TEMPLATES_DESC = {
     "ATTACK_TECHNIQUE": (
         "Given the following description, provide the single most appropriate "
-        "MITRE ATT&CK Enterprise technique ID (format: T####).\n\n"
-        "Description:\n{description}\n\n"
-        "Return EXACTLY one technique ID and nothing else. No explanation, no extra text."
+        "MITRE ATT&CK Enterprise technique ID (format: T####).\n"
+        "Return EXACTLY one technique ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Description:\n{description}"
     ),
     "ATTACK_SUBTECHNIQUE": (
         "Given the following description, provide the single most appropriate "
-        "MITRE ATT&CK Enterprise sub-technique ID (format: T####.###).\n\n"
-        "Description:\n{description}\n\n"
-        "Return EXACTLY one sub-technique ID and nothing else. No explanation, no extra text."
+        "MITRE ATT&CK Enterprise sub-technique ID (format: T####.###).\n"
+        "Return EXACTLY one sub-technique ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Description:\n{description}"
     ),
     "ATTACK_MITIGATION": (
         "Given the following description, provide the single most appropriate "
-        "MITRE ATT&CK Enterprise mitigation ID (format: M####).\n\n"
-        "Description:\n{description}\n\n"
-        "Return EXACTLY one mitigation ID and nothing else. No explanation, no extra text."
+        "MITRE ATT&CK Enterprise mitigation ID (format: M####).\n"
+        "Return EXACTLY one mitigation ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Description:\n{description}"
     ),
     "CWE": (
         "Given the following description, provide the single most appropriate "
-        "Common Weakness Enumeration (CWE) ID (format: CWE-<number>).\n\n"
-        "Description:\n{description}\n\n"
-        "Return EXACTLY one CWE ID and nothing else. No explanation, no extra text."
+        "Common Weakness Enumeration (CWE) ID (format: CWE-<number>).\n"
+        "Return EXACTLY one CWE ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Description:\n{description}"
     ),
     "CAPEC": (
         "Given the following description, provide the single most appropriate "
-        "Common Attack Pattern Enumeration and Classification (CAPEC) ID (format: CAPEC-<number>).\n\n"
-        "Description:\n{description}\n\n"
-        "Return EXACTLY one CAPEC ID and nothing else. No explanation, no extra text."
+        "Common Attack Pattern Enumeration and Classification (CAPEC) ID (format: CAPEC-<number>).\n"
+        "Return EXACTLY one CAPEC ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Description:\n{description}"
     ),
 }
 
@@ -269,33 +269,33 @@ PROMPT_TEMPLATES_DESC = {
 PROMPT_TEMPLATES_TITLE = {
     "ATTACK_TECHNIQUE": (
         "Given the following title, provide the single most appropriate "
-        "MITRE ATT&CK Enterprise technique ID (format: T####).\n\n"
-        "Title:\n{title}\n\n"
-        "Return EXACTLY one technique ID and nothing else. No explanation, no extra text."
+        "MITRE ATT&CK Enterprise technique ID (format: T####).\n"
+        "Return EXACTLY one technique ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Title:\n{title}"
     ),
     "ATTACK_SUBTECHNIQUE": (
         "Given the following title, provide the single most appropriate "
-        "MITRE ATT&CK Enterprise sub-technique ID (format: T####.###).\n\n"
-        "Title:\n{title}\n\n"
-        "Return EXACTLY one sub-technique ID and nothing else. No explanation, no extra text."
+        "MITRE ATT&CK Enterprise sub-technique ID (format: T####.###).\n"
+        "Return EXACTLY one sub-technique ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Title:\n{title}"
     ),
     "ATTACK_MITIGATION": (
         "Given the following title, provide the single most appropriate "
-        "MITRE ATT&CK Enterprise mitigation ID (format: M####).\n\n"
-        "Title:\n{title}\n\n"
-        "Return EXACTLY one mitigation ID and nothing else. No explanation, no extra text."
+        "MITRE ATT&CK Enterprise mitigation ID (format: M####).\n"
+        "Return EXACTLY one mitigation ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Title:\n{title}"
     ),
     "CWE": (
         "Given the following title, provide the single most appropriate "
-        "Common Weakness Enumeration (CWE) ID (format: CWE-<number>).\n\n"
-        "Title:\n{title}\n\n"
-        "Return EXACTLY one CWE ID and nothing else. No explanation, no extra text."
+        "Common Weakness Enumeration (CWE) ID (format: CWE-<number>).\n"
+        "Return EXACTLY one CWE ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Title:\n{title}"
     ),
     "CAPEC": (
         "Given the following title, provide the single most appropriate "
-        "Common Attack Pattern Enumeration and Classification (CAPEC) ID (format: CAPEC-<number>).\n\n"
-        "Title:\n{title}\n\n"
-        "Return EXACTLY one CAPEC ID and nothing else. No explanation, no extra text."
+        "Common Attack Pattern Enumeration and Classification (CAPEC) ID (format: CAPEC-<number>).\n"
+        "Return EXACTLY one CAPEC ID and nothing else. Any extra text makes the answer incorrect.\n\n"
+        "Title:\n{title}"
     ),
 }
 
