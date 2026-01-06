@@ -210,7 +210,6 @@ __marimo__/
 _rlvr/
 athena_data/
 _scratch/
-athena_eval/
 
 # Minerva datasets (generated / local)
 dataset/**
