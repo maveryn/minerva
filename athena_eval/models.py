@@ -204,13 +204,85 @@ class HuggingFaceModel(BaseModel):
         )[0]["generated_text"]
         return gen.strip()
 
+
+class VLLMModel(BaseModel):
+    """Wrapper for vLLM-backed models."""
+
+    def __init__(self, name: str, max_new_tokens: int = 2048, vllm_kwargs: Optional[dict] = None):
+        super().__init__(name)
+        try:
+            from vllm import LLM, SamplingParams  # type: ignore
+        except Exception as exc:  # pragma: no cover
+            raise ImportError("vllm package is required for VLLMModel") from exc
+        self._SamplingParams = SamplingParams
+        vllm_kwargs = vllm_kwargs or {}
+        if "trust_remote_code" not in vllm_kwargs:
+            vllm_kwargs["trust_remote_code"] = True
+        self.llm = LLM(model=name, **vllm_kwargs)
+        self.tokenizer = self.llm.get_tokenizer()
+        self.max_new_tokens = max_new_tokens
+
+    def _format_prompt(self, prompt: str) -> str:
+        if getattr(self.tokenizer, "chat_template", None):
+            messages = [{"role": "user", "content": prompt}]
+            return self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        return prompt
+
+    def _eos_ids(self):
+        ids = set()
+        for attr in ("eos_token_id", "eot_token_id"):
+            val = getattr(self.tokenizer, attr, None)
+            if val is None:
+                continue
+            if isinstance(val, (list, tuple, set)):
+                ids.update(val)
+            else:
+                ids.add(val)
+        if not ids:
+            return None
+        return list(ids) if len(ids) > 1 else next(iter(ids))
+
+    def generate(self, prompt: str, temperature: float = 0.0, **_: object) -> str:
+        formatted = self._format_prompt(prompt)
+        eos = self._eos_ids()
+        params = self._SamplingParams(
+            temperature=temperature,
+            max_tokens=self.max_new_tokens,
+            stop_token_ids=eos,
+        )
+        outputs = self.llm.generate([formatted], params)
+        if not outputs:
+            return ""
+        first = outputs[0]
+        if not getattr(first, "outputs", None):
+            return ""
+        text = first.outputs[0].text
+        return (text or "").strip()
+
+
 def load_model(cfg: dict) -> BaseModel:
     mtype = cfg.get("type")
     name = cfg.get("name") or cfg.get("model")
     if mtype in {"openai", "chatgpt"}:
         return OpenAIModel(name, api_key=cfg.get("api_key"))
     if mtype in {"hf", "huggingface"}:
-        return HuggingFaceModel(name, max_new_tokens=cfg.get("max_new_tokens", 2048), api_key=cfg.get("api_key"))
+        use_vllm = cfg.get("use_vllm", True)
+        if use_vllm:
+            try:
+                return VLLMModel(
+                    name,
+                    max_new_tokens=cfg.get("max_new_tokens", 2048),
+                    vllm_kwargs=cfg.get("vllm", {}),
+                )
+            except Exception:
+                pass
+        return HuggingFaceModel(
+            name,
+            max_new_tokens=cfg.get("max_new_tokens", 2048),
+            api_key=cfg.get("api_key"),
+        )
     if mtype in {"gemini", "google"}:
         return GeminiModel(name, api_key=cfg.get("api_key"))
     if mtype == "dummy":
