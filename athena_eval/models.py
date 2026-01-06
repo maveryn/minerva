@@ -154,11 +154,19 @@ class HuggingFaceModel(BaseModel):
         ids = set()
         for attr in ("eos_token_id", "eot_token_id"):
             val = getattr(self.tokenizer, attr, None)
-            if val is not None:
+            if val is None:
+                continue
+            if isinstance(val, (list, tuple, set)):
+                ids.update(val)
+            else:
                 ids.add(val)
         for attr in ("eos_token_id", "eot_token_id"):
             val = getattr(self.model.config, attr, None)
-            if val is not None:
+            if val is None:
+                continue
+            if isinstance(val, (list, tuple, set)):
+                ids.update(val)
+            else:
                 ids.add(val)
         if not ids:
             return None
