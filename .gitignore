@@ -210,12 +210,14 @@ __marimo__/
 _rlvr/
 athena_data/
 _scratch/
+athena_eval/
 
 # Minerva datasets (generated / local)
 dataset/**
 
 # Minerva analysis outputs
 minerva/analysis/results/
+minerva/analysis/runs/
 
 # RLVR local datasets (keep converters + curated CTI outputs tracked)
 rlvr/mydata/**
