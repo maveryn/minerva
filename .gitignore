@@ -217,7 +217,6 @@ dataset/**
 
 # Minerva analysis outputs
 minerva/analysis/results/
-minerva/analysis/runs/
 
 # RLVR local datasets (keep converters + curated CTI outputs tracked)
 rlvr/mydata/**
