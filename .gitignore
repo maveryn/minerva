@@ -213,7 +213,6 @@ _scratch/
 athenabench/
 
 # Minerva datasets (generated / local)
-dataset/**
 
 # Minerva analysis outputs
 minerva/analysis/results/
