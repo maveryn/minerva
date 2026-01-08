@@ -1210,6 +1210,35 @@ class RayPPOTrainer:
                         if reward_extra_infos_dict:
                             batch.non_tensor_batch.update({k: np.array(v) for k, v in reward_extra_infos_dict.items()})
 
+                        # Optional: update adaptive label-hint curriculum on the training dataset.
+                        if hasattr(self.train_dataset, "update_option_curriculum_from_rollout"):
+                            sample_score = None
+                            if reward_tensor.dim() == 2:
+                                sample_score = reward_tensor.sum(-1)
+                            elif reward_tensor.dim() == 1:
+                                sample_score = reward_tensor
+                            if sample_score is not None:
+                                data_source = batch.non_tensor_batch.get("data_source")
+                                uids = batch.non_tensor_batch.get("uid")
+                                if data_source is not None and uids is not None:
+                                    if "is_correct" in batch.non_tensor_batch:
+                                        is_correct = batch.non_tensor_batch.get("is_correct")
+                                    else:
+                                        adaptive_cfg = self.config.data.get("adaptive_options", {})
+                                        score_threshold = adaptive_cfg.get("score_threshold", 0.5)
+                                        is_correct = (sample_score > score_threshold).detach().cpu().numpy()
+                                    curriculum_metrics = self.train_dataset.update_option_curriculum_from_rollout(
+                                        data_source_arr=data_source,
+                                        uid_arr=uids,
+                                        is_correct_arr=is_correct,
+                                        global_step=self.global_steps,
+                                    )
+                                    if isinstance(curriculum_metrics, dict):
+                                        metrics.update(curriculum_metrics)
+                                    option_controller = getattr(self.train_dataset, "option_controller", None)
+                                    if option_controller is not None:
+                                        metrics.update(option_controller.get_metrics(prefix="option_curriculum/"))
+
                         # compute rewards. apply_kl_penalty if available
                         if self.config.algorithm.use_kl_in_reward:
                             batch, kl_metrics = apply_kl_penalty(

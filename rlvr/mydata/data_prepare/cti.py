@@ -18,7 +18,7 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 import pandas as pd
 import pyarrow as pa
@@ -121,7 +121,9 @@ def add_ground_truth(df: pd.DataFrame) -> pd.DataFrame:
 def rows_to_verl(df: pd.DataFrame, *, spec: DatasetSpec) -> List[Dict]:
     """Transform dataframe rows into VeRL schema dictionaries."""
     rows: List[Dict] = []
-    extra_cols = [c for c in df.columns if c not in {"problem", "answer", "ground_truth"}]
+    candidate_pool_key = "candidate_pool_top100"
+    extra_cols = [c for c in df.columns if c not in {"problem", "answer", "ground_truth", candidate_pool_key}]
+    has_candidate_pool = candidate_pool_key in df.columns
 
     for idx, record in df.reset_index(drop=True).iterrows():
         messages = build_messages(record["problem"], spec.system_prompt)
@@ -139,16 +141,23 @@ def rows_to_verl(df: pd.DataFrame, *, spec: DatasetSpec) -> List[Dict]:
             else:
                 extra_info[col] = sanitize_text(value)
 
-        rows.append(
-            {
-                "data_source": ds_value,
-                "source_file": spec.source_path.name,
-                "prompt": messages,
-                "ability": "cti",
-                "reward_model": {"style": "rule", "ground_truth": record["ground_truth"]},
-                "extra_info": extra_info,
-            }
-        )
+        row: Dict[str, Any] = {
+            "data_source": ds_value,
+            "source_file": spec.source_path.name,
+            "prompt": messages,
+            "ability": "cti",
+            "reward_model": {"style": "rule", "ground_truth": record["ground_truth"]},
+            "extra_info": extra_info,
+        }
+        if has_candidate_pool:
+            pool_val = record.get(candidate_pool_key)
+            if isinstance(pool_val, list):
+                row[candidate_pool_key] = pool_val
+            elif pool_val is None:
+                row[candidate_pool_key] = []
+            else:
+                row[candidate_pool_key] = [str(pool_val)]
+        rows.append(row)
     return rows
 
 
