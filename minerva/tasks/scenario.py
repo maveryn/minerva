@@ -87,7 +87,7 @@ def build_scenario_to_technique(
             if ask_subtechnique
             else SCENARIO_TECHNIQUE_PROMPT_ONLY
         )
-        reward_fn = "reward_technique_sub_id" if ask_subtechnique else "reward_technique_id_only"
+        reward_fn = "reward_technique_id" if ask_subtechnique else "reward_technique_id_only"
         rows.append(
             {
                 "task": "scenario_to_attack_technique",

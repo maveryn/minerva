@@ -150,7 +150,7 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
         mappings = build_cve_attack_datasets(
             mappings_path,
             output_dir=minerva_out,
-            ask_subtechnique=bool(mappings_cfg.get("ask_subtechnique", False)),
+            ask_subtechnique=bool(mappings_cfg.get("ask_subtechnique", True)),
             logger=logger,
         )
         summary["cve_to_attack_exploitation"] = len(mappings.get("exploitation", []))
@@ -190,7 +190,7 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
         sigma_sets = build_sigma_datasets(
             sigma_dirs,
             output_dir=minerva_out,
-            ask_subtechnique=bool(sigma_cfg.get("ask_subtechnique", False)),
+            ask_subtechnique=bool(sigma_cfg.get("ask_subtechnique", True)),
             include_id_names=bool(detailed_prompts),
             tactic_id_to_name=tactic_id_to_name,
             logger=logger,
@@ -259,7 +259,7 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
             max_items=int(st_cfg.get("max_items", 5000)),
             output_path=st_cfg.get("output_path", "data/processed/minerva/scenario_to_technique.jsonl"),
             seed=int(st_cfg.get("seed", 1337)),
-            ask_subtechnique=bool(st_cfg.get("ask_subtechnique", False)),
+            ask_subtechnique=bool(st_cfg.get("ask_subtechnique", True)),
             logger=logger,
         )
         summary["scenario_to_technique"] = len(scenario_tasks)

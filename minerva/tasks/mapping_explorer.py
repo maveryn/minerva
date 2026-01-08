@@ -246,7 +246,7 @@ def build_cve_attack_datasets(
         technique_id = obj.get("attack_object_id", "")
         if not ask_subtechnique:
             technique_id = _technique_base(technique_id)
-        reward_fn = "reward_technique_sub_id" if ask_subtechnique else "reward_technique_id_only"
+        reward_fn = "reward_technique_id" if ask_subtechnique else "reward_technique_id_only"
         if mtype == "exploitation_technique":
             prompt_template = EXPLOITATION_PROMPT_SUB if ask_subtechnique else EXPLOITATION_PROMPT_ONLY
             prompt = prompt_template.format(CVE_DESCRIPTION=sanitized)

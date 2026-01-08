@@ -16,6 +16,12 @@ CAPEC:
   capec_url: "https://raw.githubusercontent.com/mitre/cti/master/capec/2.1/stix-capec.json"
   cache_path: dataset/capec/stix-capec.json
 
+MAPPINGS_EXPLORER:
+  ask_subtechnique: true
+
+SIGMA:
+  ask_subtechnique: true
+
 TASKS:
   CVE_CWE:
     min_words: 30
@@ -36,6 +42,7 @@ TASKS:
     max_items: 999999999
   SCENARIO_TECHNIQUE:
     max_items: 999999999
+    ask_subtechnique: true
     output_path: dataset/minerva/scenario_to_technique.jsonl
     seed: 1337
   SCENARIO_TACTIC:
