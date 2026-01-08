@@ -134,7 +134,8 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
         self.buffer = int(adaptive_cfg.get("buffer", 10))
         self.base_seed = int(adaptive_cfg.get("base_seed", adaptive_cfg.get("seed", 1337)))
         self.score_threshold = float(adaptive_cfg.get("score_threshold", 0.5))
-        self.option_desc_max_chars = int(adaptive_cfg.get("option_desc_max_chars", 200))
+        self.option_desc_max_chars = int(adaptive_cfg.get("option_desc_max_chars", 400))
+        self.option_include_descriptions = bool(adaptive_cfg.get("include_descriptions", False))
         self._global_step = 0
 
         self.option_controller: Optional[OptionCurriculumController] = None
@@ -228,7 +229,9 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
         ident = item.get("id", "").strip()
         name = item.get("name", "").strip()
         desc = item.get("description", "").strip()
-        if desc and self.option_desc_max_chars > 0 and len(desc) > self.option_desc_max_chars:
+        if not self.option_include_descriptions:
+            desc = ""
+        elif desc and self.option_desc_max_chars > 0 and len(desc) > self.option_desc_max_chars:
             desc = desc[: self.option_desc_max_chars].rsplit(" ", 1)[0] + "..."
         parts = [p for p in (ident, name, desc) if p]
         return " | ".join(parts) if parts else ident
@@ -237,7 +240,10 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
         lines = ["Candidate IDs (choose one):"]
         for idx, item in enumerate(options, start=1):
             lines.append(f"{idx}) {self._format_option_item(item)}")
-        lines.append("Return ONLY the ID.")
+        lines.append(
+            "The correct ID is one of the candidates above. You may use them as a reference, but do not mention the list. "
+            "Reason step by step to arrive at the answer."
+        )
         return "\n".join(lines)
 
     def _append_options(self, messages: List[Dict[str, Any]], options: List[str]) -> bool:

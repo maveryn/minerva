@@ -113,6 +113,50 @@ def _project_row(row: Dict) -> Dict:
     return out
 
 
+def _format_candidate_prompt(
+    row: Dict,
+    *,
+    k: int = 5,
+    include_descriptions: bool = False,
+    desc_max_chars: int = 400,
+) -> Optional[str]:
+    if not isinstance(row, dict):
+        return None
+    prompt = str(row.get("prompt") or "")
+    pool = row.get("candidate_pool_top100")
+    if pool is None:
+        pool = (row.get("extra_info") or {}).get("candidate_pool_top100")
+    if not isinstance(pool, list) or not pool:
+        return None
+    options = pool[:k]
+    if not options:
+        return None
+    lines = ["Candidate IDs (choose one):"]
+    for idx, item in enumerate(options, start=1):
+        if isinstance(item, dict):
+            ident = str(item.get("id") or item.get("label") or item.get("value") or "").strip()
+            name = str(item.get("name") or "").strip()
+            desc = str(item.get("description") or item.get("desc") or "").strip()
+        else:
+            ident = str(item).strip()
+            name = ""
+            desc = ""
+        if not include_descriptions:
+            desc = ""
+        elif desc and desc_max_chars > 0 and len(desc) > desc_max_chars:
+            desc = desc[:desc_max_chars].rsplit(" ", 1)[0] + "..."
+        parts = [p for p in (ident, name, desc) if p]
+        line = " | ".join(parts) if parts else ident
+        lines.append(f"{idx}) {line}")
+    lines.append(
+        "The correct ID is one of the candidates above. You may use them as a reference, but do not mention the list. "
+        "Reason step by step to arrive at the answer."
+    )
+    if prompt:
+        return f"{prompt.rstrip()}\n\n" + "\n".join(lines)
+    return "\n".join(lines)
+
+
 def _row_key(row: Dict) -> Tuple[str, str, str]:
     task = ""
     reward_fn = ""
@@ -297,6 +341,16 @@ def build_splits(
     logger.info("Wrote train (%d rows) -> %s", len(projected_train), train_path)
     logger.info("Wrote dev (%d rows) -> %s", len(projected_dev), dev_path)
 
+    projected_examples = {
+        k: {"train": _project_row(v.get("train")), "dev": _project_row(v.get("dev"))} for k, v in examples.items()
+    }
+    candidate_examples: Dict[str, Dict[str, Optional[str]]] = {}
+    for task, ex in projected_examples.items():
+        cand_train = _format_candidate_prompt(ex.get("train"))
+        cand_dev = _format_candidate_prompt(ex.get("dev"))
+        if cand_train or cand_dev:
+            candidate_examples[task] = {"train": cand_train, "dev": cand_dev}
+
     meta = {
         "seed": seed,
         "summary": {
@@ -305,8 +359,10 @@ def build_splits(
             "total": len(train_rows) + len(dev_rows),
         },
         "per_task": stats,
-        "examples": {k: {"train": _project_row(v.get("train")), "dev": _project_row(v.get("dev"))} for k, v in examples.items()},
+        "examples": projected_examples,
     }
+    if candidate_examples:
+        meta["candidate_examples"] = candidate_examples
     (out_dir / "metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Wrote split metadata -> %s", out_dir / "metadata.json")
 

@@ -40,7 +40,7 @@ For each example (with a candidate pool):
 1) Select a task key (`reward_fn`/`data_source`) and read the current curriculum state `(K, p_drop)`.
 2) Sample K-1 distractors from the top-N retrieved candidates and add the gold ID.
 3) Append a “Candidate IDs” block to the user prompt:
-   - `ID | name | description` (description truncated to `option_desc_max_chars`).
+   - `ID | name` by default; set `include_descriptions=true` to add `description` (truncated to `option_desc_max_chars`).
 4) If the prompt exceeds `max_prompt_length`, reduce K until it fits.
 
 ### Curriculum controller
@@ -62,6 +62,8 @@ data.adaptive_options.k_max=30
 data.adaptive_options.k_step=2
 data.adaptive_options.p_drop_step=0.05
 data.adaptive_options.score_threshold=0.5
+data.adaptive_options.include_descriptions=false
+data.adaptive_options.option_desc_max_chars=400
 ```
 
 ## Training scripts (Llama 3B)

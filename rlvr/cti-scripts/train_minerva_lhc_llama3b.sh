@@ -32,7 +32,7 @@ python3 -m verl.trainer.main_ppo \
     +data.adaptive_options.candidate_pool_key=candidate_pool_top100 \
     +data.adaptive_options.target_acc=0.5 \
     +data.adaptive_options.tol=0.05 \
-    +data.adaptive_options.warmup_steps=50 \
+    +data.adaptive_options.warmup_steps=0 \
     +data.adaptive_options.ema_beta=0.9 \
     +data.adaptive_options.k_min=2 \
     +data.adaptive_options.k_max=30 \
