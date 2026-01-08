@@ -36,7 +36,7 @@ python3 -m verl.trainer.main_ppo \
     data.max_response_length=2048 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
-    actor_rollout_ref.model.path=meta-llama/Llama-3.1-8B-Instruct \
+    actor_rollout_ref.model.path=meta-llama/Llama-3.2-3B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=128 \
@@ -51,7 +51,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.temperature=1.0 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.9 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.8 \
     actor_rollout_ref.rollout.n=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.use_kl_in_reward=False \
@@ -60,7 +60,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name='minerva' \
     trainer.experiment_name='minerva_v0.1' \
     trainer.val_before_train=True \
-    trainer.n_gpus_per_node=2 \
+    trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
