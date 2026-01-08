@@ -221,6 +221,8 @@ minerva/analysis/results/
 rlvr/mydata/**
 !rlvr/mydata/cti/
 !rlvr/mydata/cti/**
+!rlvr/mydata/cti-in/
+!rlvr/mydata/cti-in/**
 !rlvr/mydata/data_prepare/
 !rlvr/mydata/data_prepare/**
 rlvr/mydata/data_prepare/**/__pycache__/
