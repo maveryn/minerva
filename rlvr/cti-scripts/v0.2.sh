@@ -10,10 +10,10 @@ train_path="$DATA_DIR/cti/minerva_train.parquet"
 
 val_paths=(
   "$DATA_DIR/cti/minerva_dev.parquet"
-  "$DATA_DIR/cti/athena_cti_ate.parquet"
-  "$DATA_DIR/cti/athena_cti_rcm.parquet"
-  "$DATA_DIR/cti/athena_cti_rms.parquet"
-  "$DATA_DIR/cti/athena_cti_taa.parquet"
+  "$DATA_DIR/athena/athena_cti_ate.parquet"
+  "$DATA_DIR/athena/athena_cti_rcm.parquet"
+  "$DATA_DIR/athena/athena_cti_rms.parquet"
+  "$DATA_DIR/athena/athena_cti_taa.parquet"
   "$DATA_DIR/math500/math500_test.parquet"
   "$DATA_DIR/olympiad/olympiadbench_test.parquet"
 )

@@ -1,0 +1,751 @@
+{
+  "config": {
+    "input_dir": "dataset/minerva",
+    "sample_size": 1000,
+    "seed": 1337,
+    "dense_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "alphas": [
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9
+    ]
+  },
+  "dense_available": true,
+  "dense_error": null,
+  "id_types": {
+    "attack_technique_id": {
+      "num_samples": 2713,
+      "metrics_mrr": {
+        "bm25": 0.12081925938913628,
+        "dense": 0.16942744688926756,
+        "hybrid_0.1": 0.12798789929178878,
+        "hybrid_0.2": 0.1370901052841971,
+        "hybrid_0.3": 0.14635228740498077,
+        "hybrid_0.4": 0.1578620480097689,
+        "hybrid_0.5": 0.1652235730231151,
+        "hybrid_0.6": 0.17531594713243037,
+        "hybrid_0.7": 0.18122120701611386,
+        "hybrid_0.8": 0.1846642886018588,
+        "hybrid_0.9": 0.18054806002125962
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.8",
+        "mrr": 0.1846642886018588,
+        "alpha": 0.8
+      }
+    },
+    "attack_tactic_id": {
+      "num_samples": 2000,
+      "metrics_mrr": {
+        "bm25": 0.5067649572649573,
+        "dense": 0.5142507700632701,
+        "hybrid_0.1": 0.5140927822177822,
+        "hybrid_0.2": 0.5267818265068265,
+        "hybrid_0.3": 0.537338770951271,
+        "hybrid_0.4": 0.5505671744921744,
+        "hybrid_0.5": 0.5580692196692196,
+        "hybrid_0.6": 0.5645105380730381,
+        "hybrid_0.7": 0.5577025807525807,
+        "hybrid_0.8": 0.5482881077256077,
+        "hybrid_0.9": 0.5309558108558109
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.6",
+        "mrr": 0.5645105380730381,
+        "alpha": 0.6
+      }
+    },
+    "detection_id": {
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.20401859997634877,
+        "dense": 0.29701830608224616,
+        "hybrid_0.1": 0.21161983415171595,
+        "hybrid_0.2": 0.2196593249035036,
+        "hybrid_0.3": 0.23500650984179697,
+        "hybrid_0.4": 0.24968387829436092,
+        "hybrid_0.5": 0.26300100483634764,
+        "hybrid_0.6": 0.27326634096225016,
+        "hybrid_0.7": 0.2861196252455672,
+        "hybrid_0.8": 0.2965963940830386,
+        "hybrid_0.9": 0.2992866467459504
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.9",
+        "mrr": 0.2992866467459504,
+        "alpha": 0.9
+      }
+    },
+    "mitigation_id": {
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.26295520247024695,
+        "dense": 0.3530913023260257,
+        "hybrid_0.1": 0.2716669030774698,
+        "hybrid_0.2": 0.28008640292569886,
+        "hybrid_0.3": 0.29016833959950883,
+        "hybrid_0.4": 0.3039583993234719,
+        "hybrid_0.5": 0.3196663206009836,
+        "hybrid_0.6": 0.3333920609625202,
+        "hybrid_0.7": 0.34849105419091164,
+        "hybrid_0.8": 0.35172174833386766,
+        "hybrid_0.9": 0.35134990310719727
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "dense",
+        "mrr": 0.3530913023260257
+      }
+    },
+    "cwe_id": {
+      "num_samples": 1196,
+      "metrics_mrr": {
+        "bm25": 0.33260641423953125,
+        "dense": 0.2150274272683481,
+        "hybrid_0.1": 0.34285021447489994,
+        "hybrid_0.2": 0.3565166510867973,
+        "hybrid_0.3": 0.3694206260061361,
+        "hybrid_0.4": 0.37834523280356985,
+        "hybrid_0.5": 0.38239586221978794,
+        "hybrid_0.6": 0.3712119920695572,
+        "hybrid_0.7": 0.34825170133442573,
+        "hybrid_0.8": 0.3158447531177322,
+        "hybrid_0.9": 0.2660035124219644
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.5",
+        "mrr": 0.38239586221978794,
+        "alpha": 0.5
+      }
+    },
+    "capec_id": {
+      "num_samples": 380,
+      "metrics_mrr": {
+        "bm25": 0.48485922027517875,
+        "dense": 0.4847271638215387,
+        "hybrid_0.1": 0.5099404687868615,
+        "hybrid_0.2": 0.529412505241759,
+        "hybrid_0.3": 0.5435647933202844,
+        "hybrid_0.4": 0.5597952086319095,
+        "hybrid_0.5": 0.5660961239760767,
+        "hybrid_0.6": 0.5638007673370098,
+        "hybrid_0.7": 0.5629309462360558,
+        "hybrid_0.8": 0.5484508474839734,
+        "hybrid_0.9": 0.5283931928704083
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.5",
+        "mrr": 0.5660961239760767,
+        "alpha": 0.5
+      }
+    },
+    "threat_actor_name": {
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.12017051671185024,
+        "dense": 0.07120720249338691,
+        "hybrid_0.1": 0.12211894842886016,
+        "hybrid_0.2": 0.12114056178085364,
+        "hybrid_0.3": 0.12120470150217094,
+        "hybrid_0.4": 0.11680806583366947,
+        "hybrid_0.5": 0.1123461292733732,
+        "hybrid_0.6": 0.11605309329925484,
+        "hybrid_0.7": 0.10819624458359581,
+        "hybrid_0.8": 0.0961856325251074,
+        "hybrid_0.9": 0.08517960441279093
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.1",
+        "mrr": 0.12211894842886016,
+        "alpha": 0.1
+      }
+    }
+  },
+  "tasks": {
+    "cve_to_attack_exploitation": {
+      "label_type": "attack_technique_id",
+      "num_samples": 265,
+      "metrics_mrr": {
+        "bm25": 0.16020498689917148,
+        "dense": 0.24526712169363085,
+        "hybrid_0.1": 0.17354254218509096,
+        "hybrid_0.2": 0.1845718151598989,
+        "hybrid_0.3": 0.2022057583337536,
+        "hybrid_0.4": 0.2256838318414041,
+        "hybrid_0.5": 0.23940637040929028,
+        "hybrid_0.6": 0.2586366236604485,
+        "hybrid_0.7": 0.2699582092554348,
+        "hybrid_0.8": 0.2844065792770578,
+        "hybrid_0.9": 0.2698565561204439
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.8",
+        "mrr": 0.2844065792770578,
+        "alpha": 0.8
+      }
+    },
+    "cve_to_attack_primary_impact": {
+      "label_type": "attack_technique_id",
+      "num_samples": 230,
+      "metrics_mrr": {
+        "bm25": 0.07110039361064242,
+        "dense": 0.08645281795248061,
+        "hybrid_0.1": 0.0761080544421729,
+        "hybrid_0.2": 0.08257974884865185,
+        "hybrid_0.3": 0.0882612646972605,
+        "hybrid_0.4": 0.09384541536328717,
+        "hybrid_0.5": 0.09906110618298329,
+        "hybrid_0.6": 0.09909981806358649,
+        "hybrid_0.7": 0.10191820234219155,
+        "hybrid_0.8": 0.09580950490574239,
+        "hybrid_0.9": 0.09587024406432783
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.7",
+        "mrr": 0.10191820234219155,
+        "alpha": 0.7
+      }
+    },
+    "cve_to_attack_secondary_impact": {
+      "label_type": "attack_technique_id",
+      "num_samples": 74,
+      "metrics_mrr": {
+        "bm25": 0.03161414736588098,
+        "dense": 0.029697479574254566,
+        "hybrid_0.1": 0.03513066825326871,
+        "hybrid_0.2": 0.039818606042527065,
+        "hybrid_0.3": 0.047107848445885864,
+        "hybrid_0.4": 0.04945821596072006,
+        "hybrid_0.5": 0.04975607275324601,
+        "hybrid_0.6": 0.049900897246285034,
+        "hybrid_0.7": 0.04637841598846916,
+        "hybrid_0.8": 0.04272681186914988,
+        "hybrid_0.9": 0.031139667415008093
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.6",
+        "mrr": 0.049900897246285034,
+        "alpha": 0.6
+      }
+    },
+    "sigma_to_attack_technique": {
+      "label_type": "attack_technique_id",
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.0606302550753519,
+        "dense": 0.09157560915699642,
+        "hybrid_0.1": 0.06339975072676014,
+        "hybrid_0.2": 0.06654227920765879,
+        "hybrid_0.3": 0.06980096367454265,
+        "hybrid_0.4": 0.07323941758092936,
+        "hybrid_0.5": 0.07700770932915492,
+        "hybrid_0.6": 0.08212653181510249,
+        "hybrid_0.7": 0.08387609644298327,
+        "hybrid_0.8": 0.08779998997628832,
+        "hybrid_0.9": 0.09244445948999302
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.9",
+        "mrr": 0.09244445948999302,
+        "alpha": 0.9
+      }
+    },
+    "scenario_to_technique": {
+      "label_type": "attack_technique_id",
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.18159336749805913,
+        "dense": 0.24794865776153438,
+        "hybrid_0.1": 0.19224627254079701,
+        "hybrid_0.2": 0.20624810728123338,
+        "hybrid_0.3": 0.22019447016342145,
+        "hybrid_0.4": 0.2370179922725351,
+        "hybrid_0.5": 0.24741659965936097,
+        "hybrid_0.6": 0.2618800580297441,
+        "hybrid_0.7": 0.27106562736286177,
+        "hybrid_0.8": 0.27548177047325545,
+        "hybrid_0.9": 0.26688946079466086
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.8",
+        "mrr": 0.27548177047325545,
+        "alpha": 0.8
+      }
+    },
+    "capec_example_to_attack": {
+      "label_type": "attack_technique_id",
+      "num_samples": 144,
+      "metrics_mrr": {
+        "bm25": 0.1695289526771686,
+        "dense": 0.22954755295607315,
+        "hybrid_0.1": 0.17702674902482707,
+        "hybrid_0.2": 0.19641402116266968,
+        "hybrid_0.3": 0.20616475186068473,
+        "hybrid_0.4": 0.2289705378084524,
+        "hybrid_0.5": 0.2355455045757443,
+        "hybrid_0.6": 0.2541753118372788,
+        "hybrid_0.7": 0.26596733371063064,
+        "hybrid_0.8": 0.25796347786278456,
+        "hybrid_0.9": 0.24046171984444317
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.7",
+        "mrr": 0.26596733371063064,
+        "alpha": 0.7
+      }
+    },
+    "sigma_to_attack_tactics": {
+      "label_type": "attack_tactic_id",
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.5197497502497502,
+        "dense": 0.48571754911754916,
+        "hybrid_0.1": 0.5207485875235875,
+        "hybrid_0.2": 0.5286908064158063,
+        "hybrid_0.3": 0.532691477966478,
+        "hybrid_0.4": 0.542625197025197,
+        "hybrid_0.5": 0.5501716144966144,
+        "hybrid_0.6": 0.5596146048396048,
+        "hybrid_0.7": 0.5415038045288045,
+        "hybrid_0.8": 0.5326835886335887,
+        "hybrid_0.9": 0.5086050782550783
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.6",
+        "mrr": 0.5596146048396048,
+        "alpha": 0.6
+      }
+    },
+    "scenario_to_tactics": {
+      "label_type": "attack_tactic_id",
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.4937801642801643,
+        "dense": 0.5427839910089911,
+        "hybrid_0.1": 0.5074369769119769,
+        "hybrid_0.2": 0.5248728465978465,
+        "hybrid_0.3": 0.541986063936064,
+        "hybrid_0.4": 0.558509151959152,
+        "hybrid_0.5": 0.5659668248418247,
+        "hybrid_0.6": 0.5694064713064713,
+        "hybrid_0.7": 0.5739013569763569,
+        "hybrid_0.8": 0.5638926268176269,
+        "hybrid_0.9": 0.5533065434565435
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.7",
+        "mrr": 0.5739013569763569,
+        "alpha": 0.7
+      }
+    },
+    "scenario_to_detections": {
+      "label_type": "detection_id",
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.20401859997634877,
+        "dense": 0.29701830608224616,
+        "hybrid_0.1": 0.21161983415171595,
+        "hybrid_0.2": 0.2196593249035036,
+        "hybrid_0.3": 0.23500650984179697,
+        "hybrid_0.4": 0.24968387829436092,
+        "hybrid_0.5": 0.26300100483634764,
+        "hybrid_0.6": 0.27326634096225016,
+        "hybrid_0.7": 0.2861196252455672,
+        "hybrid_0.8": 0.2965963940830386,
+        "hybrid_0.9": 0.2992866467459504
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.9",
+        "mrr": 0.2992866467459504,
+        "alpha": 0.9
+      }
+    },
+    "scenario_to_mitigations": {
+      "label_type": "mitigation_id",
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.26295520247024695,
+        "dense": 0.3530913023260257,
+        "hybrid_0.1": 0.2716669030774698,
+        "hybrid_0.2": 0.28008640292569886,
+        "hybrid_0.3": 0.29016833959950883,
+        "hybrid_0.4": 0.3039583993234719,
+        "hybrid_0.5": 0.3196663206009836,
+        "hybrid_0.6": 0.3333920609625202,
+        "hybrid_0.7": 0.34849105419091164,
+        "hybrid_0.8": 0.35172174833386766,
+        "hybrid_0.9": 0.35134990310719727
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "dense",
+        "mrr": 0.3530913023260257
+      }
+    },
+    "cve_to_cwe": {
+      "label_type": "cwe_id",
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.3684403974721208,
+        "dense": 0.2220013100797796,
+        "hybrid_0.1": 0.37964918762787614,
+        "hybrid_0.2": 0.3938776162680739,
+        "hybrid_0.3": 0.40724878970850104,
+        "hybrid_0.4": 0.415691252464592,
+        "hybrid_0.5": 0.41813710966127104,
+        "hybrid_0.6": 0.40405172366988656,
+        "hybrid_0.7": 0.3757383967672939,
+        "hybrid_0.8": 0.33715498379919023,
+        "hybrid_0.9": 0.27904870668964443
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.5",
+        "mrr": 0.41813710966127104,
+        "alpha": 0.5
+      }
+    },
+    "capec_example_to_cwe": {
+      "label_type": "cwe_id",
+      "num_samples": 196,
+      "metrics_mrr": {
+        "bm25": 0.14977996917529884,
+        "dense": 0.1794463925161465,
+        "hybrid_0.1": 0.15510035144951106,
+        "hybrid_0.2": 0.16589948179457,
+        "hybrid_0.3": 0.1764197907899886,
+        "hybrid_0.4": 0.18780431616570187,
+        "hybrid_0.5": 0.2000425589469151,
+        "hybrid_0.6": 0.20366234104746866,
+        "hybrid_0.7": 0.20801345932999643,
+        "hybrid_0.8": 0.2071190863755993,
+        "hybrid_0.9": 0.19944639881135215
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.7",
+        "mrr": 0.20801345932999643,
+        "alpha": 0.7
+      }
+    },
+    "capec_example_to_capec": {
+      "label_type": "capec_id",
+      "num_samples": 380,
+      "metrics_mrr": {
+        "bm25": 0.48485922027517875,
+        "dense": 0.4847271638215387,
+        "hybrid_0.1": 0.5099404687868615,
+        "hybrid_0.2": 0.529412505241759,
+        "hybrid_0.3": 0.5435647933202844,
+        "hybrid_0.4": 0.5597952086319095,
+        "hybrid_0.5": 0.5660961239760767,
+        "hybrid_0.6": 0.5638007673370098,
+        "hybrid_0.7": 0.5629309462360558,
+        "hybrid_0.8": 0.5484508474839734,
+        "hybrid_0.9": 0.5283931928704083
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.5",
+        "mrr": 0.5660961239760767,
+        "alpha": 0.5
+      }
+    },
+    "threat_actor_mcq": {
+      "label_type": "threat_actor_name",
+      "num_samples": 1000,
+      "metrics_mrr": {
+        "bm25": 0.12017051671185024,
+        "dense": 0.07120720249338691,
+        "hybrid_0.1": 0.12211894842886016,
+        "hybrid_0.2": 0.12114056178085364,
+        "hybrid_0.3": 0.12120470150217094,
+        "hybrid_0.4": 0.11680806583366947,
+        "hybrid_0.5": 0.1123461292733732,
+        "hybrid_0.6": 0.11605309329925484,
+        "hybrid_0.7": 0.10819624458359581,
+        "hybrid_0.8": 0.0961856325251074,
+        "hybrid_0.9": 0.08517960441279093
+      },
+      "missing_labels": {
+        "bm25": 0,
+        "dense": 0,
+        "hybrid_0.1": 0,
+        "hybrid_0.2": 0,
+        "hybrid_0.3": 0,
+        "hybrid_0.4": 0,
+        "hybrid_0.5": 0,
+        "hybrid_0.6": 0,
+        "hybrid_0.7": 0,
+        "hybrid_0.8": 0,
+        "hybrid_0.9": 0
+      },
+      "best": {
+        "method": "hybrid_0.1",
+        "mrr": 0.12211894842886016,
+        "alpha": 0.1
+      }
+    }
+  }
+}

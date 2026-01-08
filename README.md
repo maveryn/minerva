@@ -11,15 +11,15 @@ Minerva builds reinforcement-learning friendly cyber threat intelligence (CTI) d
 - Threat actor MCQ from ATT&CK procedures
 - Train/dev splits (32k/8k) with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`)
 
-See `task-descriptions.md` for inputs/outputs/rewards, prompts, and per-task split statistics.
+See `docs/task-descriptions.md` for inputs/outputs/rewards, prompts, and per-task split statistics.
 
 ## Layout
 - `minerva/pipeline.py` – orchestrates full dataset build
 - `minerva/tasks/` – task builders (CVE, Sigma, scenarios, CAPEC, mappings-explorer, threat actors)
 - `minerva/data_sources/` – loaders for NVD, MITRE ATT&CK, CAPEC, mappings-explorer
 - `minerva/reward.py` – reward functions (binary, technique/tactic F1, CVSS parsers, etc.)
-- Outputs: `dataset/minerva/*.jsonl` + `dataset/minerva/metadata.json`
-- Splits: `dataset/minerva_split/train.jsonl`, `dataset/minerva_split/dev.jsonl`, `dataset/minerva_split/metadata.json`
+- Outputs: `dataset/minerva_base/*.jsonl` + `dataset/minerva_base/metadata.json` (LHC: `dataset/minerva_lhc/*`)
+- Splits: `dataset/minerva_base_split/minerva-base-{train,dev}.jsonl` (LHC: `dataset/minerva_lhc_split/minerva-lhc-{train,dev}.jsonl`)
 
 ## Quickstart
 1) Create/activate venv and install deps:
@@ -33,11 +33,11 @@ $env:NVD_API_KEY="..."
 ```
 3) Build datasets:
 ```
-.venv\Scripts\python -m minerva.pipeline --config minerva/config.yaml
+.venv\Scripts\python -m minerva.pipeline --config minerva/config.yaml --variant base --output-root dataset/minerva_base
 ```
 4) Build train/dev splits (uses existing JSONL files):
 ```
-.venv\Scripts\python -m minerva.split
+.venv\Scripts\python -m minerva.split --input-dir dataset/minerva_base --output-dir dataset/minerva_base_split --file-prefix minerva-base
 ```
 
-Artifacts land under `dataset/minerva/`; splits under `dataset/minerva_split/`.
+Artifacts land under `dataset/minerva_base/`; splits under `dataset/minerva_base_split/`.

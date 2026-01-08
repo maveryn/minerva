@@ -1,50 +1,65 @@
 #!/usr/bin/env bash
 set -e
 
-# Training script for Minerva CTI datasets with reward_minerva
+# Training script for Minerva LHC CTI datasets with adaptive label-hint curriculum (Llama 3B).
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_DIR="$ROOT_DIR/mydata"
 
-train_path="$DATA_DIR/cti/minerva_train.parquet"
+train_path="$DATA_DIR/minerva_lhc/minerva_lhc_train.parquet"
 
 val_paths=(
-  "$DATA_DIR/cti/minerva_dev.parquet"
+  "$DATA_DIR/minerva_lhc/minerva_lhc_dev.parquet"
   "$DATA_DIR/athena/athena_cti_ate.parquet"
   "$DATA_DIR/athena/athena_cti_rcm.parquet"
   "$DATA_DIR/athena/athena_cti_rms.parquet"
   "$DATA_DIR/athena/athena_cti_taa.parquet"
-  "$DATA_DIR/math500/math500_test.parquet"
-  "$DATA_DIR/olympiad/olympiadbench_test.parquet"
 )
 
 reward_fn_path="$ROOT_DIR/verl/utils/reward_score/reward_minerva.py"
+custom_dataset_path="$ROOT_DIR/verl/utils/dataset/minerva_adaptive_dataset.py"
 
-# Format lists for hydra CLI
 train_files="['$train_path']"
-# val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}','${val_paths[4]}','${val_paths[5]}','${val_paths[6]}']"
-val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}']"
+val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}','${val_paths[4]}']"
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files="$train_files" \
     data.val_files="$val_files" \
+    data.custom_cls.path="$custom_dataset_path" \
+    data.custom_cls.name=AdaptiveOptionRLHFDataset \
+    data.dataloader_num_workers=0 \
+    +data.adaptive_options.enabled=true \
+    +data.adaptive_options.candidate_pool_key=candidate_pool_top100 \
+    +data.adaptive_options.target_acc=0.5 \
+    +data.adaptive_options.tol=0.05 \
+    +data.adaptive_options.warmup_steps=50 \
+    +data.adaptive_options.ema_beta=0.9 \
+    +data.adaptive_options.k_min=2 \
+    +data.adaptive_options.k_max=30 \
+    +data.adaptive_options.k_step=2 \
+    +data.adaptive_options.buffer=10 \
+    +data.adaptive_options.p_drop_init=0.0 \
+    +data.adaptive_options.p_drop_step=0.05 \
+    +data.adaptive_options.p_drop_max=1.0 \
+    +data.adaptive_options.score_threshold=0.5 \
+    +data.adaptive_options.option_desc_max_chars=200 \
     custom_reward_function.path=$reward_fn_path \
     custom_reward_function.name=reward_minerva \
-    data.train_batch_size=128 \
+    data.train_batch_size=64 \
     data.max_prompt_length=1536 \
     data.max_response_length=2048 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
-    actor_rollout_ref.model.path=Qwen/Qwen3-8B \
+    actor_rollout_ref.model.path=meta-llama/Llama-3.2-3B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=64 \
     actor_rollout_ref.actor.use_dynamic_bsz=True \
-    actor_rollout_ref.actor.use_kl_loss=False \
-    actor_rollout_ref.actor.kl_loss_coef=0.0 \
+    actor_rollout_ref.actor.use_kl_loss=True \
+    actor_rollout_ref.actor.kl_loss_coef=0.001 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
-    actor_rollout_ref.actor.entropy_coeff=0 \
+    actor_rollout_ref.actor.entropy_coeff=0.001 \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
@@ -57,7 +72,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger='["console", "wandb"]' \
     trainer.project_name='minerva' \
-    trainer.experiment_name='cti_minerva_qwen_8b' \
+    trainer.experiment_name='minerva_lhc_llama3b' \
     trainer.val_before_train=True \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \

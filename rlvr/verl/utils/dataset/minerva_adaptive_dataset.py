@@ -134,6 +134,7 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
         self.buffer = int(adaptive_cfg.get("buffer", 10))
         self.base_seed = int(adaptive_cfg.get("base_seed", adaptive_cfg.get("seed", 1337)))
         self.score_threshold = float(adaptive_cfg.get("score_threshold", 0.5))
+        self.option_desc_max_chars = int(adaptive_cfg.get("option_desc_max_chars", 200))
         self._global_step = 0
 
         self.option_controller: Optional[OptionCurriculumController] = None
@@ -151,11 +152,11 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
                 p_drop_max=adaptive_cfg.get("p_drop_max", 1.0),
             )
 
-    def _normalize_pool(self, pool: Any) -> List[str]:
+    def _normalize_pool(self, pool: Any) -> List[Dict[str, str]]:
         if not isinstance(pool, list):
             return []
         seen = set()
-        normalized: List[str] = []
+        normalized: List[Dict[str, str]] = []
         for item in pool:
             if item is None:
                 continue
@@ -168,12 +169,16 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
                 if val is None:
                     continue
                 text = str(val).strip()
+                name = str(item.get("name") or "").strip()
+                desc = str(item.get("description") or item.get("desc") or "").strip()
             else:
                 text = str(item).strip()
+                name = ""
+                desc = ""
             if not text or text in seen:
                 continue
             seen.add(text)
-            normalized.append(text)
+            normalized.append({"id": text, "name": name, "description": desc})
         return normalized
 
     def _extract_single_label(self, ground_truth: Any) -> Optional[str]:
@@ -219,10 +224,19 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
                         return str(value[0]).strip()
         return None
 
-    def _format_options(self, options: List[str]) -> str:
+    def _format_option_item(self, item: Dict[str, str]) -> str:
+        ident = item.get("id", "").strip()
+        name = item.get("name", "").strip()
+        desc = item.get("description", "").strip()
+        if desc and self.option_desc_max_chars > 0 and len(desc) > self.option_desc_max_chars:
+            desc = desc[: self.option_desc_max_chars].rsplit(" ", 1)[0] + "..."
+        parts = [p for p in (ident, name, desc) if p]
+        return " | ".join(parts) if parts else ident
+
+    def _format_options(self, options: List[Dict[str, str]]) -> str:
         lines = ["Candidate IDs (choose one):"]
         for idx, item in enumerate(options, start=1):
-            lines.append(f"{idx}) {item}")
+            lines.append(f"{idx}) {self._format_option_item(item)}")
         lines.append("Return ONLY the ID.")
         return "\n".join(lines)
 
@@ -289,8 +303,8 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
         hint_k = 0
         hint_seed = None
         if pool and gold:
-            if gold not in pool:
-                pool = [gold] + pool
+            if gold not in {item["id"] for item in pool}:
+                pool = [{"id": gold, "name": "", "description": ""}] + pool
             sample_index = extra_info.get("index", 0)
             try:
                 sample_index_int = int(sample_index)
@@ -305,13 +319,17 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
                     rng = random.Random(hint_seed)
                     top_n = min(len(pool), effective_k + self.buffer)
                     top_pool = pool[:top_n]
-                    distractors = [item for item in top_pool if item != gold]
+                    distractors = [item for item in top_pool if item.get("id") != gold]
                     if len(distractors) < max(0, effective_k - 1):
-                        extras = [item for item in pool if item != gold and item not in distractors]
+                        extras = [
+                            item
+                            for item in pool
+                            if item.get("id") != gold and item not in distractors
+                        ]
                         distractors.extend(extras)
                     take = min(max(0, effective_k - 1), len(distractors))
                     sampled = rng.sample(distractors, take) if take > 0 else []
-                    options = [gold] + sampled
+                    options = [{"id": gold, "name": "", "description": ""}] + sampled
                     rng.shuffle(options)
                     trial_messages = copy.deepcopy(base_messages)
                     if self._append_options(trial_messages, options):

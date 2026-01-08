@@ -1,6 +1,8 @@
 import argparse
+import copy
 import json
 import random
+import shutil
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -73,45 +75,34 @@ def _dedupe_jsonl(path: Path) -> tuple[int, int]:
     return len(rows), removed
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Minerva RLVR dataset builder")
-    parser.add_argument("--config", default="minerva/config.yaml", help="Path to minerva config YAML")
-    parser.add_argument(
-        "--detailed-prompts",
-        action="store_true",
-        help="Append MITRE Enterprise ID->name catalogs to tactic/mitigation/detection prompts; writes datasets to a suffixed output folder",
-    )
-    parser.add_argument(
-        "--detailed-suffix",
-        default="detailed",
-        help="Suffix appended to output folders when --detailed-prompts is set (default: detailed)",
-    )
-    args = parser.parse_args()
+def _replace_minerva_path(path: str, output_root: str) -> str:
+    if not path:
+        return path
+    out = str(path)
+    for base in ("dataset/minerva", "data/processed/minerva"):
+        if base in out:
+            out = out.replace(base, output_root)
+    return out
 
-    cfg = load_yaml(args.config)
 
-    def _suffix_minerva_path(path: str, suffix: str) -> str:
-        if not path:
-            return path
-        out = str(path)
-        for base in ("dataset/minerva", "data/processed/minerva"):
-            if base in out:
-                out = out.replace(base, f"{base}_{suffix}")
-        return out
+def _apply_output_root(cfg: Dict, output_root: str) -> None:
+    common_cfg = cfg.setdefault("COMMON", {})
+    common_cfg["minerva_out"] = output_root
+    common_cfg["metadata_path"] = str(Path(output_root) / "metadata.json")
+    tasks_cfg = cfg.setdefault("TASKS", {})
+    for task_cfg in tasks_cfg.values():
+        if isinstance(task_cfg, dict) and "output_path" in task_cfg:
+            task_cfg["output_path"] = _replace_minerva_path(task_cfg["output_path"], output_root)
 
-    if args.detailed_prompts:
-        suffix = str(args.detailed_suffix).strip() or "detailed"
-        common_cfg = cfg.setdefault("COMMON", {})
-        common_cfg["minerva_out"] = _suffix_minerva_path(common_cfg.get("minerva_out", "dataset/minerva"), suffix)
-        common_cfg["metadata_path"] = _suffix_minerva_path(common_cfg.get("metadata_path", "dataset/minerva/metadata.json"), suffix)
 
-        tasks_cfg = cfg.setdefault("TASKS", {})
-        for _, task_cfg in list(tasks_cfg.items()):
-            if isinstance(task_cfg, dict) and "output_path" in task_cfg:
-                task_cfg["output_path"] = _suffix_minerva_path(task_cfg["output_path"], suffix)
-    log_dir = cfg.get("COMMON", {}).get("log_dir", "data/logs")
-    logger = get_logger("minerva", log_dir=log_dir)
+def _resolve_output_root(base_root: str, suffix: Optional[str]) -> str:
+    base = str(base_root).rstrip("/")
+    if not suffix:
+        return base
+    return f"{base}_{suffix}"
 
+
+def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
     logger.info("=== Minerva dataset build starting ===")
     summary: Dict[str, int] = {}
     examples: Dict[str, Dict] = {}
@@ -134,7 +125,7 @@ def main() -> None:
     tactic_id_to_name: Dict[str, str] = {}
     mitigation_id_to_name: Dict[str, str] = {}
     detection_id_to_name: Dict[str, str] = {}
-    if args.detailed_prompts:
+    if detailed_prompts:
         from minerva.data_sources.mitre import load_bundle as load_mitre_bundle
 
         mitre_bundle = load_mitre_bundle(cfg.get("MITRE_ATTACK", {}), logger=logger)
@@ -200,7 +191,7 @@ def main() -> None:
             sigma_dirs,
             output_dir=minerva_out,
             ask_subtechnique=bool(sigma_cfg.get("ask_subtechnique", False)),
-            include_id_names=bool(args.detailed_prompts),
+            include_id_names=bool(detailed_prompts),
             tactic_id_to_name=tactic_id_to_name,
             logger=logger,
         )
@@ -283,7 +274,7 @@ def main() -> None:
             output_path=tac_cfg.get("output_path", "data/processed/minerva/scenario_to_tactics.jsonl"),
             seed=int(tac_cfg.get("seed", 1337)),
             max_items=int(tac_cfg.get("max_items", 0)),
-            include_id_names=bool(args.detailed_prompts),
+            include_id_names=bool(detailed_prompts),
             tactic_id_to_name=tactic_id_to_name,
             logger=logger,
         )
@@ -299,7 +290,7 @@ def main() -> None:
             output_path=mit_cfg.get("output_path", "data/processed/minerva/scenario_to_mitigations.jsonl"),
             seed=int(mit_cfg.get("seed", 1337)),
             max_items=int(mit_cfg.get("max_items", 0)),
-            include_id_names=bool(args.detailed_prompts),
+            include_id_names=bool(detailed_prompts),
             mitigation_id_to_name=mitigation_id_to_name,
             logger=logger,
         )
@@ -315,7 +306,7 @@ def main() -> None:
             output_path=det_cfg.get("output_path", "data/processed/minerva/scenario_to_detections.jsonl"),
             seed=int(det_cfg.get("seed", 1337)),
             max_items=int(det_cfg.get("max_items", 0)),
-            include_id_names=bool(args.detailed_prompts),
+            include_id_names=bool(detailed_prompts),
             detection_id_to_name=detection_id_to_name,
             logger=logger,
         )
@@ -372,6 +363,143 @@ def main() -> None:
     if dedupe_info:
         logger.info("Dedupe removed entries: %s", dedupe_info)
     logger.info("=== Finished Minerva build ===")
+
+
+def build_lhc_dataset(
+    *,
+    base_dir: str,
+    output_dir: str,
+    cfg: Dict,
+    selection_path: str,
+    k: int = 100,
+    dense_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    batch_size: int = 64,
+    logger,
+) -> None:
+    from minerva.analysis.retrieval_candidates import TASK_SPECS, augment_task_file, build_retrievers
+
+    base_path = Path(base_dir)
+    if not base_path.exists():
+        raise FileNotFoundError(f"Base dataset not found: {base_path}")
+
+    selection = Path(selection_path)
+    if not selection.exists():
+        raise FileNotFoundError(f"Retrieval selection not found: {selection}")
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    retrievers = build_retrievers(
+        cfg=cfg,
+        selection_path=selection,
+        dense_model_name=dense_model_name,
+        batch_size=batch_size,
+    )
+
+    for path in sorted(base_path.glob("*.jsonl")):
+        task_name = path.stem
+        dest = out_dir / path.name
+        spec = TASK_SPECS.get(task_name)
+        retriever = retrievers.get(spec["label_type"]) if spec else None
+        if spec and retriever:
+            logger.info("LHC candidate pool -> %s", dest)
+            augment_task_file(
+                input_path=path,
+                output_path=dest,
+                retriever=retriever,
+                spec=spec,
+                k=k,
+            )
+        else:
+            shutil.copy2(path, dest)
+            if spec and not retriever:
+                logger.warning("No retriever for %s; copied base file to LHC output.", task_name)
+
+    meta_src = base_path / "metadata.json"
+    if meta_src.exists():
+        shutil.copy2(meta_src, out_dir / "metadata.json")
+        logger.info("Copied metadata -> %s", out_dir / "metadata.json")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Minerva RLVR dataset builder")
+    parser.add_argument("--config", default="minerva/config.yaml", help="Path to minerva config YAML")
+    parser.add_argument(
+        "--variant",
+        choices=["base", "lhc", "both"],
+        default="base",
+        help="Which dataset variant to build (default: base)",
+    )
+    parser.add_argument(
+        "--output-root",
+        default="dataset/minerva_base",
+        help="Output root for base dataset (default: dataset/minerva_base)",
+    )
+    parser.add_argument(
+        "--lhc-output-root",
+        default="dataset/minerva_lhc",
+        help="Output root for LHC dataset (default: dataset/minerva_lhc)",
+    )
+    parser.add_argument(
+        "--lhc-selection",
+        default="minerva/analysis/retrieval_selection/retrieval_selection.json",
+        help="Path to retrieval selection JSON (default: minerva/analysis/retrieval_selection/retrieval_selection.json)",
+    )
+    parser.add_argument("--lhc-k", type=int, default=100, help="Top-K candidates to store for LHC (default: 100)")
+    parser.add_argument(
+        "--lhc-dense-model",
+        default="sentence-transformers/all-MiniLM-L6-v2",
+        help="Dense encoder model for LHC retrieval (default: sentence-transformers/all-MiniLM-L6-v2)",
+    )
+    parser.add_argument(
+        "--lhc-batch-size",
+        type=int,
+        default=64,
+        help="Batch size for dense encoder (default: 64)",
+    )
+    parser.add_argument(
+        "--detailed-prompts",
+        action="store_true",
+        help="Append MITRE Enterprise ID->name catalogs to tactic/mitigation/detection prompts; writes datasets to a suffixed output folder",
+    )
+    parser.add_argument(
+        "--detailed-suffix",
+        default="detailed",
+        help="Suffix appended to output folders when --detailed-prompts is set (default: detailed)",
+    )
+    args = parser.parse_args()
+
+    cfg = load_yaml(args.config)
+    log_dir = cfg.get("COMMON", {}).get("log_dir", "data/logs")
+    logger = get_logger("minerva", log_dir=log_dir)
+
+    suffix = None
+    if args.detailed_prompts:
+        suffix = str(args.detailed_suffix).strip() or "detailed"
+
+    base_output_root = _resolve_output_root(args.output_root, suffix)
+    lhc_output_root = _resolve_output_root(args.lhc_output_root, suffix)
+
+    base_cfg = copy.deepcopy(cfg)
+    _apply_output_root(base_cfg, base_output_root)
+
+    if args.variant in ("base", "both"):
+        build_minerva_dataset(base_cfg, logger=logger, detailed_prompts=bool(args.detailed_prompts))
+
+    if args.variant in ("lhc", "both"):
+        if not Path(base_output_root).exists():
+            logger.error("Base dataset not found at %s (use --output-root or build base first).", base_output_root)
+            return
+        build_lhc_dataset(
+            base_dir=base_output_root,
+            output_dir=lhc_output_root,
+            cfg=cfg,
+            selection_path=args.lhc_selection,
+            k=args.lhc_k,
+            dense_model_name=args.lhc_dense_model,
+            batch_size=args.lhc_batch_size,
+            logger=logger,
+        )
 
 
 if __name__ == "__main__":
