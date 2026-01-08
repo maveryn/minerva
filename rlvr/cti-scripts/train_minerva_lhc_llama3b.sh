@@ -13,14 +13,13 @@ val_paths=(
   "$DATA_DIR/athena/athena_cti_ate.parquet"
   "$DATA_DIR/athena/athena_cti_rcm.parquet"
   "$DATA_DIR/athena/athena_cti_rms.parquet"
-  "$DATA_DIR/athena/athena_cti_taa.parquet"
 )
 
 reward_fn_path="$ROOT_DIR/verl/utils/reward_score/reward_minerva.py"
 custom_dataset_path="$ROOT_DIR/verl/utils/dataset/minerva_adaptive_dataset.py"
 
 train_files="['$train_path']"
-val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}','${val_paths[4]}']"
+val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}']"
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -65,7 +64,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.9 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.7 \
     actor_rollout_ref.rollout.n=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.use_kl_in_reward=False \
@@ -74,7 +73,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name='minerva' \
     trainer.experiment_name='minerva_lhc_llama3b' \
     trainer.val_before_train=True \
-    trainer.n_gpus_per_node=8 \
+    trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
