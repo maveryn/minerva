@@ -226,3 +226,5 @@ rlvr/mydata/**
 !rlvr/mydata/data_prepare/**
 rlvr/mydata/data_prepare/**/__pycache__/
 rlvr/mydata/data_prepare/**/*.pyc
+rlvr/outputs/
+rlvr/wandb/
