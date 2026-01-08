@@ -151,10 +151,12 @@ def rows_to_verl(df: pd.DataFrame, *, spec: DatasetSpec) -> List[Dict]:
         }
         if has_candidate_pool:
             pool_val = record.get(candidate_pool_key)
-            if isinstance(pool_val, list):
-                row[candidate_pool_key] = pool_val
-            elif pool_val is None:
+            if pool_val is None or (isinstance(pool_val, float) and pd.isna(pool_val)):
                 row[candidate_pool_key] = []
+            elif isinstance(pool_val, list):
+                row[candidate_pool_key] = pool_val
+            elif isinstance(pool_val, dict):
+                row[candidate_pool_key] = [pool_val]
             else:
                 row[candidate_pool_key] = [str(pool_val)]
         rows.append(row)

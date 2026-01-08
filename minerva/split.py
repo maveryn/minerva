@@ -11,14 +11,14 @@ TARGET_SAMPLES: Dict[str, int] = {
     "cve_to_attack_exploitation": 265,
     "cve_to_attack_primary_impact": 230,
     "cve_to_attack_secondary_impact": 74,
-    "sigma_to_attack_technique": 1500,
-    "sigma_to_attack_tactics": 1500,
-    "scenario_to_technique": 8000,
-    "scenario_to_tactics": 3000,
-    "scenario_to_detections": 3000,
-    "scenario_to_mitigations": 3000,
+    "sigma_to_attack_technique": 1000,
+    "sigma_to_attack_tactics": 1000,
+    "scenario_to_technique": 10000,
+    "scenario_to_tactics": 2000,
+    "scenario_to_detections": 2000,
+    "scenario_to_mitigations": 5000,
     "cve_to_cwe": 10000,
-    "cve_to_cvss_v31": 4081,
+    "cve_to_cvss_v31": 3081,
     "cve_to_cvss_v40": 1000,
     "capec_example_to_capec": 380,
     "capec_example_to_cwe": 196,
@@ -113,14 +113,90 @@ def _project_row(row: Dict) -> Dict:
     return out
 
 
+def _row_key(row: Dict) -> Tuple[str, str, str]:
+    task = ""
+    reward_fn = ""
+    prompt = ""
+    if isinstance(row, dict):
+        task = str(row.get("task") or row.get("reward_fn") or "")
+        reward_fn = str(row.get("reward_fn") or "")
+        if "prompt" in row:
+            prompt = str(row.get("prompt") or "")
+        else:
+            prompt = str((row.get("input") or {}).get("prompt") or "")
+    return task, reward_fn, prompt
+
+
+def _reuse_split_rows(input_dir: Path, reuse_dir: Path, logger) -> Tuple[List[Dict], List[Dict], Dict[str, Dict[str, int]], Dict[str, Dict[str, Dict]]]:
+    train_path = reuse_dir / "train.jsonl"
+    dev_path = reuse_dir / "dev.jsonl"
+    if not train_path.exists() or not dev_path.exists():
+        train_candidates = sorted(reuse_dir.glob("*-train.jsonl"))
+        dev_candidates = sorted(reuse_dir.glob("*-dev.jsonl"))
+        if len(train_candidates) == 1 and len(dev_candidates) == 1:
+            train_path = train_candidates[0]
+            dev_path = dev_candidates[0]
+        else:
+            raise FileNotFoundError(f"Reuse split missing train/dev JSONL in {reuse_dir}")
+
+    train_ref = list(_iter_jsonl(train_path))
+    dev_ref = list(_iter_jsonl(dev_path))
+
+    index: Dict[Tuple[str, str, str], Dict] = {}
+    for task, filename in FILE_MAP.items():
+        path = input_dir / filename
+        if not path.exists():
+            logger.warning("Missing file for task %s: %s", task, path)
+            continue
+        for row in _iter_jsonl(path):
+            key = _row_key(row)
+            index[key] = row
+
+    def _map_rows(ref_rows: List[Dict], split_name: str) -> Tuple[List[Dict], int]:
+        mapped: List[Dict] = []
+        missing = 0
+        for row in ref_rows:
+            key = _row_key(row)
+            match = index.get(key)
+            if match is None:
+                missing += 1
+                continue
+            mapped.append(match)
+        if missing:
+            logger.warning("Missing %d rows while reusing %s split.", missing, split_name)
+        return mapped, missing
+
+    train_rows, _ = _map_rows(train_ref, "train")
+    dev_rows, _ = _map_rows(dev_ref, "dev")
+
+    stats: Dict[str, Dict[str, int]] = {}
+    examples: Dict[str, Dict[str, Dict]] = {}
+
+    def _update_stats(rows: List[Dict], key: str) -> None:
+        for row in rows:
+            task = str(row.get("task") or row.get("reward_fn") or "unknown")
+            stats.setdefault(task, {"train": 0, "dev": 0, "total": 0})
+            stats[task][key] += 1
+            stats[task]["total"] += 1
+            examples.setdefault(task, {})
+            examples[task].setdefault(key, row)
+
+    _update_stats(train_rows, "train")
+    _update_stats(dev_rows, "dev")
+
+    return train_rows, dev_rows, stats, examples
+
+
 def build_splits(
     *,
     input_dir: str = "dataset/minerva",
     output_dir: Optional[str] = None,
+    file_prefix: Optional[str] = None,
     seed: int = 1337,
     train_ratio: float = 0.8,
     target_train: int = 32000,
     target_dev: int = 8000,
+    reuse_split: Optional[str] = None,
 ) -> None:
     logger = get_logger("split")
     rng = random.Random(seed)
@@ -130,75 +206,79 @@ def build_splits(
         output_dir = f"{input_dir}_split"
     out_dir = Path(output_dir)
 
-    train_rows: List[Dict] = []
-    dev_rows: List[Dict] = []
-    stats: Dict[str, Dict[str, int]] = {}
-    examples: Dict[str, Dict[str, Dict]] = {}
-    per_task: Dict[str, Dict[str, List[Dict]]] = {}
+    if reuse_split:
+        reuse_dir = Path(reuse_split)
+        train_rows, dev_rows, stats, examples = _reuse_split_rows(in_dir, reuse_dir, logger)
+    else:
+        train_rows = []
+        dev_rows = []
+        stats = {}
+        examples = {}
+        per_task: Dict[str, Dict[str, List[Dict]]] = {}
 
-    for task, target_n in TARGET_SAMPLES.items():
-        path = in_dir / FILE_MAP[task]
-        if not path.exists():
-            logger.warning("Missing file for task %s: %s", task, path)
-            continue
-        sampled, total = _reservoir_sample_jsonl(path, target_n, rng)
-        rng.shuffle(sampled)
-        train_part, dev_part = _split_rows(sampled, train_ratio)
-        per_task[task] = {"train": train_part, "dev": dev_part}
-        train_rows.extend(train_part)
-        dev_rows.extend(dev_part)
-        stats[task] = {
-            "train": len(train_part),
-            "dev": len(dev_part),
-            "total": len(sampled),
-        }
-        examples[task] = {
-            "train": _pick_example(train_part),
-            "dev": _pick_example(dev_part),
-        }
+        for task, target_n in TARGET_SAMPLES.items():
+            path = in_dir / FILE_MAP[task]
+            if not path.exists():
+                logger.warning("Missing file for task %s: %s", task, path)
+                continue
+            sampled, total = _reservoir_sample_jsonl(path, target_n, rng)
+            rng.shuffle(sampled)
+            train_part, dev_part = _split_rows(sampled, train_ratio)
+            per_task[task] = {"train": train_part, "dev": dev_part}
+            train_rows.extend(train_part)
+            dev_rows.extend(dev_part)
+            stats[task] = {
+                "train": len(train_part),
+                "dev": len(dev_part),
+                "total": len(sampled),
+            }
+            examples[task] = {
+                "train": _pick_example(train_part),
+                "dev": _pick_example(dev_part),
+            }
+            logger.info(
+                "Task %s -> sampled %d/%d (train %d / dev %d)",
+                task,
+                len(sampled),
+                total,
+                len(train_part),
+                len(dev_part),
+            )
+
+        def _move_one(src_key: str, dst_key: str) -> bool:
+            # move one item from src (train/dev) to dst for any task with available rows
+            candidates = [t for t, parts in per_task.items() if parts[src_key]]
+            if not candidates:
+                return False
+            task = rng.choice(candidates)
+            item = per_task[task][src_key].pop()
+            per_task[task][dst_key].append(item)
+            if src_key == "train":
+                train_rows.remove(item)
+                dev_rows.append(item)
+                stats[task]["train"] -= 1
+                stats[task]["dev"] += 1
+            else:
+                dev_rows.remove(item)
+                train_rows.append(item)
+                stats[task]["dev"] -= 1
+                stats[task]["train"] += 1
+            return True
+
+        while len(train_rows) < target_train and len(dev_rows) > target_dev:
+            if not _move_one("dev", "train"):
+                break
+        while len(train_rows) > target_train and len(dev_rows) < target_dev:
+            if not _move_one("train", "dev"):
+                break
+
         logger.info(
-            "Task %s -> sampled %d/%d (train %d / dev %d)",
-            task,
-            len(sampled),
-            total,
-            len(train_part),
-            len(dev_part),
+            "Adjusted splits to train=%d dev=%d (target train=%d dev=%d)",
+            len(train_rows),
+            len(dev_rows),
+            target_train,
+            target_dev,
         )
-
-    def _move_one(src_key: str, dst_key: str) -> bool:
-        # move one item from src (train/dev) to dst for any task with available rows
-        candidates = [t for t, parts in per_task.items() if parts[src_key]]
-        if not candidates:
-            return False
-        task = rng.choice(candidates)
-        item = per_task[task][src_key].pop()
-        per_task[task][dst_key].append(item)
-        if src_key == "train":
-            train_rows.remove(item)
-            dev_rows.append(item)
-            stats[task]["train"] -= 1
-            stats[task]["dev"] += 1
-        else:
-            dev_rows.remove(item)
-            train_rows.append(item)
-            stats[task]["dev"] -= 1
-            stats[task]["train"] += 1
-        return True
-
-    while len(train_rows) < target_train and len(dev_rows) > target_dev:
-        if not _move_one("dev", "train"):
-            break
-    while len(train_rows) > target_train and len(dev_rows) < target_dev:
-        if not _move_one("train", "dev"):
-            break
-
-    logger.info(
-        "Adjusted splits to train=%d dev=%d (target train=%d dev=%d)",
-        len(train_rows),
-        len(dev_rows),
-        target_train,
-        target_dev,
-    )
 
     # Project rows to the minimal schema
     projected_train = [_project_row(r) for r in train_rows]
@@ -206,8 +286,12 @@ def build_splits(
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    train_path = out_dir / "train.jsonl"
-    dev_path = out_dir / "dev.jsonl"
+    if file_prefix:
+        train_path = out_dir / f"{file_prefix}-train.jsonl"
+        dev_path = out_dir / f"{file_prefix}-dev.jsonl"
+    else:
+        train_path = out_dir / "train.jsonl"
+        dev_path = out_dir / "dev.jsonl"
     train_path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in projected_train) + "\n", encoding="utf-8")
     dev_path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in projected_dev) + "\n", encoding="utf-8")
     logger.info("Wrote train (%d rows) -> %s", len(projected_train), train_path)
@@ -231,18 +315,30 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build train/dev splits from Minerva datasets")
     parser.add_argument("--input-dir", default="dataset/minerva", help="Input dataset directory (contains per-task JSONL files)")
     parser.add_argument("--output-dir", default=None, help="Output directory for train/dev JSONL (default: <input-dir>_split)")
+    parser.add_argument(
+        "--file-prefix",
+        default=None,
+        help="Optional filename prefix for outputs (writes <prefix>-train.jsonl / <prefix>-dev.jsonl)",
+    )
     parser.add_argument("--seed", type=int, default=1337, help="RNG seed (default: 1337)")
     parser.add_argument("--train-ratio", type=float, default=0.8, help="Train ratio per-task before global adjustment (default: 0.8)")
     parser.add_argument("--target-train", type=int, default=32000, help="Final target train size (default: 32000)")
     parser.add_argument("--target-dev", type=int, default=8000, help="Final target dev size (default: 8000)")
+    parser.add_argument(
+        "--reuse-split",
+        default=None,
+        help="Reuse train/dev split from an existing split directory (expects train.jsonl/dev.jsonl)",
+    )
     args = parser.parse_args()
     build_splits(
         input_dir=args.input_dir,
         output_dir=args.output_dir,
+        file_prefix=args.file_prefix,
         seed=args.seed,
         train_ratio=args.train_ratio,
         target_train=args.target_train,
         target_dev=args.target_dev,
+        reuse_split=args.reuse_split,
     )
 
 

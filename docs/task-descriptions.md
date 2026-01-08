@@ -302,4 +302,4 @@ threat_actor_mcq	Procedures list	Threat actor option (A-E)	binary_id	3630	2904	7
 - `reward_detection_id`: 1.0 if detection ID matches; else 0.
 - `binary_id`: 1.0 if IDs match; else 0.
 
-See `task-descriptions.tex` for a LaTeX version of this document.
+See `docs/task-descriptions.tex` for a LaTeX version of this document.
