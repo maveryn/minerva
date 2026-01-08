@@ -99,12 +99,18 @@ def _project_row(row: Dict) -> Dict:
     prompt = ""
     if isinstance(row, dict):
         prompt = (row.get("input") or {}).get("prompt", "")
-    return {
+    out = {
         "task": row.get("task"),
         "prompt": prompt,
         "answer": row.get("answer", row.get("ground_truth")),
         "reward_fn": row.get("reward_fn"),
     }
+    pool = row.get("candidate_pool_top100")
+    if pool is None:
+        pool = (row.get("extra_info") or {}).get("candidate_pool_top100")
+    if pool is not None:
+        out["candidate_pool_top100"] = pool
+    return out
 
 
 def build_splits(

@@ -1,0 +1,88 @@
+\subsection{Approach A: Adaptive Randomized Label-Hint Curriculum (ARLHC)}
+\paragraph{Motivation.}
+In CTI tasks with large label spaces (e.g., \texttt{M\#\#\#\#}, \texttt{DET\#\#\#\#}, \texttt{CWE-\#}), pure RLVR can stall because the base policy rarely samples correct IDs, causing many prompts to have \emph{zero successful rollouts} and thus weak/unstable GRPO advantages.
+
+\paragraph{Core idea.}
+Augment each prompt with a \emph{small candidate set} of label options, and \emph{adaptively increase the candidate-set size} $K$ so that the group success rate stays near a target (e.g., $50\%$ correct among $G{=}8$ rollouts). Once the model can sustain the target at large $K$, we anneal hints off (mixed on/off) and eventually train/evaluate with no hints.
+
+\paragraph{Success metrics (group-level).}
+Given $G$ sampled rollouts $\{y_i\}_{i=1}^G$ with verifiable rewards $r_i\in[0,1]$, define a binary success indicator
+\[
+s_i \triangleq \mathbb{I}[r_i \ge \tau],
+\]
+where $\tau{=}1$ for exact-match tasks (or a slightly lower threshold for inherently ambiguous multi-label tasks).
+We track:
+\[
+\mathrm{acc@}G(x) \triangleq \frac{1}{G}\sum_{i=1}^G s_i \qquad\text{and}\qquad
+\mathrm{pass@}G(x) \triangleq \mathbb{I}\big[\max_i s_i = 1\big].
+\]
+Goal: $\mathrm{pass@}G \approx 1$ and $\mathrm{acc@}G \approx 0.5$ (e.g., $4/8$ correct) on most prompts.
+
+\begin{algorithm}[t]
+\caption{ARLHC: RLVR with adaptive randomized label hints}
+\label{alg:arlhc}
+\begin{algorithmic}[1]
+\REQUIRE Task set $\mathcal{T}$; per-task label space $\mathcal{L}_t$; label docs $\mathcal{D}_t=\{d_\ell:\ell\in\mathcal{L}_t\}$ (ID+name+brief description); group size $G{=}8$; target $\rho^\star{=}0.5$; hint pool slack $M$ (e.g., $10$); $K_{\min},K_{\max},\Delta K$; EMA factor $\alpha$; hint dropout schedule $p_{\text{drop}}(t)$.
+\STATE Initialize $K_t \leftarrow K_{\min}$, $\hat{\rho}_t \leftarrow 0$, $p_{\text{drop}}(t)\leftarrow 0$ for each task $t\in\mathcal{T}$.
+\WHILE{training}
+  \STATE Sample a minibatch $\mathcal{B}=\{(x_j, y_j^\*, t_j)\}_{j=1}^B$.
+  \FOR{each $(x_j,y_j^\*,t_j)\in\mathcal{B}$}
+    \IF{$\mathrm{Bernoulli}(p_{\text{drop}}(t_j)) = 1$}
+      \STATE $x'_j \leftarrow x_j$ \COMMENT{no hints}
+    \ELSE
+      \STATE $N \leftarrow K_{t_j} + M$
+      \STATE $\mathcal{P} \leftarrow \mathrm{RetrieveNeighbors}(y_j^\*, N;\mathcal{D}_{t_j})$
+      \COMMENT{BM25 / dense / hybrid; includes gold $y_j^\*$}
+      \STATE $\mathcal{C} \leftarrow \{y_j^\*\} \cup \mathrm{Sample}\big(\mathcal{P}\setminus\{y_j^\*\},\,K_{t_j}-1\big)$
+      \STATE $\mathcal{C} \leftarrow \mathrm{Shuffle}(\mathcal{C})$
+      \STATE $x'_j \leftarrow \mathrm{AugmentPrompt}(x_j,\mathcal{C})$
+      \COMMENT{append: ID + name (+ short desc), enforce output format}
+    \ENDIF
+  \ENDFOR
+  \FOR{each prompt $x'_j$}
+    \STATE Sample $G$ rollouts $\{y_{j,i}\}_{i=1}^G \sim \pi_\theta(\cdot\mid x'_j)$
+    \STATE Compute rewards $r_{j,i} \leftarrow \mathrm{Verifier}(y_{j,i}, y_j^\*)$ \COMMENT{same verifier as no-hint RLVR}
+    \STATE Compute $s_{j,i} \leftarrow \mathbb{I}[r_{j,i}\ge\tau]$ and $\rho_j \leftarrow \frac{1}{G}\sum_i s_{j,i}$ \COMMENT{$\rho_j=\mathrm{acc@}G$}
+  \ENDFOR
+  \STATE Perform a GRPO update using $\{(x'_j,\{y_{j,i}\},\{r_{j,i}\})\}$.
+  \STATE \textbf{Adaptive $K$ update (periodic, per task):}
+  \FOR{each task $t$}
+    \STATE $\bar{\rho}_t \leftarrow \mathrm{Mean}(\rho_j \;:\; t_j=t)$
+    \STATE $\hat{\rho}_t \leftarrow (1-\alpha)\hat{\rho}_t + \alpha \bar{\rho}_t$
+    \IF{$\hat{\rho}_t \ge \rho^\star$}
+      \STATE $K_t \leftarrow \min(K_t+\Delta K, K_{\max})$
+    \ELSE
+      \STATE $K_t \leftarrow \max(K_t-\Delta K, K_{\min})$ \COMMENT{optional; can also keep fixed at $K_{\min}$}
+    \ENDIF
+    \IF{$K_t = K_{\max}$ \AND $\hat{\rho}_t \ge \rho^\star$}
+      \STATE Increase $p_{\text{drop}}(t)$ toward $1$ \COMMENT{anneal hints off; mix hinted/unhinted training}
+    \ENDIF
+  \ENDFOR
+\ENDWHILE
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Strengths.}
+\begin{itemize}
+  \item \textbf{Very simple to integrate into RLVR:} does not change verifiers or GRPO; only modifies the prompt.
+  \item \textbf{Directly attacks “0-success rollouts”:} small $K$ makes at least some correct rollouts likely, restoring learning signal early.
+  \item \textbf{Curriculum by construction:} $K$ grows as competence grows, keeping $\mathrm{acc@}G$ near a target (e.g., $0.5$).
+  \item \textbf{Reduced hint overfitting:} random subsampling from top-$(K{+}M)$ and shuffling changes the candidate list each episode.
+\end{itemize}
+
+\paragraph{Weaknesses / risks.}
+\begin{itemize}
+  \item \textbf{Train--test mismatch:} the model may over-rely on candidates unless you anneal hints off and include no-hint training.
+  \item \textbf{Label leakage concern:} the gold label is included in $\mathcal{C}$ (by design for bootstrapping). Must justify as curriculum and demonstrate strong no-hint performance after annealing.
+  \item \textbf{Choosing $\tau$ for multi-label tasks:} exact-set success may be too strict; using a threshold needs care to avoid gaming.
+\end{itemize}
+
+\paragraph{High-level implementation sketch in \texttt{verl}.}
+\begin{itemize}
+  \item Store $(x, y^\*, t)$ in the dataset (e.g., parquet fields include prompt, ground truth, and a task/datasource tag).
+  \item Implement an \textbf{on-the-fly prompt augmenter} in the data pipeline (dataset wrapper / collator / preprocessing hook) that:
+  (i) queries the current $K_t$ from a scheduler, (ii) samples candidates $\mathcal{C}$, and (iii) appends them to the prompt string before tokenization.
+  \item Track $\mathrm{acc@}G$ and $\mathrm{pass@}G$ per task from rollout rewards; update $K_t$ and $p_{\text{drop}}(t)$ periodically.
+  \item This keeps the reward function unchanged; only the prompt content varies over time.
+\end{itemize}
+(See \url{https://github.com/volcengine/verl} for the framework; custom reward hooks are supported if needed.)

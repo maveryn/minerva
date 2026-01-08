@@ -227,4 +227,5 @@ rlvr/mydata/**
 rlvr/mydata/data_prepare/**/__pycache__/
 rlvr/mydata/data_prepare/**/*.pyc
 rlvr/outputs/
+rlvr/checkpoints/
 rlvr/wandb/
