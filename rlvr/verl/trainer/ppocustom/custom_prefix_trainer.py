@@ -53,6 +53,8 @@ from ..prefix_guided.prompting import (
     split_cot_to_steps,
 )
 
+ALL_SOLVE_THRESH = 0.95
+
 
 @dataclass
 class _GroupContext:
@@ -920,9 +922,10 @@ class CustomPrefixGuidedPPOTrainer(_BasePPO):
 
     def _collect_group_context(
         self, normal_batch: DataProto, group_size: int
-    ) -> Tuple[List[_GroupContext], torch.Tensor, int]:
+    ) -> Tuple[List[_GroupContext], torch.Tensor, torch.Tensor, int]:
         tls = normal_batch.batch["token_level_scores"]
         zero_group_mask, B = self._zero_solve_group_mask(tls, group_size=group_size)
+        all_group_mask, _ = self._all_solve_group_mask(tls, group_size=group_size)
         prompts_text = self._decode_texts(normal_batch.batch["prompts"])
         uids_all = normal_batch.non_tensor_batch["uid"]
 
@@ -960,7 +963,7 @@ class CustomPrefixGuidedPPOTrainer(_BasePPO):
                     num_turns=num_turns[idx] if num_turns is not None else None,
                 )
             )
-        return groups, zero_group_mask, B
+        return groups, zero_group_mask, all_group_mask, B
 
     def _generate_answer_guided_cots(
         self,
@@ -1156,11 +1159,14 @@ class CustomPrefixGuidedPPOTrainer(_BasePPO):
         normal_batch: DataProto,
         group_size: int,
     ) -> Tuple[Optional[DataProto], Optional[DataProto], Dict[str, float]]:
-        groups, zero_mask, B = self._collect_group_context(normal_batch, group_size)
+        groups, zero_mask, all_mask, B = self._collect_group_context(normal_batch, group_size)
         zero_count = int(zero_mask.long().sum().item())
+        all_count = int(all_mask.long().sum().item())
         metrics: Dict[str, float] = {
             "pg/zero_solve_frac": float(zero_count / max(1, B)),
             "pg/zero_solve_count": float(zero_count),
+            "pg/all_solve_frac": float(all_count / max(1, B)),
+            "pg/all_solve_count": float(all_count),
             "pg/group_size": float(group_size),
         }
         if zero_count == 0:
@@ -1359,6 +1365,23 @@ class CustomPrefixGuidedPPOTrainer(_BasePPO):
         success = scores > 0.5
         zero_group_mask = ~success.any(dim=1)
         return zero_group_mask, B
+
+    def _all_solve_group_mask(
+        self, token_level_scores: torch.Tensor, group_size: int
+    ) -> Tuple[torch.Tensor, int]:
+        if token_level_scores.dim() == 2:
+            seq_scores = token_level_scores.sum(-1)
+        elif token_level_scores.dim() == 1:
+            seq_scores = token_level_scores
+        else:
+            raise ValueError(f"Unexpected reward shape: {tuple(token_level_scores.shape)}")
+        Bn = seq_scores.shape[0]
+        assert Bn % group_size == 0, "Total sequences not divisible by group size"
+        B = Bn // group_size
+        scores = seq_scores.view(B, group_size)
+        success = scores >= ALL_SOLVE_THRESH
+        all_group_mask = success.all(dim=1)
+        return all_group_mask, B
 
     def _extract_gt_answers(self, batch: DataProto) -> List[Optional[str]]:
         out: List[Optional[str]] = []

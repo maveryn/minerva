@@ -42,6 +42,8 @@ from .prompting import (
     split_cot_to_steps,
 )
 
+ALL_SOLVE_THRESH = 0.95
+
 
 class PrefixGuidedPPOTrainer(_BasePPO):
     """
@@ -53,6 +55,7 @@ class PrefixGuidedPPOTrainer(_BasePPO):
         re-ask with the prefix only, and merge those guided samples back into the PPO update.
       * log prefix-guided metrics:
           - pg/zero_solve_frac, pg/zero_solve_count
+          - pg/all_solve_frac, pg/all_solve_count
           - pg/zero_solve_post/reward_mean, pg/zero_solve_post/solve_rate
           - pg/ts_frac/mean|min|max, pg/ts_target_success
       * NEW: optional rescaling of off-policy guided scores to the on-policy scale
@@ -1074,17 +1077,25 @@ class PrefixGuidedPPOTrainer(_BasePPO):
         uid_first_idx: Dict[str, int] = {}
         uid_order: List[str] = []
         uid_any_success: Dict[str, bool] = {}
+        uid_all_success: Dict[str, bool] = {}
         for i, u in enumerate(uids_all.tolist()):
             if u not in uid_first_idx:
                 uid_first_idx[u] = i
                 uid_order.append(u)
+            if u not in uid_all_success:
+                uid_all_success[u] = True
             uid_any_success[u] = uid_any_success.get(u, False) or (float(seq_scores_all[i].item()) > thr)
+            if float(seq_scores_all[i].item()) < ALL_SOLVE_THRESH:
+                uid_all_success[u] = False
     
         # derive zero‑solve set
         zero_uids: List[str] = [u for u in uid_order if not uid_any_success[u]]
         B = len(uid_order)
         pg_metrics["pg/zero_solve_count"] = float(len(zero_uids))
         pg_metrics["pg/zero_solve_frac"] = float(len(zero_uids) / max(1, B))
+        all_uids: List[str] = [u for u in uid_order if uid_all_success.get(u, False)]
+        pg_metrics["pg/all_solve_count"] = float(len(all_uids))
+        pg_metrics["pg/all_solve_frac"] = float(len(all_uids) / max(1, B))
     
         if not zero_uids:
             return None, None, pg_metrics
@@ -1425,4 +1436,3 @@ class PrefixGuidedPPOTrainer(_BasePPO):
                     gt = v
             out.append(gt)
         return out
-

@@ -62,6 +62,7 @@ from verl.utils.torch_functional import masked_mean
 from verl.utils.tracking import ValidationGenerationsLogger
 
 ZERO_SOLVE_THRESH = 1e-3
+ALL_SOLVE_THRESH = 0.95
 
 
 @dataclass
@@ -665,14 +666,34 @@ class RayPPOTrainer:
         # Aggregate reward per source_file when it spans multiple data sources
         if "reward" in reward_extra_infos_dict and len(source_files) == len(reward_extra_infos_dict["reward"]):
             rewards = np.array(reward_extra_infos_dict["reward"])
+            file_means = {}
             for sf in np.unique(source_files):
                 mask = source_files == sf
                 if mask.sum() == 0:
                     continue
+                file_means[str(sf)] = float(rewards[mask].mean())
                 # skip files with a single data_source
                 if len(np.unique(data_sources[mask])) <= 1:
                     continue
                 metric_dict[f"val-core/{sf}/reward/mean"] = float(rewards[mask].mean())
+            minerva_file = None
+            if "minerva-lhc-dev.jsonl" in file_means:
+                minerva_file = "minerva-lhc-dev.jsonl"
+            else:
+                for sf in file_means:
+                    if "minerva" in sf and "dev" in sf and sf.endswith(".jsonl"):
+                        minerva_file = sf
+                        break
+            if minerva_file is not None:
+                minerva_mean = file_means.get(minerva_file)
+                athena_means = [val for sf, val in file_means.items() if sf != minerva_file]
+                if athena_means:
+                    athena_mean = float(np.mean(athena_means))
+                    metric_dict["val-core/athena-bench/reward/mean"] = athena_mean
+                    if minerva_mean is not None:
+                        metric_dict["val-core/global-val/reward/mean"] = float(
+                            (minerva_mean + athena_mean) / 2.0
+                        )
 
         if len(sample_turns) > 0:
             sample_turns = np.concatenate(sample_turns)
@@ -995,6 +1016,7 @@ class RayPPOTrainer:
 
             uid_index: dict[object, int] = {}
             group_success: list[bool] = []
+            group_all_success: list[bool] = []
             seq_scores_np = seq_scores.detach().cpu().numpy()
 
             for idx, uid in enumerate(uid_list):
@@ -1003,14 +1025,20 @@ class RayPPOTrainer:
                     pos = len(group_success)
                     uid_index[uid] = pos
                     group_success.append(False)
+                    group_all_success.append(True)
                 if seq_scores_np[idx] > ZERO_SOLVE_THRESH:
                     group_success[pos] = True
+                if seq_scores_np[idx] < ALL_SOLVE_THRESH:
+                    group_all_success[pos] = False
 
             zero_count = group_success.count(False)
+            all_count = group_all_success.count(True)
             num_groups = len(group_success)
             return {
                 "pg/zero_solve_frac": float(zero_count / max(1, num_groups)),
                 "pg/zero_solve_count": float(zero_count),
+                "pg/all_solve_frac": float(all_count / max(1, num_groups)),
+                "pg/all_solve_count": float(all_count),
             }
 
         group_size = int(getattr(self.config.actor_rollout_ref.rollout, "n", 1))
@@ -1018,9 +1046,14 @@ class RayPPOTrainer:
             seq_scores, group_size=group_size
         )
         zero_count = int(zero_group_mask.long().sum().item())
+        scores = seq_scores.view(num_groups, group_size)
+        all_group_mask = (scores >= ALL_SOLVE_THRESH).all(dim=1)
+        all_count = int(all_group_mask.long().sum().item())
         return {
             "pg/zero_solve_frac": float(zero_count / max(1, num_groups)),
             "pg/zero_solve_count": float(zero_count),
+            "pg/all_solve_frac": float(all_count / max(1, num_groups)),
+            "pg/all_solve_count": float(all_count),
         }
 
     def fit(self):
@@ -1238,6 +1271,78 @@ class RayPPOTrainer:
                                     option_controller = getattr(self.train_dataset, "option_controller", None)
                                     if option_controller is not None:
                                         metrics.update(option_controller.get_metrics(prefix="option_curriculum/"))
+
+                        # Optional: update stochastic SLHC controller on the training dataset.
+                        if hasattr(self.train_dataset, "update_slhc_controller_from_groups"):
+                            slhc_cfg = self.config.data.get("stochastic_slhc", {})
+                            if slhc_cfg.get("enabled", False):
+                                reward_scalar = None
+                                if reward_tensor.dim() == 2:
+                                    reward_scalar = reward_tensor.max(dim=-1).values
+                                elif reward_tensor.dim() == 1:
+                                    reward_scalar = reward_tensor
+                                if reward_scalar is not None:
+                                    success_threshold = slhc_cfg.get("success_threshold", 0.1)
+                                    success = (reward_scalar >= success_threshold).float()
+                                    uid_arr = batch.non_tensor_batch.get("uid")
+                                    task_arr = batch.non_tensor_batch.get("data_source")
+                                    extra_arr = batch.non_tensor_batch.get("extra_info")
+                                    if uid_arr is not None and task_arr is not None and extra_arr is not None:
+                                        uid_list = list(uid_arr)
+                                        task_list = list(task_arr)
+                                        extra_list = list(extra_arr)
+                                        success_list = success.detach().cpu().tolist()
+                                        grouped = {}
+                                        for idx, uid in enumerate(uid_list):
+                                            grouped.setdefault(str(uid), []).append(idx)
+
+                                        group_summaries = []
+                                        for _, idxs in grouped.items():
+                                            if not idxs:
+                                                continue
+                                            success_count = int(sum(success_list[i] for i in idxs))
+                                            group_size = len(idxs)
+                                            acc_g = success_count / group_size
+                                            zero_g = 1.0 if success_count == 0 else 0.0
+                                            all_g = 1.0 if success_count == group_size else 0.0
+                                            task_key = str(task_list[idxs[0]])
+                                            extra_info = extra_list[idxs[0]]
+                                            ctrl_active = False
+                                            if isinstance(extra_info, dict):
+                                                ctrl_active = bool(extra_info.get("slhc_ctrl_active", False))
+                                            group_summaries.append(
+                                                {
+                                                    "task_key": task_key,
+                                                    "ctrl_active": ctrl_active,
+                                                    "acc_g": acc_g,
+                                                    "zero_g": zero_g,
+                                                    "all_g": all_g,
+                                                }
+                                            )
+
+                                        total_steps = getattr(self, "total_training_steps", None)
+                                        if total_steps is not None:
+                                            try:
+                                                total_steps = int(total_steps)
+                                            except (TypeError, ValueError):
+                                                total_steps = None
+                                        if total_steps is None or total_steps <= 0:
+                                            total_steps = self.config.trainer.get("total_training_steps", None)
+                                            if total_steps is not None:
+                                                try:
+                                                    total_steps = int(total_steps)
+                                                except (TypeError, ValueError):
+                                                    total_steps = None
+                                        if total_steps is None or total_steps <= 0:
+                                            total_steps = slhc_cfg.get("total_steps", None)
+
+                                        slhc_metrics = self.train_dataset.update_slhc_controller_from_groups(
+                                            group_summaries=group_summaries,
+                                            global_step=self.global_steps,
+                                            total_steps=total_steps,
+                                        )
+                                        if isinstance(slhc_metrics, dict):
+                                            metrics.update(slhc_metrics)
 
                         # compute rewards. apply_kl_penalty if available
                         if self.config.algorithm.use_kl_in_reward:
