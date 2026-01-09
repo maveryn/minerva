@@ -6,6 +6,10 @@ set -e
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_DIR="$ROOT_DIR/mydata"
 
+# Avoid wandb service teardown failures in some environments.
+export WANDB_START_METHOD=thread
+export WANDB_DISABLE_SERVICE=true
+
 train_path="$DATA_DIR/minerva_lhc/minerva_lhc_train.parquet"
 
 val_paths=(
@@ -77,8 +81,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
-    trainer.total_epochs=1 \
-    trainer.total_training_steps=500 \
+    trainer.total_training_steps=300 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
     "$@"

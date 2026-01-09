@@ -113,6 +113,68 @@ def _project_row(row: Dict) -> Dict:
     return out
 
 
+def _dedupe_labels(values: Iterable[str]) -> List[str]:
+    seen = set()
+    out: List[str] = []
+    for raw in values or []:
+        val = str(raw).strip()
+        if not val or val in seen:
+            continue
+        seen.add(val)
+        out.append(val)
+    return out
+
+
+def _extract_label_list(value: object) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        val = value.strip()
+        return [val] if val else []
+    if isinstance(value, (list, tuple)):
+        return _dedupe_labels(value)
+    if isinstance(value, dict):
+        list_key_order = (
+            "technique_ids",
+            "tactic_ids",
+            "mitigation_ids",
+            "detection_ids",
+            "cwe_ids",
+            "capec_ids",
+            "attack_ids",
+            "ids",
+            "labels",
+        )
+        key_order = (
+            "technique_id",
+            "detection_id",
+            "mitigation_id",
+            "cwe_id",
+            "capec_id",
+            "attack_id",
+            "tactic_id",
+            "id",
+            "label",
+        )
+        for key in list_key_order:
+            if key in value:
+                found = value.get(key)
+                if isinstance(found, str):
+                    val = found.strip()
+                    return [val] if val else []
+                if isinstance(found, (list, tuple)):
+                    return _dedupe_labels(found)
+        for key in key_order:
+            if key in value:
+                found = value.get(key)
+                if isinstance(found, str):
+                    val = found.strip()
+                    return [val] if val else []
+                if isinstance(found, (list, tuple)):
+                    return _dedupe_labels(found)
+    return []
+
+
 def _format_candidate_prompt(
     row: Dict,
     *,
@@ -128,19 +190,57 @@ def _format_candidate_prompt(
         pool = (row.get("extra_info") or {}).get("candidate_pool_top100")
     if not isinstance(pool, list) or not pool:
         return None
-    options = pool[:k]
-    if not options:
-        return None
-    lines = ["Candidate IDs (choose one):"]
-    for idx, item in enumerate(options, start=1):
+    gold_ids = _extract_label_list(row.get("answer"))
+    required_count = len(gold_ids) if gold_ids else 1
+    total_k = k + max(0, required_count - 1)
+    if total_k < required_count:
+        total_k = required_count
+    normalized = []
+    seen = set()
+    for item in pool:
         if isinstance(item, dict):
-            ident = str(item.get("id") or item.get("label") or item.get("value") or "").strip()
+            ident = str(item.get("id") or item.get("label") or item.get("value") or item.get("name") or "").strip()
             name = str(item.get("name") or "").strip()
             desc = str(item.get("description") or item.get("desc") or "").strip()
         else:
             ident = str(item).strip()
             name = ""
             desc = ""
+        if not ident or ident in seen:
+            continue
+        seen.add(ident)
+        normalized.append({"id": ident, "name": name, "description": desc})
+    if not normalized:
+        return None
+    pool_ids = {item["id"] for item in normalized}
+    missing = [gid for gid in gold_ids if gid not in pool_ids]
+    if missing:
+        normalized = [{"id": gid, "name": "", "description": ""} for gid in missing] + normalized
+    options = []
+    option_ids = set()
+    for gid in gold_ids:
+        if not gid or gid in option_ids:
+            continue
+        match = next((item for item in normalized if item["id"] == gid), None)
+        options.append(match or {"id": gid, "name": "", "description": ""})
+        option_ids.add(gid)
+    if not options:
+        options = []
+    for item in normalized:
+        if len(options) >= total_k:
+            break
+        if item["id"] in option_ids:
+            continue
+        options.append(item)
+        option_ids.add(item["id"])
+    if not options:
+        return None
+    label = "ID" if required_count == 1 else "IDs"
+    lines = [f"Candidate {label} (choose EXACTLY {required_count}):"]
+    for idx, item in enumerate(options, start=1):
+        ident = str(item.get("id") or "").strip()
+        name = str(item.get("name") or "").strip()
+        desc = str(item.get("description") or "").strip()
         if not include_descriptions:
             desc = ""
         elif desc and desc_max_chars > 0 and len(desc) > desc_max_chars:
@@ -148,8 +248,12 @@ def _format_candidate_prompt(
         parts = [p for p in (ident, name, desc) if p]
         line = " | ".join(parts) if parts else ident
         lines.append(f"{idx}) {line}")
+    if required_count == 1:
+        tail = "The correct ID is one of the candidates above. "
+    else:
+        tail = "The correct IDs are among the candidates above. "
     lines.append(
-        "The correct ID is one of the candidates above. You may use them as a reference, but do not mention the list. "
+        f"{tail}You may use them as a reference, but do not mention the list. "
         "Reason step by step to arrive at the answer."
     )
     if prompt:

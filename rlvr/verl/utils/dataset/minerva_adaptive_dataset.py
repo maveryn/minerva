@@ -115,6 +115,37 @@ class OptionCurriculumController:
             metrics[f"{prefix}ema_acc/{task_key}"] = float(state.ema_acc)
         return metrics
 
+    def state_dict(self) -> Dict[str, Any]:
+        return {
+            "states": {
+                task_key: {
+                    "k": int(state.k),
+                    "p_drop": float(state.p_drop),
+                    "ema_acc": float(state.ema_acc),
+                    "initialized": bool(state.initialized),
+                }
+                for task_key, state in self._states.items()
+            }
+        }
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        if not isinstance(state_dict, dict):
+            return
+        states = state_dict.get("states") or {}
+        if not isinstance(states, dict):
+            return
+        restored: Dict[str, OptionCurriculumState] = {}
+        for task_key, payload in states.items():
+            if not isinstance(payload, dict):
+                continue
+            restored[str(task_key)] = OptionCurriculumState(
+                k=int(payload.get("k", self.k_min)),
+                p_drop=float(payload.get("p_drop", self.p_drop_init)),
+                ema_acc=float(payload.get("ema_acc", 0.0)),
+                initialized=bool(payload.get("initialized", False)),
+            )
+        self._states = restored
+
 
 class AdaptiveOptionRLHFDataset(RLHFDataset):
     """RLHFDataset that injects adaptive label-hint options into prompts."""
@@ -182,14 +213,37 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
             normalized.append({"id": text, "name": name, "description": desc})
         return normalized
 
-    def _extract_single_label(self, ground_truth: Any) -> Optional[str]:
+    def _dedupe_labels(self, values: Iterable[Any]) -> List[str]:
+        seen = set()
+        out: List[str] = []
+        for raw in values or []:
+            val = str(raw).strip()
+            if not val or val in seen:
+                continue
+            seen.add(val)
+            out.append(val)
+        return out
+
+    def _extract_label_list(self, ground_truth: Any) -> List[str]:
         if ground_truth is None:
-            return None
+            return []
         if isinstance(ground_truth, str):
-            return ground_truth.strip()
-        if isinstance(ground_truth, (list, tuple)) and len(ground_truth) == 1:
-            return str(ground_truth[0]).strip()
+            val = ground_truth.strip()
+            return [val] if val else []
+        if isinstance(ground_truth, (list, tuple)):
+            return self._dedupe_labels(ground_truth)
         if isinstance(ground_truth, dict):
+            list_key_order = (
+                "technique_ids",
+                "tactic_ids",
+                "mitigation_ids",
+                "detection_ids",
+                "cwe_ids",
+                "capec_ids",
+                "attack_ids",
+                "ids",
+                "labels",
+            )
             key_order = (
                 "technique_id",
                 "detection_id",
@@ -201,29 +255,27 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
                 "id",
                 "label",
             )
-            list_key_order = (
-                "technique_ids",
-                "tactic_ids",
-                "mitigation_ids",
-                "cwe_ids",
-                "capec_ids",
-                "attack_ids",
-                "ids",
-                "labels",
-            )
+            for key in list_key_order:
+                if key in ground_truth:
+                    value = ground_truth.get(key)
+                    if isinstance(value, str):
+                        val = value.strip()
+                        return [val] if val else []
+                    if isinstance(value, (list, tuple)):
+                        return self._dedupe_labels(value)
             for key in key_order:
                 if key in ground_truth:
                     value = ground_truth.get(key)
                     if isinstance(value, str):
-                        return value.strip()
-                    if isinstance(value, (list, tuple)) and len(value) == 1:
-                        return str(value[0]).strip()
-            for key in list_key_order:
-                if key in ground_truth:
-                    value = ground_truth.get(key)
-                    if isinstance(value, (list, tuple)) and len(value) == 1:
-                        return str(value[0]).strip()
-        return None
+                        val = value.strip()
+                        return [val] if val else []
+                    if isinstance(value, (list, tuple)):
+                        return self._dedupe_labels(value)
+        return []
+
+    def _extract_single_label(self, ground_truth: Any) -> Optional[str]:
+        labels = self._extract_label_list(ground_truth)
+        return labels[0] if labels else None
 
     def _format_option_item(self, item: Dict[str, str]) -> str:
         ident = item.get("id", "").strip()
@@ -236,17 +288,28 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
         parts = [p for p in (ident, name, desc) if p]
         return " | ".join(parts) if parts else ident
 
-    def _format_options(self, options: List[Dict[str, str]]) -> str:
-        lines = ["Candidate IDs (choose one):"]
+    def _format_options(self, options: List[Dict[str, str]], required_count: int) -> str:
+        count = max(1, int(required_count))
+        label = "ID" if count == 1 else "IDs"
+        lines = [f"Candidate {label} (choose EXACTLY {count}):"]
         for idx, item in enumerate(options, start=1):
             lines.append(f"{idx}) {self._format_option_item(item)}")
+        if count == 1:
+            tail = "The correct ID is one of the candidates above. "
+        else:
+            tail = "The correct IDs are among the candidates above. "
         lines.append(
-            "The correct ID is one of the candidates above. You may use them as a reference, but do not mention the list. "
+            f"{tail}You may use them as a reference, but do not mention the list. "
             "Reason step by step to arrive at the answer."
         )
         return "\n".join(lines)
 
-    def _append_options(self, messages: List[Dict[str, Any]], options: List[str]) -> bool:
+    def _append_options(
+        self,
+        messages: List[Dict[str, Any]],
+        options: List[Dict[str, str]],
+        required_count: int,
+    ) -> bool:
         if not messages:
             return False
         target_idx = None
@@ -259,7 +322,7 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
         content = messages[target_idx].get("content", "")
         if not isinstance(content, str):
             return False
-        options_text = self._format_options(options)
+        options_text = self._format_options(options, required_count)
         content = content.rstrip()
         if content:
             content = f"{content}\n\n{options_text}"
@@ -298,7 +361,7 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
             pool_raw = (example.get("extra_info") or {}).get(self.candidate_pool_key)
         pool = self._normalize_pool(pool_raw)
         ground_truth = example.get("reward_model", {}).get("ground_truth")
-        gold = self._extract_single_label(ground_truth)
+        gold_ids = self._extract_label_list(ground_truth)
 
         extra_info = example.get("extra_info")
         if not isinstance(extra_info, dict):
@@ -308,9 +371,17 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
         hint_used = False
         hint_k = 0
         hint_seed = None
-        if pool and gold:
-            if gold not in {item["id"] for item in pool}:
-                pool = [{"id": gold, "name": "", "description": ""}] + pool
+        if pool and gold_ids:
+            pool_ids = {item["id"] for item in pool if item.get("id")}
+            missing = [gid for gid in gold_ids if gid not in pool_ids]
+            if missing:
+                pool = [{"id": gid, "name": "", "description": ""} for gid in missing] + pool
+            pool_by_id = {item["id"]: item for item in pool if item.get("id")}
+            gold_items = [
+                pool_by_id.get(gid, {"id": gid, "name": "", "description": ""})
+                for gid in gold_ids
+            ]
+            gold_set = {item["id"] for item in gold_items if item.get("id")}
             sample_index = extra_info.get("index", 0)
             try:
                 sample_index_int = int(sample_index)
@@ -319,32 +390,41 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
             hint_seed = self.base_seed ^ (int(self._global_step) << 16) ^ sample_index_int
             k, p_drop = self.option_controller.get_params(task_key, self._global_step)
             if k > 0 and random.Random(hint_seed).random() >= p_drop:
-                effective_k = min(k, len(pool))
                 base_messages = copy.deepcopy(messages)
-                while effective_k > 0:
+                distractor_target = max(0, k - 1)
+                max_distractors = max(0, len(pool) - len(gold_items))
+                effective_d = min(distractor_target, max_distractors)
+                while effective_d >= 0:
                     rng = random.Random(hint_seed)
-                    top_n = min(len(pool), effective_k + self.buffer)
+                    total_k = len(gold_items) + effective_d
+                    top_n = min(len(pool), total_k + self.buffer)
                     top_pool = pool[:top_n]
-                    distractors = [item for item in top_pool if item.get("id") != gold]
-                    if len(distractors) < max(0, effective_k - 1):
+                    distractors = [item for item in top_pool if item.get("id") not in gold_set]
+                    if len(distractors) < effective_d:
+                        existing = {item.get("id") for item in distractors}
                         extras = [
                             item
                             for item in pool
-                            if item.get("id") != gold and item not in distractors
+                            if item.get("id") not in gold_set
+                            and item.get("id") not in existing
                         ]
                         distractors.extend(extras)
-                    take = min(max(0, effective_k - 1), len(distractors))
+                    take = min(effective_d, len(distractors))
                     sampled = rng.sample(distractors, take) if take > 0 else []
-                    options = [{"id": gold, "name": "", "description": ""}] + sampled
+                    options = gold_items + sampled
                     rng.shuffle(options)
                     trial_messages = copy.deepcopy(base_messages)
-                    if self._append_options(trial_messages, options):
+                    if self._append_options(
+                        trial_messages,
+                        options,
+                        required_count=len(gold_items),
+                    ):
                         if not self._prompt_too_long(trial_messages):
                             messages = trial_messages
                             hint_used = True
                             hint_k = len(options)
                             break
-                    effective_k -= 1
+                    effective_d -= 1
 
         extra_info["hint_used"] = bool(hint_used)
         extra_info["hint_K"] = int(hint_k)
@@ -394,6 +474,23 @@ class AdaptiveOptionRLHFDataset(RLHFDataset):
             metrics[f"option_curriculum/batch_count/{task_key}"] = float(len(accs))
 
         return metrics
+
+    def state_dict(self) -> Dict[str, Any]:
+        state: Dict[str, Any] = {
+            "adaptive_enabled": self.adaptive_enabled,
+            "global_step": int(self._global_step),
+        }
+        if self.option_controller is not None:
+            state["option_controller"] = self.option_controller.state_dict()
+        return state
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        if not isinstance(state_dict, dict):
+            return
+        self._global_step = int(state_dict.get("global_step", self._global_step))
+        controller_state = state_dict.get("option_controller")
+        if self.option_controller is not None and isinstance(controller_state, dict):
+            self.option_controller.load_state_dict(controller_state)
 
 
 __all__ = [

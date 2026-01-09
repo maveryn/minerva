@@ -107,7 +107,7 @@ In __getitem__(idx):
    1) <ID>
    2) <ID>
    ...
-   Return ONLY the ID(s), one per line. No extra text.
+   [Format the option prompts similarly as current LHC implementation]
    ---
 9) Write metadata into extra_info:
    extra_info["hint_used"]=True
