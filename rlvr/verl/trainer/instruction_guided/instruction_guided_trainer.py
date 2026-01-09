@@ -45,6 +45,8 @@ bad_line = re.compile(r"(\\boxed|≈|≥|≤|⇒|→|Answer|Final|Therefore|Thus
 
 _ONLY_PUNCT = re.compile(r"^[\)\(\{\}\[\];:.,`'\"-]+\s*$")
 
+ALL_SOLVE_THRESH = 0.95
+
 
 class InstructionGuidedPPOTrainer(_BasePPO):
     """Instruction-guided variant of RayPPOTrainer.
@@ -747,6 +749,33 @@ class InstructionGuidedPPOTrainer(_BasePPO):
         zero = [u for u in uid_order if not uid_any_success.get(u, False)]
         return zero
 
+    def _uids_with_all_success(
+        self, normal_batch: DataProto, threshold: float = ALL_SOLVE_THRESH
+    ) -> List[str]:
+        tls = normal_batch.batch["token_level_scores"]
+        resp_mask = normal_batch.batch.get("response_mask", None)
+        if tls.dim() == 2 and resp_mask is not None:
+            seq_scores = (tls * resp_mask.to(tls.dtype)).sum(-1)
+        elif tls.dim() == 2:
+            seq_scores = tls.sum(-1)
+        else:
+            seq_scores = tls
+
+        uids_all = np.asarray(normal_batch.non_tensor_batch["uid"], dtype=object)
+        uid_first_idx: Dict[str, int] = {}
+        uid_order: List[str] = []
+        uid_all_success: Dict[str, bool] = {}
+        for i, u in enumerate(uids_all.tolist()):
+            if u not in uid_first_idx:
+                uid_first_idx[u] = i
+                uid_order.append(u)
+            if u not in uid_all_success:
+                uid_all_success[u] = True
+            if float(seq_scores[i].item()) < threshold:
+                uid_all_success[u] = False
+        all_uids = [u for u in uid_order if uid_all_success.get(u, False)]
+        return all_uids
+
     def _uid_to_plain_question_text(self, normal_batch: DataProto) -> Dict[str, str]:
         prompts_text_all = self._decode_texts(normal_batch.batch["prompts"])
         uids_all = np.asarray(normal_batch.non_tensor_batch["uid"], dtype=object)
@@ -1171,9 +1200,14 @@ class InstructionGuidedPPOTrainer(_BasePPO):
         total_questions = len({u for u in uids_all.tolist()})
 
         zero_uids = self._uids_with_zero_success(normal_batch)
+        all_uids = self._uids_with_all_success(normal_batch)
         ig_metrics["ig/zero_solve_count"] = float(len(zero_uids))
         ig_metrics["ig/zero_solve_frac"] = float(
             len(zero_uids) / max(1, total_questions)
+        )
+        ig_metrics["ig/all_solve_count"] = float(len(all_uids))
+        ig_metrics["ig/all_solve_frac"] = float(
+            len(all_uids) / max(1, total_questions)
         )
         if not zero_uids:
             return None, ig_metrics
