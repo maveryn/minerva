@@ -223,6 +223,12 @@ rlvr/mydata/**
 !rlvr/mydata/cti/**
 !rlvr/mydata/cti-in/
 !rlvr/mydata/cti-in/**
+!rlvr/mydata/minerva_base/
+!rlvr/mydata/minerva_base/**
+!rlvr/mydata/minerva_lhc/
+!rlvr/mydata/minerva_lhc/**
+!rlvr/mydata/athena/
+!rlvr/mydata/athena/**
 !rlvr/mydata/data_prepare/
 !rlvr/mydata/data_prepare/**
 rlvr/mydata/data_prepare/**/__pycache__/
