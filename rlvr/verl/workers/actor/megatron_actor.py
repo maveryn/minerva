@@ -278,27 +278,40 @@ class MegatronPPOActor(BasePPOActor):
         Returns:
 
         """
-        select_keys = [
-            "responses",
-            "input_ids",
-            "attention_mask",
-            "response_mask",
-            "position_ids",
-            "old_log_probs",
-            "advantages",
-        ]
-        if self.config.use_kl_loss:
-            select_keys.append("ref_log_prob")
+        sft_mode = bool(data.meta_info.get("sft_mode", False))
+        if sft_mode:
+            select_keys = [
+                "responses",
+                "input_ids",
+                "attention_mask",
+                "response_mask",
+                "position_ids",
+            ]
+        else:
+            select_keys = [
+                "responses",
+                "input_ids",
+                "attention_mask",
+                "response_mask",
+                "position_ids",
+                "old_log_probs",
+                "advantages",
+            ]
+            if self.config.use_kl_loss:
+                select_keys.append("ref_log_prob")
         self.has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
         if self.has_multi_modal_inputs:
             data = data.select(select_keys, ["multi_modal_inputs"])
         else:
             data = data.select(batch_keys=select_keys)
+        mini_batch_size = data.meta_info.get("sft_mini_batch_size", self.config.ppo_mini_batch_size)
+        epochs = data.meta_info.get("sft_epochs", self.config.ppo_epochs)
+        shuffle = data.meta_info.get("sft_shuffle", self.config.shuffle)
         return data.make_iterator(
-            mini_batch_size=self.config.ppo_mini_batch_size,
-            epochs=self.config.ppo_epochs,
+            mini_batch_size=mini_batch_size,
+            epochs=epochs,
             seed=self.config.data_loader_seed,
-            dataloader_kwargs={"shuffle": self.config.shuffle},
+            dataloader_kwargs={"shuffle": shuffle},
         )
 
     def compute_ppo_loss(self, model_output, data):
@@ -360,6 +373,7 @@ class MegatronPPOActor(BasePPOActor):
         data: DataProto,
         forward_only=False,
         calculate_entropy=False,
+        use_sft=False,
         use_dynamic_bsz=False,
         micro_batch_size=None,
         max_token_len=None,
@@ -441,7 +455,15 @@ class MegatronPPOActor(BasePPOActor):
                 return torch.tensor(1.0, device=device), model_output
 
             # for training
-            # note that this loss function can be swapped with other loss functions such as SFT
+            if use_sft:
+                response_mask = data["response_mask"].to(torch.float32)
+                denom = response_mask.sum()
+                if denom.item() <= 0:
+                    sft_loss = log_prob.sum() * 0.0
+                else:
+                    sft_loss = -(log_prob * response_mask).sum() / denom
+                return sft_loss, {"actor/sft_loss": sft_loss.detach().item()}
+
             policy_loss, metrics = self.compute_ppo_loss(model_output, data)
 
             # return loss and stats
@@ -576,17 +598,22 @@ class MegatronPPOActor(BasePPOActor):
                 # if use distributed optimizer, zero grad buffer will be handled by optimizer
                 chunk.zero_grad_buffer()
 
-            calculate_entropy = self.config.entropy_coeff != 0
+            use_sft = bool(data.meta_info.get("sft_mode", False))
+            calculate_entropy = self.config.entropy_coeff != 0 and not use_sft
             if data.meta_info.get("micro_batch_size", None) is not None:
                 micro_batch_size = data.meta_info["micro_batch_size"]
             else:
                 micro_batch_size = self.config.ppo_micro_batch_size_per_gpu
             max_token_len = None
             if self.config.use_dynamic_bsz:
-                max_token_len = self.config.ppo_max_token_len_per_gpu * self.config.megatron.context_parallel_size
+                if use_sft and data.meta_info.get("sft_max_token_len") is not None:
+                    max_token_len = data.meta_info.get("sft_max_token_len")
+                else:
+                    max_token_len = self.config.ppo_max_token_len_per_gpu * self.config.megatron.context_parallel_size
             metric_micro_batch = self.forward_backward_batch(
                 data,
                 calculate_entropy=calculate_entropy,
+                use_sft=use_sft,
                 use_dynamic_bsz=self.config.use_dynamic_bsz,
                 micro_batch_size=micro_batch_size,
                 max_token_len=max_token_len,

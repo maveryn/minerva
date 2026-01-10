@@ -20,6 +20,7 @@ This trainer supports model-agonistic model initialization with huggingface
 """
 
 import json
+import math
 import os
 import uuid
 from collections import defaultdict
@@ -31,6 +32,7 @@ from typing import Optional, Tuple
 import numpy as np
 import ray
 import torch
+import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from torch.utils.data import Dataset, Sampler
 from torchdata.stateful_dataloader import StatefulDataLoader
@@ -56,6 +58,7 @@ from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path, shou
 from verl.utils.config import omega_conf_to_dataclass
 from verl.utils.debug import marked_timer
 from verl.utils.metric import reduce_metrics
+from verl.utils.model import compute_position_id_with_mask
 from verl.utils.rollout_skip import RolloutSkip
 from verl.utils.seqlen_balancing import get_seqlen_balanced_partitions, log_seqlen_unbalance
 from verl.utils.torch_functional import masked_mean
@@ -366,6 +369,7 @@ class RayPPOTrainer:
             self.kl_ctrl_in_reward = core_algos.get_kl_controller(self.config.algorithm.kl_ctrl)
 
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
+        self._init_distill_state()
 
     def _expanduser_in_config(self, cfg):
         """Recursively expand user home (~) in string paths within the config."""
@@ -1056,6 +1060,497 @@ class RayPPOTrainer:
             "pg/all_solve_count": float(all_count),
         }
 
+    def _init_distill_state(self) -> None:
+        slhc_cfg = self.config.data.get("stochastic_slhc", {}) if self.config is not None else {}
+        if isinstance(slhc_cfg, DictConfig):
+            distill_cfg = slhc_cfg.get("distill", {})
+        elif isinstance(slhc_cfg, dict):
+            distill_cfg = slhc_cfg.get("distill", {})
+        else:
+            distill_cfg = {}
+        if distill_cfg is None:
+            distill_cfg = {}
+        if isinstance(distill_cfg, DictConfig):
+            distill_cfg = OmegaConf.to_container(distill_cfg, resolve=True)
+        if not isinstance(distill_cfg, dict):
+            distill_cfg = {}
+
+        defaults = {
+            "enabled": False,
+            "interval": 10,
+            "reward_threshold": 0.5,
+            "max_buffer": 4096,
+            "batch_size": None,
+            "max_seq_len": None,
+            "entropy_tiebreak": "mean_nll",
+            "drop_last": True,
+            "dedup_by_uid": True,
+        }
+        for key, value in defaults.items():
+            distill_cfg.setdefault(key, value)
+
+        self._distill_cfg = distill_cfg
+        self._distill_buffer_local = []
+        self._distill_last_run_step = -1
+        self._distill_actor_dp_size = None
+
+    def _get_actor_dp_size(self) -> int:
+        if self._distill_actor_dp_size is not None:
+            return self._distill_actor_dp_size
+        dp_size = 1
+        try:
+            dp_rank_mapping = self.actor_rollout_wg._query_dispatch_info("actor")
+            if isinstance(dp_rank_mapping, list) and dp_rank_mapping:
+                dp_size = max(int(rank) for rank in dp_rank_mapping) + 1
+        except Exception:
+            dp_size = 1
+        self._distill_actor_dp_size = max(1, dp_size)
+        return self._distill_actor_dp_size
+
+    def _tokenize_prompt_nohint(self, messages: list[dict]) -> Optional[list[int]]:
+        if not isinstance(messages, list):
+            return None
+        kwargs = self.config.data.get("apply_chat_template_kwargs", {})
+        try:
+            raw_prompt = self.tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=False, **kwargs
+            )
+            return self.tokenizer.encode(raw_prompt, add_special_tokens=False)
+        except Exception:
+            return None
+
+    def _collect_distill_candidates(
+        self, batch: DataProto, reward_scalar: Optional[torch.Tensor]
+    ) -> dict[str, float]:
+        cfg = self._distill_cfg
+        if not cfg.get("enabled", False) or reward_scalar is None:
+            return {}
+
+        uid_arr = batch.non_tensor_batch.get("uid")
+        extra_arr = batch.non_tensor_batch.get("extra_info")
+        if uid_arr is None or extra_arr is None:
+            return {}
+
+        uid_list = np.asarray(uid_arr, dtype=object).tolist()
+        extra_list = np.asarray(extra_arr, dtype=object).tolist()
+        task_arr = batch.non_tensor_batch.get("data_source")
+        if task_arr is not None:
+            task_list = np.asarray(task_arr, dtype=object).tolist()
+        else:
+            task_list = [None] * len(uid_list)
+
+        reward_list = reward_scalar.detach().cpu().tolist()
+        if len(uid_list) != len(reward_list):
+            return {}
+
+        responses = batch.batch.get("responses")
+        if responses is None:
+            return {}
+        responses = responses.detach().cpu()
+
+        response_mask = batch.batch.get("response_mask")
+        if response_mask is not None:
+            response_mask = response_mask.detach().cpu()
+
+        log_probs = batch.batch.get("rollout_log_probs")
+        if log_probs is None:
+            log_probs = batch.batch.get("old_log_probs")
+        if log_probs is not None:
+            log_probs = log_probs.detach().cpu()
+
+        threshold = float(cfg.get("reward_threshold", 0.5))
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
+
+        def mean_nll(idx: int) -> Optional[float]:
+            if log_probs is None or response_mask is None:
+                return None
+            mask = response_mask[idx]
+            denom = mask.sum()
+            if denom.item() <= 0:
+                return None
+            return float(-(log_probs[idx] * mask).sum().item() / denom.item())
+
+        grouped: dict[str, list[int]] = {}
+        for idx, uid in enumerate(uid_list):
+            grouped.setdefault(str(uid), []).append(idx)
+
+        total_groups = len(grouped)
+        selected_groups = 0
+        selected_rewards: list[float] = []
+        selected_entropy: list[float] = []
+        hint_count = 0
+        nohint_count = 0
+        records = []
+
+        for uid, idxs in grouped.items():
+            eligible = [i for i in idxs if reward_list[i] >= threshold]
+            if not eligible:
+                continue
+            max_reward = max(reward_list[i] for i in eligible)
+            top = [i for i in eligible if reward_list[i] >= (max_reward - 1e-6)]
+            top.sort()
+
+            entropy_mode = str(cfg.get("entropy_tiebreak", "mean_nll"))
+            chosen_idx = top[0]
+            entropy_proxy = None
+            if len(top) > 1 and entropy_mode == "mean_nll":
+                entropy_map = {i: mean_nll(i) for i in top}
+                chosen_idx = max(top, key=lambda i: (entropy_map.get(i, float("-inf")), -i))
+                entropy_proxy = entropy_map.get(chosen_idx)
+            else:
+                entropy_proxy = mean_nll(chosen_idx)
+
+            extra_info = extra_list[chosen_idx]
+            prompt_nohint = None
+            hint_used = False
+            if isinstance(extra_info, dict):
+                prompt_nohint = extra_info.get("slhc_prompt_nohint")
+                hint_used = bool(extra_info.get("slhc_hint_used", False))
+
+            if not isinstance(prompt_nohint, list):
+                continue
+
+            if response_mask is not None:
+                valid_len = int(response_mask[chosen_idx].sum().item())
+                response_ids = responses[chosen_idx][:valid_len].tolist()
+            else:
+                response_ids = responses[chosen_idx].tolist()
+                while response_ids and response_ids[-1] == pad_id:
+                    response_ids.pop()
+
+            if not response_ids:
+                continue
+
+            record = {
+                "uid": uid,
+                "task_key": str(task_list[chosen_idx]) if task_list[chosen_idx] is not None else "unknown",
+                "prompt_nohint": deepcopy(prompt_nohint),
+                "response_ids": response_ids,
+                "response_text": None,
+                "reward": float(reward_list[chosen_idx]),
+                "entropy_proxy": entropy_proxy,
+                "hint_used": hint_used,
+            }
+            records.append(record)
+            selected_groups += 1
+            selected_rewards.append(record["reward"])
+            if entropy_proxy is not None:
+                selected_entropy.append(entropy_proxy)
+            if hint_used:
+                hint_count += 1
+            else:
+                nohint_count += 1
+
+        if records:
+            self._distill_buffer_local.extend(records)
+            max_buffer = int(cfg.get("max_buffer", 0) or 0)
+            if max_buffer > 0:
+                world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
+                max_local = max(1, int(math.ceil(max_buffer / world_size)))
+                if len(self._distill_buffer_local) > max_local:
+                    self._distill_buffer_local = self._distill_buffer_local[-max_local:]
+
+        metrics: dict[str, float] = {}
+        if total_groups > 0:
+            metrics["distill/uid_group_frac"] = float(selected_groups / max(1, total_groups))
+            metrics["distill/uid_group_count"] = float(selected_groups)
+            metrics["distill/uid_group_total"] = float(total_groups)
+        if selected_rewards:
+            metrics["distill/selected_reward_mean"] = float(np.mean(selected_rewards))
+        if selected_entropy:
+            metrics["distill/entropy_proxy_mean"] = float(np.mean(selected_entropy))
+            metrics["distill/entropy_proxy_max"] = float(np.max(selected_entropy))
+        metrics["distill/selected_hint_count"] = float(hint_count)
+        metrics["distill/selected_nohint_count"] = float(nohint_count)
+        metrics["distill/buffer_size_local"] = float(len(self._distill_buffer_local))
+        return metrics
+
+    def _dedup_distill_records(self, records: list[dict]) -> list[dict]:
+        deduped: dict[str, dict] = {}
+        for record in records:
+            uid = record.get("uid")
+            if uid is None:
+                continue
+            reward = float(record.get("reward", 0.0))
+            entropy = record.get("entropy_proxy")
+            entropy_val = float(entropy) if entropy is not None else float("-inf")
+            prev = deduped.get(uid)
+            if prev is None:
+                deduped[uid] = record
+                continue
+            prev_reward = float(prev.get("reward", 0.0))
+            prev_entropy = prev.get("entropy_proxy")
+            prev_entropy_val = float(prev_entropy) if prev_entropy is not None else float("-inf")
+            if reward > prev_reward + 1e-6 or (abs(reward - prev_reward) <= 1e-6 and entropy_val > prev_entropy_val):
+                deduped[uid] = record
+        return list(deduped.values())
+
+    def _build_distill_dataproto(
+        self, records: list[dict], max_seq_len: Optional[int]
+    ) -> tuple[Optional[DataProto], dict[str, float]]:
+        stats: dict[str, float] = {}
+        if max_seq_len is not None:
+            try:
+                max_seq_len = int(max_seq_len)
+            except (TypeError, ValueError):
+                max_seq_len = None
+
+        prompt_limit = self.config.data.get("max_prompt_length", None)
+        response_limit = self.config.data.get("max_response_length", None)
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
+
+        examples = []
+        rewards = []
+        entropy_vals = []
+        hint_count = 0
+        nohint_count = 0
+        skipped = 0
+
+        for record in records:
+            prompt_nohint = record.get("prompt_nohint")
+            prompt_ids = self._tokenize_prompt_nohint(prompt_nohint)
+            if not prompt_ids:
+                skipped += 1
+                continue
+            if prompt_limit is not None and len(prompt_ids) > prompt_limit:
+                prompt_ids = prompt_ids[-int(prompt_limit) :]
+
+            response_ids = record.get("response_ids")
+            if response_ids is None:
+                response_text = record.get("response_text")
+                if response_text:
+                    response_ids = self.tokenizer.encode(response_text, add_special_tokens=False)
+            if isinstance(response_ids, torch.Tensor):
+                response_ids = response_ids.tolist()
+            if not response_ids:
+                skipped += 1
+                continue
+            if response_limit is not None and len(response_ids) > response_limit:
+                response_ids = response_ids[: int(response_limit)]
+
+            if max_seq_len is not None:
+                total_len = len(prompt_ids) + len(response_ids)
+                if total_len > max_seq_len:
+                    if len(response_ids) >= max_seq_len:
+                        response_ids = response_ids[-max_seq_len:]
+                        prompt_ids = []
+                    else:
+                        keep_prompt = max_seq_len - len(response_ids)
+                        prompt_ids = prompt_ids[-keep_prompt:]
+
+            examples.append({"prompt_ids": prompt_ids, "response_ids": response_ids})
+            rewards.append(float(record.get("reward", 0.0)))
+            entropy = record.get("entropy_proxy")
+            if entropy is not None:
+                entropy_vals.append(float(entropy))
+            if record.get("hint_used"):
+                hint_count += 1
+            else:
+                nohint_count += 1
+
+        if not examples:
+            stats["sft_skipped"] = float(skipped)
+            return None, stats
+
+        max_prompt_len = max(len(ex["prompt_ids"]) for ex in examples)
+        max_resp_len = max(len(ex["response_ids"]) for ex in examples)
+
+        input_ids = []
+        attention_mask = []
+        responses = []
+        response_mask = []
+
+        for ex in examples:
+            prompt_ids = ex["prompt_ids"]
+            response_ids = ex["response_ids"]
+            prompt_pad = max_prompt_len - len(prompt_ids)
+            resp_pad = max_resp_len - len(response_ids)
+
+            input_ids.append([pad_id] * prompt_pad + prompt_ids + response_ids + [pad_id] * resp_pad)
+            attention_mask.append(
+                [0] * prompt_pad + [1] * len(prompt_ids) + [1] * len(response_ids) + [0] * resp_pad
+            )
+            responses.append(response_ids + [pad_id] * resp_pad)
+            response_mask.append([1] * len(response_ids) + [0] * resp_pad)
+
+        input_ids = torch.tensor(input_ids, dtype=torch.long)
+        attention_mask = torch.tensor(attention_mask, dtype=torch.long)
+        responses = torch.tensor(responses, dtype=torch.long)
+        response_mask = torch.tensor(response_mask, dtype=torch.long)
+        position_ids = compute_position_id_with_mask(attention_mask)
+
+        meta_info = {
+            "sft_mode": True,
+            "temperature": float(self.config.actor_rollout_ref.rollout.get("temperature", 1.0)),
+            "global_token_num": attention_mask.sum(dim=-1).tolist(),
+        }
+
+        data = DataProto.from_dict(
+            tensors={
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "position_ids": position_ids,
+                "responses": responses,
+                "response_mask": response_mask,
+            },
+            meta_info=meta_info,
+        )
+
+        stats["sft_examples"] = float(len(examples))
+        stats["sft_reward_mean"] = float(np.mean(rewards)) if rewards else 0.0
+        stats["sft_hint_count"] = float(hint_count)
+        stats["sft_nohint_count"] = float(nohint_count)
+        if entropy_vals:
+            stats["sft_entropy_mean"] = float(np.mean(entropy_vals))
+            stats["sft_entropy_max"] = float(np.max(entropy_vals))
+        stats["sft_skipped"] = float(skipped)
+        return data, stats
+
+    def _maybe_run_distill_sft(self, global_step: int) -> dict[str, float]:
+        cfg = self._distill_cfg
+        if not cfg.get("enabled", False):
+            return {}
+
+        interval = int(cfg.get("interval", 0) or 0)
+        if interval <= 0:
+            return {}
+        if (global_step + 1) % interval != 0:
+            return {}
+        if global_step == self._distill_last_run_step:
+            return {}
+
+        local_records = list(self._distill_buffer_local)
+        if not local_records:
+            return {}
+
+        if dist.is_available() and dist.is_initialized():
+            gathered = [None for _ in range(dist.get_world_size())]
+            dist.all_gather_object(gathered, local_records)
+            all_records: list[dict] = []
+            for chunk in gathered:
+                if chunk:
+                    all_records.extend(chunk)
+            if dist.get_rank() == 0:
+                records = all_records
+                if cfg.get("dedup_by_uid", True):
+                    records = self._dedup_distill_records(records)
+                records.sort(
+                    key=lambda r: (
+                        -float(r.get("reward", 0.0)),
+                        -(
+                            float(r.get("entropy_proxy"))
+                            if r.get("entropy_proxy") is not None
+                            else float("-inf")
+                        ),
+                        str(r.get("uid", "")),
+                    )
+                )
+                max_buffer = int(cfg.get("max_buffer", 0) or 0)
+                if max_buffer > 0:
+                    records = records[:max_buffer]
+            else:
+                records = None
+            obj_list = [records]
+            dist.broadcast_object_list(obj_list, src=0)
+            records = obj_list[0] or []
+        else:
+            records = local_records
+            if cfg.get("dedup_by_uid", True):
+                records = self._dedup_distill_records(records)
+            records.sort(
+                key=lambda r: (
+                    -float(r.get("reward", 0.0)),
+                    -(
+                        float(r.get("entropy_proxy"))
+                        if r.get("entropy_proxy") is not None
+                        else float("-inf")
+                    ),
+                    str(r.get("uid", "")),
+                )
+            )
+            max_buffer = int(cfg.get("max_buffer", 0) or 0)
+            if max_buffer > 0:
+                records = records[:max_buffer]
+
+        if not records:
+            self._distill_buffer_local = []
+            return {}
+
+        dp_size = self._get_actor_dp_size()
+        drop_last = bool(cfg.get("drop_last", True))
+        sft_batch_size = cfg.get("batch_size", None)
+        if sft_batch_size is None:
+            sft_batch_size = self.config.actor_rollout_ref.actor.get("ppo_mini_batch_size", None)
+            if sft_batch_size is None:
+                sft_batch_size = getattr(self.config.actor_rollout_ref.actor, "ppo_mini_batch_size", None)
+        if sft_batch_size is not None:
+            sft_batch_size = int(sft_batch_size)
+            if sft_batch_size <= 0:
+                sft_batch_size = None
+            elif len(records) < sft_batch_size:
+                sft_batch_size = len(records)
+        if sft_batch_size is None and records:
+            sft_batch_size = len(records)
+
+        divisor = dp_size
+        if sft_batch_size is not None and sft_batch_size > 0:
+            divisor = math.lcm(dp_size, sft_batch_size)
+
+        if drop_last and divisor > 1:
+            usable = (len(records) // divisor) * divisor
+            records = records[:usable]
+            if not records:
+                self._distill_buffer_local = []
+                return {}
+
+        max_seq_len = cfg.get("max_seq_len", None)
+        if max_seq_len is None:
+            max_prompt = self.config.data.get("max_prompt_length", None)
+            max_response = self.config.data.get("max_response_length", None)
+            if max_prompt is not None and max_response is not None:
+                max_seq_len = int(max_prompt) + int(max_response)
+            elif max_prompt is not None:
+                max_seq_len = int(max_prompt)
+            elif max_response is not None:
+                max_seq_len = int(max_response)
+
+        data, stats = self._build_distill_dataproto(records, max_seq_len)
+        if data is None:
+            self._distill_buffer_local = []
+            return {}
+
+        if sft_batch_size is not None and sft_batch_size > 0:
+            data.meta_info["sft_mini_batch_size"] = int(sft_batch_size)
+        if max_seq_len is not None:
+            data.meta_info["sft_max_token_len"] = int(max_seq_len)
+        data.meta_info["sft_epochs"] = 1
+        data.meta_info["sft_shuffle"] = True
+
+        pad_size = 0
+        if not drop_last and divisor > 1:
+            data, pad_size = pad_dataproto_to_divisor(data, divisor)
+
+        actor_output = self.actor_rollout_wg.update_actor(data)
+        actor_metrics = reduce_metrics(actor_output.meta_info["metrics"])
+
+        metrics: dict[str, float] = {
+            "distill/ran": 1.0,
+            "distill/buffer_size_global": float(len(records)),
+        }
+        for key, val in stats.items():
+            metrics[f"distill/{key}"] = float(val)
+        for key, val in actor_metrics.items():
+            mapped = key[len("actor/") :] if key.startswith("actor/") else key
+            metrics[f"distill_sft/{mapped}"] = float(val)
+
+        self._distill_buffer_local = []
+        self._distill_last_run_step = global_step
+        return metrics
+
     def fit(self):
         """
         The training loop of PPO.
@@ -1243,6 +1738,12 @@ class RayPPOTrainer:
                         if reward_extra_infos_dict:
                             batch.non_tensor_batch.update({k: np.array(v) for k, v in reward_extra_infos_dict.items()})
 
+                        reward_scalar = None
+                        if reward_tensor.dim() == 2:
+                            reward_scalar = reward_tensor.max(dim=-1).values
+                        elif reward_tensor.dim() == 1:
+                            reward_scalar = reward_tensor
+
                         # Optional: update adaptive label-hint curriculum on the training dataset.
                         if hasattr(self.train_dataset, "update_option_curriculum_from_rollout"):
                             sample_score = None
@@ -1276,11 +1777,6 @@ class RayPPOTrainer:
                         if hasattr(self.train_dataset, "update_slhc_controller_from_groups"):
                             slhc_cfg = self.config.data.get("stochastic_slhc", {})
                             if slhc_cfg.get("enabled", False):
-                                reward_scalar = None
-                                if reward_tensor.dim() == 2:
-                                    reward_scalar = reward_tensor.max(dim=-1).values
-                                elif reward_tensor.dim() == 1:
-                                    reward_scalar = reward_tensor
                                 if reward_scalar is not None:
                                     success_threshold = slhc_cfg.get("success_threshold", 0.1)
                                     success = (reward_scalar >= success_threshold).float()
@@ -1344,6 +1840,10 @@ class RayPPOTrainer:
                                         if isinstance(slhc_metrics, dict):
                                             metrics.update(slhc_metrics)
 
+                        distill_metrics = self._collect_distill_candidates(batch=batch, reward_scalar=reward_scalar)
+                        if isinstance(distill_metrics, dict) and distill_metrics:
+                            metrics.update(distill_metrics)
+
                         # compute rewards. apply_kl_penalty if available
                         if self.config.algorithm.use_kl_in_reward:
                             batch, kl_metrics = apply_kl_penalty(
@@ -1384,6 +1884,10 @@ class RayPPOTrainer:
                             actor_output = self.actor_rollout_wg.update_actor(batch)
                         actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
                         metrics.update(actor_output_metrics)
+
+                        distill_metrics = self._maybe_run_distill_sft(self.global_steps)
+                        if distill_metrics:
+                            metrics.update(distill_metrics)
 
                     # Log rollout generations if enabled
                     rollout_data_dir = self.config.trainer.get("rollout_data_dir", None)

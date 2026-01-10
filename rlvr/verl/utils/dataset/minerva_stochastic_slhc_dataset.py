@@ -429,7 +429,9 @@ class StochasticSLHCRLHFDataset(RLHFDataset):
         extra_info = example.get("extra_info")
         if not isinstance(extra_info, dict):
             extra_info = {}
-            example["extra_info"] = extra_info
+        if "slhc_prompt_nohint" not in extra_info:
+            extra_info["slhc_prompt_nohint"] = copy.deepcopy(messages)
+        example["extra_info"] = extra_info
 
         split_label = extra_info.get("split")
         if split_label is not None and str(split_label).lower() not in ("train",):
