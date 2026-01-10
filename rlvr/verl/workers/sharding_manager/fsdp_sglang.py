@@ -90,22 +90,54 @@ class FSDPSGLangShardingManager(BaseShardingManager):
         else:
             self.gen_random_states = None
 
+    def _get_event_loop(self) -> asyncio.AbstractEventLoop:
+        loop = getattr(self, "_loop", None)
+        if loop is not None and not loop.is_closed():
+            return loop
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        else:
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        self._loop = loop
+        return loop
+
     @GPUMemoryLogger(role="FSDPSGLangShardingManager enter", logger=logger)
     def __enter__(self):
         self.timing = {}
         with simple_timer("reshard", self.timing):
-            loop = asyncio.get_event_loop()
+            loop = self._get_event_loop()
             loop.run_until_complete(self.wake_up())
 
     @GPUMemoryLogger(role="FSDPSGLangShardingManager exit", logger=logger)
     def __exit__(self, exc_type, exc_value, traceback):
-        loop = asyncio.get_event_loop()
+        loop = self._get_event_loop()
         loop.run_until_complete(self.sleep())
 
     async def update_weights(self, params):
         named_tensors = [(k, v) for k, v in params.items()]
+        force_cpu = os.getenv("SGLANG_FORCE_CPU_WEIGHT_SYNC", "").lower() in {"1", "true", "yes"}
         update_weights_bucket_bytes = int(self.rollout_config.update_weights_bucket_megabytes) << 20
         for params_batch in get_named_tensor_buckets(named_tensors, update_weights_bucket_bytes):
+            if force_cpu:
+                try:
+                    import sglang.srt.patch_torch as sgl_patch
+                except Exception:
+                    sgl_patch = None
+                if sgl_patch is not None and not hasattr(sgl_patch, "_orig_modify_tuple"):
+                    sgl_patch._orig_modify_tuple = sgl_patch._modify_tuple
+
+                    def _safe_modify_tuple(t, index, modifier):
+                        if index >= len(t):
+                            return t
+                        return sgl_patch._orig_modify_tuple(t, index, modifier)
+
+                    sgl_patch._modify_tuple = _safe_modify_tuple
+                params_batch = [(name, tensor.cpu()) for name, tensor in params_batch]
             await sgl_update_weights(
                 engine=self.inference_engine,
                 params_batch=params_batch,
@@ -113,7 +145,7 @@ class FSDPSGLangShardingManager(BaseShardingManager):
                 device_mesh=self.device_mesh,
             )
 
-        if self.device_mesh["infer_tp"].get_local_rank() == 0:
+        if self.device_mesh["infer_tp"].get_local_rank() == 0 and self.rollout_config.free_cache_engine:
             await self.inference_engine.flush_cache()
 
     async def release_memory(self):

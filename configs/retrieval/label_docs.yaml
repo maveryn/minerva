@@ -1,0 +1,12 @@
+sources:
+  mitre_path: dataset/mitre/enterprise-attack.json
+  capec_path: dataset/capec/stix-capec.json
+  cwe_path: dataset/cwe/cwec_v4.19.xml
+label_types:
+  - attack_technique_id
+  - attack_tactic_id
+  - mitigation_id
+  - detection_id
+  - threat_actor_name
+  - capec_id
+  - cwe_id

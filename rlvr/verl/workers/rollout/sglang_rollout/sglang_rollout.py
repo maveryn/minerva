@@ -17,9 +17,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import multiprocessing as mp
 import os
+import re
 import time
 from copy import deepcopy
 from json import JSONDecodeError
@@ -85,6 +87,73 @@ except ImportError:
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
+
+_QUERY_RE = re.compile(r"[\"']query[\"']\s*:\s*[\"']([^\"']+)[\"']")
+_TOPK_RE = re.compile(r"[\"']topk[\"']\s*:\s*\"?(\d+)\"?")
+_TOKEN_QUERY_RE = re.compile(
+    r"\b(?:T\d{4}(?:\.\d{3})?|M\d{4}|TA\d{4}|CWE-\d+|CAPEC-\d+|CVE-\d{4}-\d{4,7}|APT\d{1,3})\b",
+    re.IGNORECASE,
+)
+_DEBUG_SAMPLE_ENV = "TARBA_DEBUG_SAMPLES"
+
+
+def _truncate_debug_text(text: str, max_chars: int = 4000) -> str:
+    if len(text) <= max_chars:
+        return text
+    head_len = max_chars // 2
+    tail_len = max_chars - head_len
+    return f"{text[:head_len]}...\n[truncated {len(text) - max_chars} chars]\n...{text[-tail_len:]}"
+
+
+def _extract_query_topk_from_text(text: str, default_topk: Optional[int] = None) -> tuple[Optional[str], Optional[int]]:
+    cleaned = text.replace("<|python_tag|>", "").strip()
+    if "```" in cleaned:
+        cleaned = cleaned.replace("```json", "").replace("```", "").strip()
+    start = cleaned.find("{")
+    json_text = None
+    obj = None
+    if start != -1:
+        json_text = cleaned[start:]
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(json_text)
+        except json.JSONDecodeError:
+            obj = None
+    query = None
+    topk = None
+    if isinstance(obj, dict):
+        params = obj.get("parameters") if isinstance(obj.get("parameters"), dict) else obj
+        query = params.get("query")
+        topk = params.get("topk")
+    if query is None or topk is None:
+        search_text = json_text if json_text is not None else cleaned
+        match_query = _QUERY_RE.search(search_text)
+        match_topk = _TOPK_RE.search(search_text)
+        if match_query:
+            query = match_query.group(1)
+        if match_topk:
+            topk = match_topk.group(1)
+    if query is None:
+        token_matches = _TOKEN_QUERY_RE.findall(cleaned)
+        if token_matches:
+            query = " ".join(token_matches[:3])
+        else:
+            brace_match = re.search(r"\{([^{}]+)\}", cleaned)
+            if brace_match:
+                candidate = brace_match.group(1).strip()
+                if candidate and _TOKEN_QUERY_RE.search(candidate):
+                    query = candidate
+    if query is None:
+        return None, None
+    query = str(query).strip()
+    if not query:
+        return None, None
+    if topk is None and default_topk is not None:
+        topk = default_topk
+    try:
+        topk_val = int(topk)
+    except (TypeError, ValueError):
+        return None, None
+    return query, topk_val
 
 
 # patch to avoid issue https://github.com/sgl-project/sglang/issues/6723
@@ -319,6 +388,8 @@ class SGLangRollout(BaseRollout):
         self._init_sampling_params(**kwargs)
 
         self.processing_class = processing_class
+        self._debug_sample_limit = max(0, int(os.getenv(_DEBUG_SAMPLE_ENV, "0")))
+        self._hide_tool_schema = os.getenv("TARBA_HIDE_TOOL_SCHEMA", "0").lower() in {"1", "true", "yes"}
 
         try:
             # This is when processing_class is a tokenizer
@@ -442,6 +513,8 @@ class SGLangRollout(BaseRollout):
         first_rank_in_node = self._tp_rank % tp_size_per_node == 0
         engine_kwargs = self.config.get("engine_kwargs", {}).get("sglang", {}) or {}
         engine_kwargs = {key: val for key, val in engine_kwargs.items() if val is not None}
+        if "context_length" not in engine_kwargs and self.config.get("max_model_len", None):
+            engine_kwargs["context_length"] = int(self.config.max_model_len)
 
         # attention backend will be changed to fa3 if not specified
         attention_backend = engine_kwargs.pop("attention_backend", None)
@@ -487,6 +560,8 @@ class SGLangRollout(BaseRollout):
                 # In async mode, we want token in token out.
                 "skip_tokenizer_init": self.config.mode == "async",
             }
+            if engine_kwargs:
+                args.update(engine_kwargs)
 
             if is_server_mode:
                 # add server specific args
@@ -738,6 +813,14 @@ class SGLangRollout(BaseRollout):
                     "n": 1,  # if validate, already repeat in ray_trainer
                 }
             )
+            val_max_new_tokens = getattr(self.config.val_kwargs, "max_new_tokens", None)
+            if val_max_new_tokens is not None:
+                try:
+                    val_max_new_tokens = int(val_max_new_tokens)
+                except (TypeError, ValueError):
+                    val_max_new_tokens = None
+                if val_max_new_tokens is not None and val_max_new_tokens > 0:
+                    request_sampling_params["max_new_tokens"] = val_max_new_tokens
 
         # Update with any additional kwargs
         request_sampling_params.update(kwargs)
@@ -814,7 +897,7 @@ class SGLangRollout(BaseRollout):
             batch["rollout_log_probs"] = rollout_log_probs
 
         # free cache engine
-        if self._engine is not None and self._tp_rank == 0:
+        if self.config.free_cache_engine and self._engine is not None and self._tp_rank == 0:
             loop = asyncio.get_event_loop()
             loop.run_until_complete(self._engine.flush_cache())
 
@@ -835,6 +918,19 @@ class SGLangRollout(BaseRollout):
         current_turns = 0
         user_turns = 0
         user_turn_rewards = []
+        if _req.metrics.get("debug_dump") and not _req.metrics.get("debug_prompt_logged"):
+            prompt_ids = _req.get_generation_prompt_ids(self.processing_class)
+            prompt_text = self.processing_class.decode(prompt_ids, skip_special_tokens=False)
+            prompt_text = _truncate_debug_text(prompt_text)
+            data_source = _req.metrics.get("debug_data_source", "unknown")
+            logger.warning(
+                "TARBA DEBUG PROMPT request_id=%s batch_id=%s data_source=%s\n%s",
+                _req.request_id,
+                _req.batch_data_id,
+                data_source,
+                prompt_text,
+            )
+            _req.metrics["debug_prompt_logged"] = True
 
         # Create request-level sampling parameters
         request_sampling_params = self.sampling_params.copy()
@@ -875,6 +971,22 @@ class SGLangRollout(BaseRollout):
             elif _req.state == AsyncRolloutRequestStateEnum.TOOL_CALLING:
                 if _req.messages[-1].tool_calls is not None:
                     parsed_tool_calls = _req.messages[-1].tool_calls
+                    if _req.metrics.get("debug_dump") and not _req.metrics.get("debug_tool_call_logged"):
+                        tool_call_summaries = []
+                        for tool_call in parsed_tool_calls:
+                            args = tool_call.function.arguments
+                            query = args.get("query") if isinstance(args, dict) else None
+                            topk = args.get("topk") if isinstance(args, dict) else None
+                            tool_call_summaries.append(
+                                {"name": tool_call.function.name, "query": query, "topk": topk}
+                            )
+                        logger.warning(
+                            "TARBA DEBUG TOOL CALL request_id=%s batch_id=%s\n%s",
+                            _req.request_id,
+                            _req.batch_data_id,
+                            _truncate_debug_text(json.dumps(tool_call_summaries, ensure_ascii=True)),
+                        )
+                        _req.metrics["debug_tool_call_logged"] = True
                     tool_call_results = await asyncio.gather(
                         *[
                             self._tool_map[tool_call.function.name].execute(
@@ -888,6 +1000,17 @@ class SGLangRollout(BaseRollout):
                     _req.add_tool_response_messages(self.processing_class, [resp for resp, _, _ in tool_call_results])
                     for tool_call, (resp, reward, metrics) in zip(parsed_tool_calls, tool_call_results, strict=True):
                         _req.update_metrics(metrics, tool_call.function.name)
+                    if _req.metrics.get("debug_dump") and not _req.metrics.get("debug_tool_prompt_logged"):
+                        tool_prompt_ids = _req.get_generation_prompt_ids(self.processing_class)
+                        tool_prompt_text = self.processing_class.decode(tool_prompt_ids, skip_special_tokens=False)
+                        tool_prompt_text = _truncate_debug_text(tool_prompt_text)
+                        logger.warning(
+                            "TARBA DEBUG TOOL PROMPT request_id=%s batch_id=%s\n%s",
+                            _req.request_id,
+                            _req.batch_data_id,
+                            tool_prompt_text,
+                        )
+                        _req.metrics["debug_tool_prompt_logged"] = True
                     if len(_req.input_ids) >= self.config.max_model_len:
                         finish_reason_type = FinishReasonTypeEnum.STOP
                         break
@@ -922,13 +1045,52 @@ class SGLangRollout(BaseRollout):
 
                 output = await self._handle_engine_call(_req, request_sampling_params, image_data=image_data)
                 content = output["text"]
+                if _req.metrics.get("debug_dump") and not _req.metrics.get("debug_output_logged"):
+                    output_text = _truncate_debug_text(str(content))
+                    logger.warning(
+                        "TARBA DEBUG OUTPUT request_id=%s batch_id=%s\n%s",
+                        _req.request_id,
+                        _req.batch_data_id,
+                        output_text,
+                    )
+                    _req.metrics["debug_output_logged"] = True
                 finish_reason_type = FinishReasonTypeEnum.from_str(output["meta_info"]["finish_reason"]["type"])
                 current_turns += 1
                 if finish_reason_type == FinishReasonTypeEnum.LENGTH:
                     _req.add_assistant_message(self.processing_class, content)
                     break
                 else:
-                    if self._function_call_parser and self._function_call_parser.has_tool_call(content):
+                    if self._hide_tool_schema and _req.tools_kwargs and "cti_retrieve" in _req.tools_kwargs:
+                        query, topk = _extract_query_topk_from_text(content, default_topk=8)
+                        if query is not None and topk is not None:
+                            function = OpenAIFunctionCallSchema(
+                                name="cti_retrieve",
+                                arguments={"query": query, "topk": topk},
+                            )
+                            fallback_tool_call = OpenAIFunctionToolCall(id="0", function=function)
+                            _req.add_assistant_message(self.processing_class, "", tool_calls=[fallback_tool_call])
+                            finish_reason_type = FinishReasonTypeEnum.TOOL_CALL
+                            _req.state = AsyncRolloutRequestStateEnum.TOOL_CALLING
+                            continue
+                        _req.add_assistant_message(
+                            self.processing_class,
+                            content,
+                        )
+                        if (
+                            _req.interaction_kwargs
+                            and self.interaction_map
+                            and user_turns < self.config.multi_turn.max_user_turns
+                            and current_turns < self.config.multi_turn.max_assistant_turns
+                        ):
+                            _req.state = AsyncRolloutRequestStateEnum.INTERACTING
+                        else:
+                            break
+                        continue
+                    if (
+                        not self._hide_tool_schema
+                        and self._function_call_parser
+                        and self._function_call_parser.has_tool_call(content)
+                    ):
                         finish_reason_type = FinishReasonTypeEnum.TOOL_CALL
                         _req.state = AsyncRolloutRequestStateEnum.TOOL_CALLING
                         try:
@@ -961,10 +1123,24 @@ class SGLangRollout(BaseRollout):
                                 self.processing_class, normed_content, tool_calls=parsed_tool_calls
                             )
                         else:
-                            _req.add_assistant_message(self.processing_class, content)
-                            finish_reason_type = FinishReasonTypeEnum.STOP
-                            _req.state = AsyncRolloutRequestStateEnum.COMPLETED
-                            break
+                            fallback_tool_call = None
+                            if _req.tools_kwargs and "cti_retrieve" in _req.tools_kwargs:
+                                query, topk = _extract_query_topk_from_text(content, default_topk=8)
+                                if query is not None and topk is not None:
+                                    function = OpenAIFunctionCallSchema(
+                                        name="cti_retrieve",
+                                        arguments={"query": query, "topk": topk},
+                                    )
+                                    fallback_tool_call = OpenAIFunctionToolCall(id="0", function=function)
+                            if fallback_tool_call is not None:
+                                _req.add_assistant_message(
+                                    self.processing_class, "", tool_calls=[fallback_tool_call]
+                                )
+                            else:
+                                _req.add_assistant_message(self.processing_class, content)
+                                finish_reason_type = FinishReasonTypeEnum.STOP
+                                _req.state = AsyncRolloutRequestStateEnum.COMPLETED
+                                break
                     else:
                         _req.add_assistant_message(
                             self.processing_class,
@@ -1050,7 +1226,17 @@ class SGLangRollout(BaseRollout):
     async def _handle_engine_generate(
         self, generation_prompt_ids: list[int], sampling_params: dict, image_data: Optional[list[Any]] = None
     ) -> dict:
-        max_new_tokens = min(self.config.response_length, self.config.max_model_len - len(generation_prompt_ids) - 1)
+        requested_max_new_tokens = sampling_params.get("max_new_tokens")
+        if requested_max_new_tokens is not None:
+            try:
+                requested_max_new_tokens = int(requested_max_new_tokens)
+            except (TypeError, ValueError):
+                requested_max_new_tokens = None
+        if requested_max_new_tokens is None or requested_max_new_tokens <= 0:
+            max_new_tokens = self.config.response_length
+        else:
+            max_new_tokens = min(requested_max_new_tokens, self.config.response_length)
+        max_new_tokens = min(max_new_tokens, self.config.max_model_len - len(generation_prompt_ids) - 1)
 
         kwargs = sampling_params.copy()
         kwargs["max_new_tokens"] = max_new_tokens
@@ -1327,7 +1513,7 @@ class SGLangRollout(BaseRollout):
             batch["rollout_output_token_ids"] = rollout_output_token_ids
 
         # free cache engine
-        if self._engine is not None and self._tp_rank == 0:
+        if self.config.free_cache_engine and self._engine is not None and self._tp_rank == 0:
             loop = asyncio.get_event_loop()
             loop.run_until_complete(self._engine.flush_cache())
 
@@ -1428,9 +1614,13 @@ class SGLangRollout(BaseRollout):
         for data_idx, (raw_prompt, multi_modal_data) in enumerate(
             zip(prompts.non_tensor_batch["raw_prompt"], multi_modal_data_list, strict=True)
         ):
+            debug_dump = data_idx < self._debug_sample_limit
             if self._tool_schemas:
                 _tools_kwargs = prompts.non_tensor_batch["tools_kwargs"][data_idx]
-                _tool_schemas = [self._tool_map[k].get_openai_tool_schema() for k in _tools_kwargs.keys()]
+                if self._hide_tool_schema:
+                    _tool_schemas = None
+                else:
+                    _tool_schemas = [self._tool_map[k].get_openai_tool_schema() for k in _tools_kwargs.keys()]
                 _input_ids = None
                 _attention_mask = None
             else:
@@ -1444,6 +1634,8 @@ class SGLangRollout(BaseRollout):
             else:
                 _interaction_kwargs = {}
 
+            data_sources = prompts.non_tensor_batch.get("data_source")
+            data_source = data_sources[data_idx] if data_sources is not None else None
             if not isinstance(raw_prompt, list | np.ndarray):
                 raise TypeError(f"raw_prompt must be a list or numpy array, got {type(raw_prompt)}")
 
@@ -1471,6 +1663,10 @@ class SGLangRollout(BaseRollout):
                 tokenization_sanity_check_mode=self.config.multi_turn.tokenization_sanity_check_mode,
                 processing_class=self.processing_class,
             )
+            if debug_dump:
+                req.metrics["debug_dump"] = True
+                if data_source is not None:
+                    req.metrics["debug_data_source"] = str(data_source)
             error_message = f"""Request {req.request_id} has mismatched lengths: 
             input_ids={req.input_ids.shape[-1]}, 
             attention_mask={req.attention_mask.shape[-1]}, 

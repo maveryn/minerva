@@ -22,6 +22,7 @@ This trainer supports model-agonistic model initialization with huggingface
 import json
 import math
 import os
+import time
 import uuid
 from collections import defaultdict
 from copy import deepcopy
@@ -534,6 +535,16 @@ class RayPPOTrainer:
         return gen_batch
 
     def _validate(self):
+        val_debug = os.getenv("VERL_VAL_DEBUG", "0").lower() in {"1", "true", "yes"}
+        val_log_every = int(os.getenv("VERL_VAL_LOG_EVERY", "10"))
+        val_max_batches = int(os.getenv("VERL_VAL_MAX_BATCHES", "0"))
+        val_start_time = time.time()
+        last_batch_time = val_start_time
+        if val_debug:
+            print(
+                f"[VAL] start step={self.global_steps} "
+                f"val_len={len(self.val_dataloader)} val_batch_size={self.config.data.val_batch_size}"
+            )
         data_source_lst = []
         source_file_lst = []
         reward_extra_infos_dict: dict[str, list] = defaultdict(list)
@@ -545,7 +556,19 @@ class RayPPOTrainer:
         sample_scores = []
         sample_turns = []
 
-        for test_data in self.val_dataloader:
+        for batch_idx, test_data in enumerate(self.val_dataloader):
+            if val_debug and batch_idx == 0:
+                print(f"[VAL] first batch after {time.time() - val_start_time:.2f}s")
+            elif val_debug and (batch_idx % max(val_log_every, 1) == 0):
+                print(
+                    f"[VAL] batch {batch_idx}/{len(self.val_dataloader)} "
+                    f"after {time.time() - last_batch_time:.2f}s"
+                )
+                last_batch_time = time.time()
+            if val_max_batches > 0 and batch_idx >= val_max_batches:
+                if val_debug:
+                    print(f"[VAL] stopping early at batch {batch_idx}/{len(self.val_dataloader)}")
+                break
             test_batch = DataProto.from_single_dict(test_data)
 
             # repeat test batch
@@ -586,6 +609,7 @@ class RayPPOTrainer:
                 else self.config.actor_rollout_ref.rollout.agent.num_workers
             )
             test_gen_batch_padded, pad_size = pad_dataproto_to_divisor(test_gen_batch, size_divisor)
+            gen_start = time.time()
             if not self.async_rollout_mode:
                 test_output_gen_batch_padded = self.actor_rollout_wg.generate_sequences(test_gen_batch_padded)
             else:
@@ -594,7 +618,8 @@ class RayPPOTrainer:
             # unpad
             test_output_gen_batch = unpad_dataproto(test_output_gen_batch_padded, pad_size=pad_size)
 
-            print("validation generation end")
+            if val_debug:
+                print(f"[VAL] generation done in {time.time() - gen_start:.2f}s")
 
             # Store generated outputs
             output_ids = test_output_gen_batch.batch["responses"]
@@ -1690,10 +1715,17 @@ class RayPPOTrainer:
                         else:
                             reward_tensor, reward_extra_infos_dict = compute_reward(batch, self.reward_fn)
 
-                            for key in reward_extra_infos_dict:
-                                if key != "score":
-                                    this_val = np.array(reward_extra_infos_dict[key])
-                                    metrics.update({f"critic/rewards/{key}": np.mean(this_val)})
+                            for key, values in reward_extra_infos_dict.items():
+                                if key == "score":
+                                    continue
+                                try:
+                                    this_val = np.asarray(values, dtype=float)
+                                except (TypeError, ValueError):
+                                    # Skip non-numeric extra info (e.g., dicts for debugging).
+                                    continue
+                                if this_val.size == 0:
+                                    continue
+                                metrics.update({f"critic/rewards/{key}": float(np.mean(this_val))})
 
                     # recompute old_log_probs
                     with marked_timer("old_log_prob", timing_raw, color="blue"):
@@ -1839,6 +1871,55 @@ class RayPPOTrainer:
                                         )
                                         if isinstance(slhc_metrics, dict):
                                             metrics.update(slhc_metrics)
+
+                        # Optional: update TARBA retrieval controller on the training dataset.
+                        if hasattr(self.train_dataset, "update_tarba_controller_from_groups"):
+                            tarba_cfg = self.config.data.get("tarba", {})
+                            if tarba_cfg.get("enabled", False) and reward_scalar is not None:
+                                uid_arr = batch.non_tensor_batch.get("uid")
+                                task_arr = batch.non_tensor_batch.get("data_source")
+                                extra_arr = batch.non_tensor_batch.get("extra_info")
+                                if uid_arr is not None and task_arr is not None and extra_arr is not None:
+                                    uid_list = list(uid_arr)
+                                    task_list = list(task_arr)
+                                    extra_list = list(extra_arr)
+                                    if "is_correct" in batch.non_tensor_batch:
+                                        is_correct_raw = batch.non_tensor_batch.get("is_correct")
+                                        is_correct_list = [bool(x) for x in list(is_correct_raw)]
+                                    else:
+                                        score_threshold = tarba_cfg.get("score_threshold", 0.5)
+                                        is_correct = (reward_scalar >= score_threshold).float()
+                                        is_correct_list = is_correct.detach().cpu().tolist()
+
+                                    grouped = {}
+                                    for idx, uid in enumerate(uid_list):
+                                        grouped.setdefault(str(uid), []).append(idx)
+
+                                    group_summaries = []
+                                    for _, idxs in grouped.items():
+                                        if not idxs:
+                                            continue
+                                        success_count = int(sum(1 for i in idxs if is_correct_list[i]))
+                                        group_size = len(idxs)
+                                        acc_g = success_count / group_size
+                                        task_key = str(task_list[idxs[0]])
+                                        extra_info = extra_list[idxs[0]]
+                                        allow_retrieval = False
+                                        if isinstance(extra_info, dict):
+                                            allow_retrieval = bool(extra_info.get("tarba_allow_retrieval", False))
+                                        group_summaries.append(
+                                            {
+                                                "task_key": task_key,
+                                                "allow_retrieval": allow_retrieval,
+                                                "acc_g": acc_g,
+                                            }
+                                        )
+
+                                    tarba_metrics = self.train_dataset.update_tarba_controller_from_groups(
+                                        group_summaries=group_summaries
+                                    )
+                                    if isinstance(tarba_metrics, dict):
+                                        metrics.update(tarba_metrics)
 
                         distill_metrics = self._collect_distill_candidates(batch=batch, reward_scalar=reward_scalar)
                         if isinstance(distill_metrics, dict) and distill_metrics:

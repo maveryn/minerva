@@ -229,8 +229,31 @@ class AsyncRolloutRequest(BaseModel):
         tokenize: bool = False,
         return_dict: bool = False,
     ):
+        sanitized_messages = []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                if hasattr(msg, "model_dump"):
+                    msg = msg.model_dump()
+                elif hasattr(msg, "dict"):
+                    msg = msg.dict()
+            if isinstance(msg, dict):
+                if msg.get("content") is None:
+                    msg = dict(msg)
+                    msg["content"] = ""
+                tool_calls = msg.get("tool_calls")
+                if tool_calls is None or tool_calls == []:
+                    if "tool_calls" in msg:
+                        msg = dict(msg)
+                        msg.pop("tool_calls", None)
+                elif isinstance(tool_calls, list) and len(tool_calls) > 1:
+                    msg = dict(msg)
+                    msg["tool_calls"] = tool_calls[:1]
+                elif not isinstance(tool_calls, list):
+                    msg = dict(msg)
+                    msg.pop("tool_calls", None)
+            sanitized_messages.append(msg)
         raw_prompt = processing_class.apply_chat_template(
-            messages, tools=tools, add_generation_prompt=add_generation_prompt, tokenize=False
+            sanitized_messages, tools=tools, add_generation_prompt=add_generation_prompt, tokenize=False
         )
         if not tokenize:
             return raw_prompt
