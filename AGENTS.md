@@ -53,6 +53,20 @@
 - Variants: `rlvr/cti-scripts/v0.1.sh` and `rlvr/cti-scripts/v0.2.sh` are config snapshots with different models/prompt lengths.
 - Single-task runs: `rlvr/cti-scripts/cti_ate_llama-8b.sh` and `rlvr/cti-scripts/cti_rcm_llama-8b.sh` train on `rlvr/mydata/cti_out/*.parquet` using `myreward_boxed.py` and the `reward_answer_only` scorer.
 
+## TARBA tool-augmented retrieval (RLVR)
+- Code flow: `minerva/retrieval/` builds canonical label docs + BM25 indexes; `minerva/retrieval/server.py` serves `/retrieve`; `rlvr/verl/tools/cti_retrieval_tool.py` calls the server; `rlvr/verl/utils/dataset/minerva_tarba_retrieval_dataset.py` injects tool instructions + per-task budgets; `rlvr/verl/utils/reward_score/reward_tarba.py` adds retrieval shaping; controller updates in `rlvr/verl/trainer/ppo/ray_trainer.py`.
+- Build label docs + index (generated artifacts):
+  - `python -m minerva.retrieval.build_label_docs --config configs/retrieval/label_docs.yaml --out_dir dataset/retrieval/label_docs`
+  - `python -m minerva.retrieval.build_index --label_docs_dir dataset/retrieval/label_docs --out_dir dataset/retrieval/index`
+- Run retrieval server:
+  - `python -m minerva.retrieval.server --index_dir dataset/retrieval/index --host 0.0.0.0 --port 8000`
+- Train TARBA (same train/val datasets as base/LHC/SLHC):
+  - `rlvr/cti-scripts/train_minerva_tarba_base_llama3b.sh`
+  - `rlvr/cti-scripts/train_minerva_tarba_lhc_llama3b.sh`
+- Evaluate validation with retrieval on/off:
+  - `rlvr/cti-scripts/eval_minerva_tarba_reton_llama3b.sh`
+  - `rlvr/cti-scripts/eval_minerva_tarba_retoff_llama3b.sh`
+
 ## Config and environment
 - `minerva/config.yaml` defines data paths, NVD date windows, and per-task output settings.
 - Environment variables:
@@ -63,6 +77,7 @@
 - Treat `dataset/` outputs and caches as generated artifacts; avoid hand-editing unless asked.
 - External fetches (NVD/MITRE/CAPEC) can be slow and rate-limited; prefer cached files when available.
 - `rlvr/` is heavy and has extensive tests; only run those if explicitly requested.
+- vLLM is currently avoided because SGLang pins `outlines_core`/`xgrammar` to versions that conflict with vLLM; use `actor_rollout_ref.rollout.name=sglang` in CTI scripts.
 
 ## Reference docs
 - `README.md` and `minerva/README.md` explain the dataset tasks and prompts.

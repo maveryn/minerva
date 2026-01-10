@@ -2,3 +2,5 @@ requests>=2.31.0
 pyyaml>=6.0
 tqdm>=4.66.0
 cvss>=3.2
+sglang[srt,openai]==0.4.10.post2
+torch-memory-saver

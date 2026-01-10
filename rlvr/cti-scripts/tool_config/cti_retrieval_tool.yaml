@@ -1,0 +1,24 @@
+tools:
+  - class_name: "verl.tools.cti_retrieval_tool.CTIRetrievalTool"
+    config:
+      type: native
+      retrieval_url: "http://127.0.0.1:8000/retrieve"
+      timeout: 30
+      topk_cap: 8
+      max_query_chars: 128
+      max_snippet_chars: 800
+    tool_schema:
+      type: "function"
+      function:
+        name: "cti_retrieve"
+        description: "Retrieve CTI label docs by keyword query."
+        parameters:
+          type: "object"
+          properties:
+            query:
+              type: "string"
+              description: "Keyword query"
+            topk:
+              type: "integer"
+              description: "Number of docs to return"
+          required: ["query", "topk"]
