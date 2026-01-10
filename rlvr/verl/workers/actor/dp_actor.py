@@ -363,6 +363,8 @@ class DataParallelPPOActor(BasePPOActor):
 
     @GPUMemoryLogger(role="dp actor", logger=logger)
     def update_policy(self, data: DataProto):
+        if data.meta_info.get("sft_mode"):
+            return self.update_policy_sft(data)
         # make sure we are in training mode
         self.actor_module.train()
 
@@ -560,5 +562,68 @@ class DataParallelPPOActor(BasePPOActor):
                 grad_norm = self._optimizer_step()
                 mini_batch_metrics = {"actor/grad_norm": grad_norm.detach().item()}
                 append_to_dict(metrics, mini_batch_metrics)
+        self.actor_optimizer.zero_grad()
+        return metrics
+
+    @GPUMemoryLogger(role="dp actor", logger=logger)
+    def update_policy_sft(self, data: DataProto):
+        self.actor_module.train()
+
+        temperature = data.meta_info.get("temperature", 1.0)
+        select_keys = [
+            "responses",
+            "response_mask",
+            "input_ids",
+            "attention_mask",
+            "position_ids",
+        ]
+
+        has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
+        non_tensor_select_keys = ["multi_modal_inputs"] if has_multi_modal_inputs else []
+        data = data.select(batch_keys=select_keys, non_tensor_batch_keys=non_tensor_select_keys)
+
+        mini_batch_size = data.meta_info.get("sft_mini_batch_size", self.config.ppo_mini_batch_size)
+        mini_batches = data.split(mini_batch_size)
+
+        metrics = {}
+        for mini_batch in mini_batches:
+            if self.config.use_dynamic_bsz:
+                max_token_len = data.meta_info.get(
+                    "sft_max_token_len",
+                    self.config.ppo_max_token_len_per_gpu * self.ulysses_sequence_parallel_size,
+                )
+                micro_batches, _ = prepare_dynamic_batch(mini_batch, max_token_len=max_token_len)
+            else:
+                micro_batch_size = data.meta_info.get("sft_micro_batch_size", self.config.ppo_micro_batch_size_per_gpu)
+                if micro_batch_size is None:
+                    micro_batch_size = mini_batch_size
+                self.gradient_accumulation = max(1, mini_batch_size // micro_batch_size)
+                micro_batches = mini_batch.split(micro_batch_size)
+
+            self.actor_optimizer.zero_grad()
+
+            for micro_batch in micro_batches:
+                micro_batch = micro_batch.to(get_device_id())
+                model_inputs = {**micro_batch.batch, **micro_batch.non_tensor_batch}
+                response_mask = model_inputs["response_mask"].to(torch.float32)
+
+                _, log_prob = self._forward_micro_batch(model_inputs, temperature=temperature, calculate_entropy=False)
+                denom = response_mask.sum()
+                if denom.item() <= 0:
+                    continue
+                sft_loss = -(log_prob * response_mask).sum() / denom
+
+                if self.config.use_dynamic_bsz:
+                    loss_scale_factor = response_mask.shape[0] / mini_batch_size
+                else:
+                    loss_scale_factor = 1 / self.gradient_accumulation
+
+                loss = sft_loss * loss_scale_factor
+                loss.backward()
+                append_to_dict(metrics, {"actor/sft_loss": sft_loss.detach().item() * loss_scale_factor})
+
+            grad_norm = self._optimizer_step()
+            append_to_dict(metrics, {"actor/grad_norm": grad_norm.detach().item()})
+
         self.actor_optimizer.zero_grad()
         return metrics
