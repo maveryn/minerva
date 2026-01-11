@@ -62,7 +62,24 @@ class BatchRewardManager(AbstractRewardManager):
 
         ground_truths = [item.non_tensor_batch["reward_model"].get("ground_truth", None) for item in data]
         data_sources = data.non_tensor_batch[self.reward_fn_key]
-        extras = data.non_tensor_batch.get("extra_info", [None] * len(data))
+        extras_raw = data.non_tensor_batch.get("extra_info", [None] * len(data))
+        tool_doc_ids = data.non_tensor_batch.get("tarba_tool_doc_ids")
+        tool_call_counts = data.non_tensor_batch.get("tarba_tool_call_counts")
+        extras = []
+        for i in range(len(data)):
+            info = extras_raw[i]
+            if not isinstance(info, dict):
+                info = {}
+            else:
+                info = dict(info)
+            if tool_doc_ids is not None:
+                info["tarba_tool_doc_ids"] = tool_doc_ids[i]
+            if tool_call_counts is not None:
+                try:
+                    info["tarba_tool_call_count"] = int(tool_call_counts[i])
+                except (TypeError, ValueError):
+                    info["tarba_tool_call_count"] = tool_call_counts[i]
+            extras.append(info)
 
         scores = self.compute_score(
             data_sources=data_sources,

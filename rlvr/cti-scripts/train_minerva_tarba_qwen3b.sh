@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-# Training script for Minerva TARBA with Llama 3B.
+# Training script for Minerva TARBA with Qwen3 3B.
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_DIR="$ROOT_DIR/mydata"
@@ -149,7 +149,7 @@ python3 -m verl.trainer.main_ppo \
     data.max_response_length=2048 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
-    actor_rollout_ref.model.path=meta-llama/Llama-3.2-3B-Instruct \
+    actor_rollout_ref.model.path=Qwen/Qwen3-3B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=64 \
@@ -179,7 +179,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger='["console", "wandb"]' \
     trainer.project_name='minerva' \
-    trainer.experiment_name='minerva_tarba_llama3b' \
+    trainer.experiment_name='minerva_tarba_qwen3b' \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \

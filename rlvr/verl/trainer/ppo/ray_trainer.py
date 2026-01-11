@@ -723,6 +723,33 @@ class RayPPOTrainer:
                         metric_dict["val-core/global-val/reward/mean"] = float(
                             (minerva_mean + athena_mean) / 2.0
                         )
+                if minerva_mean is not None:
+                    metric_dict["val-core/minerva-dev/reward/mean"] = float(minerva_mean)
+                if athena_means and minerva_mean is not None:
+                    metric_dict.setdefault(
+                        "val-core/global-val/reward/mean",
+                        float((minerva_mean + athena_mean) / 2.0),
+                    )
+
+        # Fallback aggregation when file-level labels are missing or incomplete.
+        if "reward" in reward_extra_infos_dict and len(data_sources) == len(reward_extra_infos_dict["reward"]):
+            rewards = np.array(reward_extra_infos_dict["reward"])
+            if (
+                "val-core/minerva-dev/reward/mean" not in metric_dict
+                or "val-core/athena-bench/reward/mean" not in metric_dict
+            ):
+                data_sources_arr = np.array([str(ds) for ds in data_sources])
+                athena_mask = np.array([ds.startswith("athena-cti-") for ds in data_sources_arr])
+                minerva_mask = ~athena_mask
+                if "val-core/minerva-dev/reward/mean" not in metric_dict and minerva_mask.any():
+                    metric_dict["val-core/minerva-dev/reward/mean"] = float(rewards[minerva_mask].mean())
+                if "val-core/athena-bench/reward/mean" not in metric_dict and athena_mask.any():
+                    metric_dict["val-core/athena-bench/reward/mean"] = float(rewards[athena_mask].mean())
+            if "val-core/global-val/reward/mean" not in metric_dict:
+                minerva_mean = metric_dict.get("val-core/minerva-dev/reward/mean")
+                athena_mean = metric_dict.get("val-core/athena-bench/reward/mean")
+                if minerva_mean is not None and athena_mean is not None:
+                    metric_dict["val-core/global-val/reward/mean"] = float((minerva_mean + athena_mean) / 2.0)
 
         if len(sample_turns) > 0:
             sample_turns = np.concatenate(sample_turns)

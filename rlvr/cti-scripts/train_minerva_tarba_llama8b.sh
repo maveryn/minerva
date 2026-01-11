@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-# Training script for Minerva TARBA (base) with Llama 3B.
+# Training script for Minerva TARBA with Llama 8B.
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_DIR="$ROOT_DIR/mydata"
@@ -108,6 +108,7 @@ train_path="$DATA_DIR/minerva_base/minerva_base_train.parquet"
 val_paths=(
   "$DATA_DIR/minerva_base/minerva_base_dev.parquet"
   "$DATA_DIR/athena/athena_cti_ate.parquet"
+  "$DATA_DIR/athena/athena_cti_ckt.parquet"
   "$DATA_DIR/athena/athena_cti_rcm.parquet"
   "$DATA_DIR/athena/athena_cti_rms.parquet"
 )
@@ -118,7 +119,7 @@ tool_config_path="$ROOT_DIR/cti-scripts/tool_config/cti_retrieval_tool.yaml"
 sglang_engine_kwargs="{max_total_tokens: 262144, max_running_requests: 128, disable_cuda_graph: false, disable_radix_cache: false, disable_overlap_schedule: false, attention_backend: fa3, prefill_attention_backend: fa3, log_level: ${SGLANG_LOG_LEVEL}}"
 
 train_files="['$train_path']"
-val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}']"
+val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}','${val_paths[4]}']"
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -130,27 +131,25 @@ python3 -m verl.trainer.main_ppo \
     data.return_raw_chat=True \
     +data.tarba.enabled=true \
     +data.tarba.p_noret_init=0.10 \
+    +data.tarba.p_noret_max=0.90 \
+    +data.tarba.p_step=0.05 \
     +data.tarba.default_B_max=8 \
-    +data.tarba.B_min=0 \
-    +data.tarba.B_step=1 \
     +data.tarba.ema_beta=0.90 \
-    +data.tarba.target_acc_noret=0.70 \
+    +data.tarba.target_acc_noret=0.60 \
     +data.tarba.tol=0.05 \
     +data.tarba.min_steps_before_anneal=50 \
     custom_reward_function.path=$reward_fn_path \
     custom_reward_function.name=reward_tarba \
     +custom_reward_function.reward_kwargs.lambda_ret=0.2 \
-    +custom_reward_function.reward_kwargs.alpha=0.6931 \
-    +custom_reward_function.reward_kwargs.ans_threshold=0.5 \
-    +custom_reward_function.reward_kwargs.penalty_tool_call=0.02 \
-    +custom_reward_function.reward_kwargs.penalty_illegal_tool=0.5 \
+    +custom_reward_function.reward_kwargs.floor=0.2 \
+    +custom_reward_function.reward_kwargs.tool_call_bonus=0.1 \
     data.train_batch_size=64 \
     data.val_batch_size=2048 \
     data.max_prompt_length=2048 \
     data.max_response_length=2048 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
-    actor_rollout_ref.model.path=meta-llama/Llama-3.2-3B-Instruct \
+    actor_rollout_ref.model.path=meta-llama/Llama-3.1-8B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=64 \
@@ -180,12 +179,12 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger='["console", "wandb"]' \
     trainer.project_name='minerva' \
-    trainer.experiment_name='minerva_tarba_base_llama3b' \
-    trainer.val_before_train=true \
+    trainer.experiment_name='minerva_tarba_llama8b' \
+    trainer.val_before_train=false \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.save_freq=10 \
-    trainer.test_freq=5 \
+    trainer.test_freq=10 \
     trainer.total_training_steps=500 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \

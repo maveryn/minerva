@@ -4,7 +4,7 @@ import json
 import random
 import shutil
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from minerva.data_sources.capec import load_bundle as load_capec_bundle
 from minerva.data_sources.mitre import collect_procedure_scenarios
@@ -27,6 +27,27 @@ from minerva.tasks import (
 from minerva.utils import dedupe_by_text, load_yaml
 
 
+RESAMPLE_COUNTS: Dict[str, int] = {
+    "cve_to_attack_exploitation": 265,
+    "cve_to_attack_primary_impact": 230,
+    "cve_to_attack_secondary_impact": 74,
+    "sigma_to_attack_technique": 1000,
+    "sigma_to_attack_tactics": 1000,
+    "scenario_to_technique": 8000,
+    "scenario_to_tactics": 1000,
+    "scenario_to_detections": 2000,
+    "scenario_to_mitigations": 5000,
+    "cve_to_cwe": 8000,
+    "cve_to_cvss_v31": 2000,
+    "cve_to_cvss_v40": 500,
+    "capec_example_to_capec": 380,
+    "capec_example_to_cwe": 196,
+    "capec_example_to_attack": 144,
+    "threat_actor_mcq": 3211,
+}
+RESAMPLE_SEED = 1337
+
+
 def _pick_random_jsonl(path: Path) -> Optional[Dict]:
     if not path.exists():
         return None
@@ -43,6 +64,63 @@ def _pick_random_jsonl(path: Path) -> Optional[Dict]:
             if random.randint(1, i) == 1:
                 chosen = rec
     return chosen
+
+
+def _iter_jsonl(path: Path) -> Iterable[Dict]:
+    with path.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict):
+                yield obj
+
+
+def _reservoir_sample_jsonl(path: Path, n: int, rng: random.Random) -> Tuple[List[Dict], int]:
+    """
+    Reservoir-sample n rows from JSONL without loading the full file into memory.
+    Returns (sampled_rows, total_rows_seen).
+    """
+    if n <= 0:
+        total = 0
+        for _ in _iter_jsonl(path):
+            total += 1
+        return [], total
+
+    sample: List[Dict] = []
+    total = 0
+    for row in _iter_jsonl(path):
+        total += 1
+        if len(sample) < n:
+            sample.append(row)
+            continue
+        j = rng.randrange(total)
+        if j < n:
+            sample[j] = row
+    if total <= n:
+        rng.shuffle(sample)
+    return sample, total
+
+
+def _resample_jsonl(path: Path, target_n: int, rng: random.Random, logger=None) -> Tuple[int, int]:
+    """
+    Resample a JSONL file down to target_n rows (if needed).
+    Returns (kept_count, total_rows_seen).
+    """
+    if not path.exists():
+        return 0, 0
+    sampled, total = _reservoir_sample_jsonl(path, target_n, rng)
+    if total <= target_n:
+        return total, total
+    rng.shuffle(sampled)
+    path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in sampled) + "\n", encoding="utf-8")
+    if logger is not None:
+        logger.info("Resampled %s -> %d/%d", path.name, len(sampled), total)
+    return len(sampled), total
 
 
 def _dedupe_jsonl(path: Path) -> tuple[int, int]:
@@ -106,6 +184,7 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
     logger.info("=== Minerva dataset build starting ===")
     summary: Dict[str, int] = {}
     examples: Dict[str, Dict] = {}
+    resample_rng = random.Random(RESAMPLE_SEED)
 
     # Load data sources
     logger.info("Loading NVD CVE records")
@@ -355,6 +434,11 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
             kept, removed = _dedupe_jsonl(path)
             if removed:
                 dedupe_info[task_name] = removed
+            target_n = RESAMPLE_COUNTS.get(task_name)
+            if target_n is not None:
+                resampled, _ = _resample_jsonl(path, target_n, resample_rng, logger=logger)
+                summary[task_name] = resampled
+            else:
                 summary[task_name] = kept
             examples[task_name] = _pick_random_jsonl(path)
 

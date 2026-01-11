@@ -61,7 +61,8 @@
 - Run retrieval server:
   - `python -m minerva.retrieval.server --index_dir dataset/retrieval/index --host 0.0.0.0 --port 8000`
 - Train TARBA (same train/val datasets as base/LHC/SLHC):
-  - `rlvr/cti-scripts/train_minerva_tarba_base_llama3b.sh`
+  - `rlvr/cti-scripts/train_minerva_tarba_llama3b.sh`
+  - `rlvr/cti-scripts/train_minerva_tarba_qwen3b.sh`
   - `rlvr/cti-scripts/train_minerva_tarba_lhc_llama3b.sh`
 - Evaluate validation with retrieval on/off:
   - `rlvr/cti-scripts/eval_minerva_tarba_reton_llama3b.sh`
