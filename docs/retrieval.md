@@ -20,16 +20,20 @@ When building label docs, a global file can be emitted from config:
 - `configs/retrieval/label_docs.yaml` supports `retrieval_mode: global`.
 - Or pass `--global` to `minerva.retrieval.build_label_docs`.
 
+Global retrieval can also be triggered per request by sending `label_type=all`.
+In that case the engine loads/merges global docs on demand even if the server
+is running in `per_type` mode.
+
 ## Exact ID extraction
 For label types with a known ID pattern (ATT&CK technique/tactic, mitigation, detection, CWE, CAPEC), the engine:
 1) Extracts **all** matching IDs from the query (not just the first).
-2) Inserts each exact match at the front of the results (score = `inf`).
-3) Fills the remaining slots with BM25 results.
+2) Computes a binary ID match score (1.0 if the doc's canonical ID is matched, else 0.0).
+3) Adds that to a normalized BM25 score in [0, 1] to rank results.
 
-If the query contains more exact IDs than `topk`, only the first `topk` matches are returned.
-Label types without a regex (e.g., `threat_actor_name`) rely purely on BM25.
+Because BM25 is normalized to [0, 1], ID-matched docs always outrank non-ID docs (scores are in [1, 2] vs [0, 1]).
+Label types without a regex (e.g., `threat_actor_name`) rely purely on normalized BM25.
 
-Global mode extracts **all** ID types (technique, tactic, mitigation, detection, CWE, CAPEC) from the query, inserts them first, then fills the rest with BM25 across the merged corpus.
+Global mode extracts **all** ID types (technique, tactic, mitigation, detection, CWE, CAPEC) from the query and applies the same ID-bonus + normalized BM25 ranking across the merged corpus.
 
 ## Top-k and budgets
 - The retrieval tool enforces `topk_cap` from `rlvr/cti-scripts/tool_config/cti_retrieval_tool.yaml` (currently 8).
@@ -44,3 +48,7 @@ Global mode extracts **all** ID types (technique, tactic, mitigation, detection,
 ## Notes
 - Restart the retrieval server after code changes to the engine or label docs.
 - Label docs include `doc_id`, `canonical_id`, `name`, and `text_for_retrieval`; BM25 ranks by `text_for_retrieval`.
+- Tool responses return the truncated `text_for_retrieval` (bounded by `max_snippet_chars=1536`).
+- ATT&CK technique docs include linked mitigation IDs + names and detection strategy text (with IDs); procedure examples are intentionally excluded.
+- Mitigation docs include a "Techniques Addressed by Mitigation" section listing technique IDs + names.
+- The default label-doc build config omits `detection_id` docs; detection strategies still appear inside technique docs.

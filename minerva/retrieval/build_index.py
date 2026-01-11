@@ -32,6 +32,7 @@ def main() -> None:
     parser.add_argument(
         "--global",
         action="store_true",
+        dest="build_global",
         help="Also build a global index from all label docs.",
     )
     args = parser.parse_args()
@@ -53,7 +54,7 @@ def main() -> None:
         with out_path.open("wb") as handle:
             pickle.dump(payload, handle)
 
-    if args.global:
+    if args.build_global:
         global_path = label_docs_dir / "global.jsonl"
         if global_path.exists():
             rows = _load_label_docs(global_path)

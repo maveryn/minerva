@@ -72,7 +72,11 @@ def _build_docs(label_type: str, corpus: retrieval_candidates.Corpus) -> List[di
         canonical_id = normalize_label(label_type, entry.id)
         name = str(entry.name or "").strip()
         desc = str(entry.description or "").strip()
-        text = f"{canonical_id} {name}. {desc}".strip()
+        if label_type in {"attack_technique_id", "mitigation_id"} and entry.text:
+            body = str(entry.text or "").strip()
+        else:
+            body = f"{name}. {desc}".strip()
+        text = f"{canonical_id} {body}".strip()
         doc = {
             "doc_id": f"{label_type}:{canonical_id}",
             "label_type": label_type,
@@ -125,6 +129,7 @@ def main() -> None:
     parser.add_argument(
         "--global",
         action="store_true",
+        dest="build_global",
         help="Also write a global.jsonl combining all label docs.",
     )
     args = parser.parse_args()
@@ -134,7 +139,7 @@ def main() -> None:
 
     paths = _default_paths()
     label_types = None
-    build_global = bool(args.global)
+    build_global = bool(args.build_global)
     if args.config:
         import yaml
 

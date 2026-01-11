@@ -534,16 +534,18 @@ class RayPPOTrainer:
 
         return gen_batch
 
-    def _validate(self):
+    def _validate(self, *, val_dataloader=None, metric_prefix: str = "val", skip_global_avg: bool = False):
         val_debug = os.getenv("VERL_VAL_DEBUG", "0").lower() in {"1", "true", "yes"}
         val_log_every = int(os.getenv("VERL_VAL_LOG_EVERY", "10"))
         val_max_batches = int(os.getenv("VERL_VAL_MAX_BATCHES", "0"))
         val_start_time = time.time()
         last_batch_time = val_start_time
+        if val_dataloader is None:
+            val_dataloader = self.val_dataloader
         if val_debug:
             print(
                 f"[VAL] start step={self.global_steps} "
-                f"val_len={len(self.val_dataloader)} val_batch_size={self.config.data.val_batch_size}"
+                f"val_len={len(val_dataloader)} val_batch_size={getattr(val_dataloader, 'batch_size', None)}"
             )
         data_source_lst = []
         source_file_lst = []
@@ -556,18 +558,18 @@ class RayPPOTrainer:
         sample_scores = []
         sample_turns = []
 
-        for batch_idx, test_data in enumerate(self.val_dataloader):
+        for batch_idx, test_data in enumerate(val_dataloader):
             if val_debug and batch_idx == 0:
                 print(f"[VAL] first batch after {time.time() - val_start_time:.2f}s")
             elif val_debug and (batch_idx % max(val_log_every, 1) == 0):
                 print(
-                    f"[VAL] batch {batch_idx}/{len(self.val_dataloader)} "
+                    f"[VAL] batch {batch_idx}/{len(val_dataloader)} "
                     f"after {time.time() - last_batch_time:.2f}s"
                 )
                 last_batch_time = time.time()
             if val_max_batches > 0 and batch_idx >= val_max_batches:
                 if val_debug:
-                    print(f"[VAL] stopping early at batch {batch_idx}/{len(self.val_dataloader)}")
+                    print(f"[VAL] stopping early at batch {batch_idx}/{len(val_dataloader)}")
                 break
             test_batch = DataProto.from_single_dict(test_data)
 
@@ -693,7 +695,11 @@ class RayPPOTrainer:
                     metric_dict[pfx] = metric_val
 
         # Aggregate reward per source_file when it spans multiple data sources
-        if "reward" in reward_extra_infos_dict and len(source_files) == len(reward_extra_infos_dict["reward"]):
+        if (
+            not skip_global_avg
+            and "reward" in reward_extra_infos_dict
+            and len(source_files) == len(reward_extra_infos_dict["reward"])
+        ):
             rewards = np.array(reward_extra_infos_dict["reward"])
             file_means = {}
             for sf in np.unique(source_files):
@@ -732,7 +738,11 @@ class RayPPOTrainer:
                     )
 
         # Fallback aggregation when file-level labels are missing or incomplete.
-        if "reward" in reward_extra_infos_dict and len(data_sources) == len(reward_extra_infos_dict["reward"]):
+        if (
+            not skip_global_avg
+            and "reward" in reward_extra_infos_dict
+            and len(data_sources) == len(reward_extra_infos_dict["reward"])
+        ):
             rewards = np.array(reward_extra_infos_dict["reward"])
             if (
                 "val-core/minerva-dev/reward/mean" not in metric_dict
@@ -757,7 +767,91 @@ class RayPPOTrainer:
             metric_dict["val-aux/num_turns/max"] = sample_turns.max()
             metric_dict["val-aux/num_turns/mean"] = sample_turns.mean()
 
+        if metric_prefix and metric_prefix != "val":
+            prefixed = {}
+            for key, val in metric_dict.items():
+                if key.startswith("val-"):
+                    prefixed[f"{metric_prefix}{key[3:]}"] = val
+                else:
+                    prefixed[key] = val
+            metric_dict = prefixed
+
         return metric_dict
+
+    def _build_val_dataloader(self, *, val_files: list[str], data_cfg) -> StatefulDataLoader:
+        from verl.trainer.main_ppo import create_rl_dataset
+        from verl.utils.dataset.rl_dataset import collate_fn as default_collate_fn
+
+        dataset = create_rl_dataset(val_files, data_cfg, self.tokenizer, self.processor, is_train=False)
+        val_batch_size = data_cfg.val_batch_size  # Prefer config value if set
+        if val_batch_size is None:
+            val_batch_size = len(dataset)
+        return StatefulDataLoader(
+            dataset=dataset,
+            batch_size=val_batch_size,
+            num_workers=data_cfg["dataloader_num_workers"],
+            shuffle=data_cfg.get("validation_shuffle", True),
+            drop_last=False,
+            collate_fn=default_collate_fn,
+        )
+
+    def _run_extra_validations(self) -> dict:
+        extra_runs = self.config.trainer.get("extra_val_runs", None)
+        if not extra_runs:
+            return {}
+        if isinstance(extra_runs, str):
+            try:
+                extra_runs = json.loads(extra_runs)
+            except json.JSONDecodeError:
+                return {}
+        try:
+            extra_runs = list(extra_runs)
+        except TypeError:
+            return {}
+
+        from omegaconf import OmegaConf, open_dict
+
+        metrics: dict = {}
+        for idx, run in enumerate(extra_runs):
+            if isinstance(run, DictConfig):
+                run = OmegaConf.to_container(run, resolve=True)
+            if not isinstance(run, dict):
+                continue
+            val_files = run.get("val_files") or []
+            if isinstance(val_files, str):
+                val_files = [val_files]
+            elif isinstance(val_files, ListConfig):
+                val_files = list(val_files)
+            if not val_files:
+                continue
+            name = str(run.get("name") or f"extra_{idx}")
+            metric_prefix = str(run.get("metric_prefix") or f"val-{name}")
+            tarba_eval_mode = run.get("tarba_eval_mode")
+            tarba_eval_budget_B = run.get("tarba_eval_budget_B")
+            skip_global_avg = bool(run.get("skip_global_avg", False))
+
+            data_cfg = OmegaConf.create(OmegaConf.to_container(self.config.data, resolve=True))
+            with open_dict(data_cfg):
+                data_cfg.val_files = val_files
+                if tarba_eval_mode is not None or tarba_eval_budget_B is not None:
+                    tarba_cfg = data_cfg.get("tarba", {}) or {}
+                    if not isinstance(tarba_cfg, dict):
+                        tarba_cfg = {}
+                    if tarba_eval_mode is not None:
+                        tarba_cfg["eval_mode"] = tarba_eval_mode
+                    if tarba_eval_budget_B is not None:
+                        tarba_cfg["eval_budget_B"] = int(tarba_eval_budget_B)
+                    data_cfg["tarba"] = tarba_cfg
+
+            val_dataloader = self._build_val_dataloader(val_files=val_files, data_cfg=data_cfg)
+            run_metrics = self._validate(
+                val_dataloader=val_dataloader,
+                metric_prefix=metric_prefix,
+                skip_global_avg=skip_global_avg,
+            )
+            metrics.update(run_metrics)
+
+        return metrics
 
     def init_workers(self):
         """Initialize distributed training workers using Ray backend.
@@ -1114,12 +1208,25 @@ class RayPPOTrainer:
 
     def _init_distill_state(self) -> None:
         slhc_cfg = self.config.data.get("stochastic_slhc", {}) if self.config is not None else {}
+        tarba_cfg = self.config.data.get("tarba", {}) if self.config is not None else {}
+        distill_cfg = None
+        distill_source = None
+
         if isinstance(slhc_cfg, DictConfig):
-            distill_cfg = slhc_cfg.get("distill", {})
+            distill_cfg = slhc_cfg.get("distill", None)
+            distill_source = "slhc" if distill_cfg is not None else None
         elif isinstance(slhc_cfg, dict):
-            distill_cfg = slhc_cfg.get("distill", {})
-        else:
-            distill_cfg = {}
+            distill_cfg = slhc_cfg.get("distill", None)
+            distill_source = "slhc" if distill_cfg is not None else None
+
+        if distill_cfg is None:
+            if isinstance(tarba_cfg, DictConfig):
+                distill_cfg = tarba_cfg.get("distill", None)
+                distill_source = "tarba" if distill_cfg is not None else distill_source
+            elif isinstance(tarba_cfg, dict):
+                distill_cfg = tarba_cfg.get("distill", None)
+                distill_source = "tarba" if distill_cfg is not None else distill_source
+
         if distill_cfg is None:
             distill_cfg = {}
         if isinstance(distill_cfg, DictConfig):
@@ -1142,6 +1249,7 @@ class RayPPOTrainer:
             distill_cfg.setdefault(key, value)
 
         self._distill_cfg = distill_cfg
+        self._distill_source = distill_source
         self._distill_buffer_local = []
         self._distill_last_run_step = -1
         self._distill_actor_dp_size = None
@@ -1259,7 +1367,12 @@ class RayPPOTrainer:
             hint_used = False
             if isinstance(extra_info, dict):
                 prompt_nohint = extra_info.get("slhc_prompt_nohint")
-                hint_used = bool(extra_info.get("slhc_hint_used", False))
+                if not isinstance(prompt_nohint, list):
+                    prompt_nohint = extra_info.get("tarba_prompt_no_tool")
+                if "slhc_hint_used" in extra_info:
+                    hint_used = bool(extra_info.get("slhc_hint_used", False))
+                else:
+                    hint_used = bool(extra_info.get("tarba_allow_retrieval", False))
 
             if not isinstance(prompt_nohint, list):
                 continue
@@ -1630,6 +1743,9 @@ class RayPPOTrainer:
         # currently, we only support validation using the reward_function.
         if self.val_reward_fn is not None and self.config.trainer.get("val_before_train", True):
             val_metrics = self._validate()
+            extra_val_metrics = self._run_extra_validations()
+            if extra_val_metrics:
+                val_metrics.update(extra_val_metrics)
             assert val_metrics, f"{val_metrics=}"
             pprint(f"Initial validation metrics: {val_metrics}")
             logger.log(data=val_metrics, step=self.global_steps)
@@ -2032,6 +2148,9 @@ class RayPPOTrainer:
                 ):
                     with marked_timer("testing", timing_raw, color="green"):
                         val_metrics: dict = self._validate()
+                        extra_val_metrics = self._run_extra_validations()
+                        if extra_val_metrics:
+                            val_metrics.update(extra_val_metrics)
                         if is_last_step:
                             last_val_metrics = val_metrics
                     metrics.update(val_metrics)

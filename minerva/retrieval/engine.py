@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -77,6 +78,11 @@ class RetrievalEngine:
         if self.retrieval_mode == "global":
             self._load_global_docs()
 
+    def _ensure_global_docs(self) -> None:
+        if self._global_docs and self._global_bm25 is not None:
+            return
+        self._load_global_docs()
+
     def _load_global_docs(self) -> None:
         global_path = self.label_docs_dir / "global.jsonl"
         if global_path.exists():
@@ -138,6 +144,15 @@ class RetrievalEngine:
                 )
         return docs
 
+    def _normalize_scores(self, scores: np.ndarray) -> np.ndarray:
+        if scores.size == 0:
+            return scores
+        s_min = float(scores.min())
+        s_max = float(scores.max())
+        if math.isclose(s_min, s_max):
+            return np.zeros_like(scores)
+        return (scores - s_min) / (s_max - s_min)
+
     def _truncate_snippet(self, text: str) -> str:
         if self.max_snippet_chars <= 0:
             return text
@@ -170,88 +185,62 @@ class RetrievalEngine:
             return []
 
         docs = self._docs[label_type]
-        id_map = self._id_map[label_type]
         bm25 = self._bm25[label_type]
 
-        results: List[RetrievalResult] = []
-        exact_ids = self._match_exact_ids(label_type, query)
-        exact_id_set = set(exact_ids)
-        if exact_ids:
-            for exact_id in exact_ids:
-                doc = id_map.get(exact_id)
-                if doc is None:
-                    continue
-                results.append(
-                    RetrievalResult(
-                        doc_id=doc.doc_id,
-                        canonical_id=doc.canonical_id,
-                        title=doc.name,
-                        snippet=self._truncate_snippet(doc.snippet or doc.text_for_retrieval),
-                        score=float("inf"),
-                    )
-                )
-                if len(results) >= topk:
-                    return results[:topk]
-
         scores = bm25.get_scores(tokenize(query))
-        order = np.argsort(-scores, kind="mergesort")
-        for idx in order:
-            if len(results) >= topk:
-                break
+        norm_scores = self._normalize_scores(scores)
+        exact_id_set = set(self._match_exact_ids(label_type, query))
+        if exact_id_set:
+            id_mask = np.array([doc.canonical_id in exact_id_set for doc in docs], dtype=np.float32)
+            combined = norm_scores + id_mask
+        else:
+            combined = norm_scores
+
+        order = np.argsort(-combined, kind="mergesort")
+        results: List[RetrievalResult] = []
+        for idx in order[:topk]:
             doc = docs[int(idx)]
-            if exact_id_set and doc.canonical_id in exact_id_set:
-                continue
             results.append(
                 RetrievalResult(
                     doc_id=doc.doc_id,
                     canonical_id=doc.canonical_id,
                     title=doc.name,
-                    snippet=self._truncate_snippet(doc.snippet or doc.text_for_retrieval),
-                    score=float(scores[int(idx)]),
+                    snippet=self._truncate_snippet(doc.text_for_retrieval or doc.snippet),
+                    score=float(combined[int(idx)]),
                 )
             )
 
         return results
 
     def _retrieve_global(self, query: str, topk: int) -> List[RetrievalResult]:
+        self._ensure_global_docs()
         if not self._global_docs or self._global_bm25 is None:
             return []
-        results: List[RetrievalResult] = []
-        seen_doc_ids = set()
-
+        scores = self._global_bm25.get_scores(tokenize(query))
+        norm_scores = self._normalize_scores(scores)
         exact_matches = extract_label_matches_any(query)
+        matched_doc_ids = set()
         for label_type, canonical_id in exact_matches:
             doc = self._id_map.get(label_type, {}).get(canonical_id)
-            if doc is None or doc.doc_id in seen_doc_ids:
-                continue
-            seen_doc_ids.add(doc.doc_id)
-            results.append(
-                RetrievalResult(
-                    doc_id=doc.doc_id,
-                    canonical_id=doc.canonical_id,
-                    title=doc.name,
-                    snippet=self._truncate_snippet(doc.snippet or doc.text_for_retrieval),
-                    score=float("inf"),
-                )
-            )
-            if len(results) >= topk:
-                return results[:topk]
+            if doc is not None:
+                matched_doc_ids.add(doc.doc_id)
+        if matched_doc_ids:
+            id_mask = np.array([doc.doc_id in matched_doc_ids for doc in self._global_docs], dtype=np.float32)
+            combined = norm_scores + id_mask
+        else:
+            combined = norm_scores
 
-        scores = self._global_bm25.get_scores(tokenize(query))
-        order = np.argsort(-scores, kind="mergesort")
-        for idx in order:
-            if len(results) >= topk:
-                break
+        order = np.argsort(-combined, kind="mergesort")
+        results: List[RetrievalResult] = []
+        for idx in order[:topk]:
             doc = self._global_docs[int(idx)]
-            if doc.doc_id in seen_doc_ids:
-                continue
             results.append(
                 RetrievalResult(
                     doc_id=doc.doc_id,
                     canonical_id=doc.canonical_id,
                     title=doc.name,
-                    snippet=self._truncate_snippet(doc.snippet or doc.text_for_retrieval),
-                    score=float(scores[int(idx)]),
+                    snippet=self._truncate_snippet(doc.text_for_retrieval or doc.snippet),
+                    score=float(combined[int(idx)]),
                 )
             )
         return results

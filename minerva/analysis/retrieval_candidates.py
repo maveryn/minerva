@@ -9,9 +9,11 @@ import math
 import os
 import random
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from collections import defaultdict
 
 import numpy as np
 import xml.etree.ElementTree as ET
@@ -114,11 +116,17 @@ TASK_SPECS = {
 }
 
 
-def sanitize_text(text: str) -> str:
+def sanitize_text(text: str, *, keep_ids: bool = False, keep_newlines: bool = False) -> str:
     if not text:
         return ""
     cleaned = URL_RE.sub(" ", text)
-    cleaned = ID_RE.sub(" ", cleaned)
+    if not keep_ids:
+        cleaned = ID_RE.sub(" ", cleaned)
+    if keep_newlines:
+        cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
+        lines = [re.sub(r"\s+", " ", line).strip() for line in cleaned.split("\n")]
+        lines = [line for line in lines if line]
+        return "\n".join(lines).strip()
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
@@ -168,6 +176,12 @@ def build_mitre_corpora(bundle: Dict[str, Any]) -> Dict[str, Corpus]:
     mitigations: List[CorpusEntry] = []
     detections: List[CorpusEntry] = []
     actors: List[CorpusEntry] = []
+    attack_by_stix: Dict[str, CorpusEntry] = {}
+    mitigation_by_stix: Dict[str, CorpusEntry] = {}
+    detection_by_stix: Dict[str, CorpusEntry] = {}
+    mitigations_for_attack: Dict[str, List[CorpusEntry]] = defaultdict(list)
+    detections_for_attack: Dict[str, List[CorpusEntry]] = defaultdict(list)
+    techniques_for_mitigation: Dict[str, List[CorpusEntry]] = defaultdict(list)
 
     for obj in objs:
         if obj.get("revoked") or obj.get("x_mitre_deprecated"):
@@ -179,8 +193,10 @@ def build_mitre_corpora(bundle: Dict[str, Any]) -> Dict[str, Corpus]:
                 continue
             desc = first_paragraph(str(obj.get("description") or ""))
             name = obj.get("name", "")
-            text = sanitize_text(f"{name}. {desc}".strip())
-            techniques.append(CorpusEntry(id=tid, name=name, description=desc, text=text))
+            text = sanitize_text(f"{name}. {desc}".strip(), keep_ids=True)
+            entry = CorpusEntry(id=tid, name=name, description=desc, text=text)
+            techniques.append(entry)
+            attack_by_stix[obj.get("id", "")] = entry
         elif typ == "x-mitre-tactic":
             tid = external_id(obj, MITRE_SRC, prefix="TA")
             if not tid:
@@ -196,7 +212,9 @@ def build_mitre_corpora(bundle: Dict[str, Any]) -> Dict[str, Corpus]:
             desc = first_paragraph(str(obj.get("description") or ""))
             name = obj.get("name", "")
             text = sanitize_text(f"{name}. {desc}".strip())
-            mitigations.append(CorpusEntry(id=mid, name=name, description=desc, text=text))
+            entry = CorpusEntry(id=mid, name=name, description=desc, text=text)
+            mitigations.append(entry)
+            mitigation_by_stix[obj.get("id", "")] = entry
         elif typ == "x-mitre-detection-strategy":
             det_id = external_id(obj, MITRE_SRC, prefix="DET")
             if not det_id:
@@ -205,7 +223,9 @@ def build_mitre_corpora(bundle: Dict[str, Any]) -> Dict[str, Corpus]:
             name = obj.get("name", "")
             det_id = det_id.replace("-", "")
             text = sanitize_text(f"{name}. {desc}".strip())
-            detections.append(CorpusEntry(id=det_id, name=name, description=desc, text=text))
+            entry = CorpusEntry(id=det_id, name=name, description=desc, text=text)
+            detections.append(entry)
+            detection_by_stix[obj.get("id", "")] = entry
         elif typ == "intrusion-set":
             name = obj.get("name", "")
             if not name:
@@ -216,6 +236,94 @@ def build_mitre_corpora(bundle: Dict[str, Any]) -> Dict[str, Corpus]:
             combined = ". ".join([p for p in [name, alias_text, desc] if p])
             text = sanitize_text(combined)
             actors.append(CorpusEntry(id=name, name=name, description=combined, text=text))
+
+    for obj in objs:
+        if obj.get("revoked") or obj.get("x_mitre_deprecated"):
+            continue
+        if obj.get("type") != "relationship":
+            continue
+        rel = obj.get("relationship_type")
+        source_ref = obj.get("source_ref")
+        target_ref = obj.get("target_ref")
+        if not source_ref or not target_ref:
+            continue
+        if rel == "mitigates":
+            mitigation = mitigation_by_stix.get(source_ref)
+            technique = attack_by_stix.get(target_ref)
+            if mitigation and technique:
+                mitigations_for_attack[target_ref].append(mitigation)
+                techniques_for_mitigation[source_ref].append(technique)
+        elif rel == "detects":
+            detection = detection_by_stix.get(source_ref)
+            if detection and target_ref in attack_by_stix:
+                detections_for_attack[target_ref].append(detection)
+
+    def _format_related(entry: CorpusEntry) -> str:
+        if not entry:
+            return ""
+        header_parts = [p for p in [entry.id, entry.name] if p]
+        header = " - ".join(header_parts).strip()
+        if entry.description:
+            if header:
+                return f"{header}: {entry.description}".strip()
+            return entry.description.strip()
+        return header
+
+    def _format_related_compact(entry: CorpusEntry) -> str:
+        if not entry:
+            return ""
+        header_parts = [p for p in [entry.id, entry.name] if p]
+        return " - ".join(header_parts).strip()
+
+    for stix_id, entry in attack_by_stix.items():
+        mit_entries = mitigations_for_attack.get(stix_id, [])
+        det_entries = detections_for_attack.get(stix_id, [])
+        if not mit_entries and not det_entries:
+            continue
+        mit_by_id = {item.id: item for item in mit_entries if item.id}
+        det_by_id = {item.id: item for item in det_entries if item.id}
+        extra_parts: List[str] = []
+        if mit_by_id:
+            mitigation_text = "\n".join(
+                _format_related_compact(item)
+                for item in [mit_by_id[mid] for mid in sorted(mit_by_id)]
+                if item.id or item.name or item.description
+            ).strip()
+            if mitigation_text:
+                extra_parts.append(f"Mitigations:\n{mitigation_text}")
+        if det_by_id:
+            detection_text = "\n".join(
+                _format_related(item)
+                for item in [det_by_id[did] for did in sorted(det_by_id)]
+                if item.id or item.name or item.description
+            ).strip()
+            if detection_text:
+                extra_parts.append(f"Detections:\n{detection_text}")
+        if extra_parts:
+            merged = "\n".join([entry.text] + extra_parts)
+            entry.text = sanitize_text(merged, keep_ids=True, keep_newlines=True)
+
+    def _format_technique(entry: CorpusEntry) -> str:
+        if not entry:
+            return ""
+        if entry.id and entry.name:
+            return f"{entry.id} - {entry.name}".strip()
+        return entry.id or entry.name or ""
+
+    for stix_id, entry in mitigation_by_stix.items():
+        tech_entries = techniques_for_mitigation.get(stix_id, [])
+        if not tech_entries:
+            continue
+        tech_by_id = {item.id: item for item in tech_entries if item.id}
+        technique_text = "\n".join(
+            _format_technique(item)
+            for item in [tech_by_id[tid] for tid in sorted(tech_by_id)]
+            if item.id or item.name
+        ).strip()
+        if not technique_text:
+            continue
+        merged = "\n".join([entry.text, f"Techniques Addressed by Mitigation:\n{technique_text}"])
+        entry.text = sanitize_text(merged, keep_ids=True, keep_newlines=True)
 
     return {
         "attack_technique_id": Corpus(entries=techniques),

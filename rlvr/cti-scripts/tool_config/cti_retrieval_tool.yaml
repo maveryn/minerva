@@ -6,7 +6,7 @@ tools:
       timeout: 30
       topk_cap: 8
       max_query_chars: 128
-      max_snippet_chars: 800
+      max_snippet_chars: 1536
     tool_schema:
       type: "function"
       function:
