@@ -45,13 +45,13 @@
 - Tests (lightweight):
   - `.venv\Scripts\python -m pytest minerva/test/test_reward_minerva.py`
 
-## RLVR GRPO training (cti-scripts)
-- Primary CTI runs use `rlvr/cti-scripts/train_minerva_llama.sh` or `rlvr/cti-scripts/train_minerva_qwen.sh`.
+## RLVR GRPO training (old-cti-scripts)
+- Primary CTI runs use `rlvr/old-cti-scripts/train_minerva_llama.sh` or `rlvr/old-cti-scripts/train_minerva_qwen.sh`.
   - Both call `python -m verl.trainer.main_ppo` with `algorithm.adv_estimator=grpo` and `custom_reward_function.path=rlvr/verl/utils/reward_score/reward_minerva.py`.
   - Training data: `rlvr/mydata/minerva_base/minerva_base_train.parquet` (or `rlvr/mydata/minerva_lhc/minerva_lhc_train.parquet`); validation data: matching `*_dev.parquet` plus Athena CTI parquets from `rlvr/mydata/athena/`.
   - Defaults target 8 GPUs, vLLM rollouts, and minimal KL (see the script flags).
-- Variants: `rlvr/cti-scripts/v0.1.sh` and `rlvr/cti-scripts/v0.2.sh` are config snapshots with different models/prompt lengths.
-- Single-task runs: `rlvr/cti-scripts/cti_ate_llama-8b.sh` and `rlvr/cti-scripts/cti_rcm_llama-8b.sh` train on `rlvr/mydata/cti_out/*.parquet` using `myreward_boxed.py` and the `reward_answer_only` scorer.
+- Variants: `rlvr/old-cti-scripts/v0.1.sh` and `rlvr/old-cti-scripts/v0.2.sh` are config snapshots with different models/prompt lengths.
+- Single-task runs: `rlvr/old-cti-scripts/cti_ate_llama-8b.sh` and `rlvr/old-cti-scripts/cti_rcm_llama-8b.sh` train on `rlvr/mydata/cti_out/*.parquet` using `myreward_boxed.py` and the `reward_answer_only` scorer.
 
 ## TARBA tool-augmented retrieval (RLVR)
 - Code flow: `minerva/retrieval/` builds canonical label docs + BM25 indexes; `minerva/retrieval/server.py` serves `/retrieve`; `rlvr/verl/tools/cti_retrieval_tool.py` calls the server; `rlvr/verl/utils/dataset/minerva_tarba_retrieval_dataset.py` injects tool instructions + per-task budgets; `rlvr/verl/utils/reward_score/reward_tarba.py` adds retrieval shaping; controller updates in `rlvr/verl/trainer/ppo/ray_trainer.py`.
@@ -62,11 +62,12 @@
   - `python -m minerva.retrieval.server --index_dir dataset/retrieval/index --host 0.0.0.0 --port 8000`
 - Train TARBA (same train/val datasets as base/LHC/SLHC):
   - `rlvr/cti-scripts/train_minerva_tarba_llama3b.sh`
+  - `rlvr/cti-scripts/train_minerva_tarba_llama8b.sh`
   - `rlvr/cti-scripts/train_minerva_tarba_qwen3b.sh`
-  - `rlvr/cti-scripts/train_minerva_tarba_lhc_llama3b.sh`
+  - `rlvr/cti-scripts/train_minerva_tarba_qwen8b.sh`
 - Evaluate validation with retrieval on/off:
-  - `rlvr/cti-scripts/eval_minerva_tarba_reton_llama3b.sh`
-  - `rlvr/cti-scripts/eval_minerva_tarba_retoff_llama3b.sh`
+  - `rlvr/old-cti-scripts/eval_minerva_tarba_reton_llama3b.sh`
+  - `rlvr/old-cti-scripts/eval_minerva_tarba_retoff_llama3b.sh`
 
 ## Config and environment
 - `minerva/config.yaml` defines data paths, NVD date windows, and per-task output settings.

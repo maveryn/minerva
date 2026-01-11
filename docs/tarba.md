@@ -8,6 +8,8 @@ This document describes the current TARBA implementation and configuration used 
 - Retrieval reward shaping uses a linear decay with a floor.
 - Training entrypoint: `rlvr/cti-scripts/train_minerva_tarba_llama3b.sh`.
 - Qwen3 entrypoint: `rlvr/cti-scripts/train_minerva_tarba_qwen3b.sh`.
+- Llama 8B entrypoint: `rlvr/cti-scripts/train_minerva_tarba_llama8b.sh`.
+- Qwen3 8B entrypoint: `rlvr/cti-scripts/train_minerva_tarba_qwen8b.sh`.
 
 ## High-level flow
 1) TARBA wraps each CTI sample with optional tool instructions that let the model request retrieval once using a short JSON query (hidden tool schema mode).
