@@ -45,13 +45,15 @@
 - Tests (lightweight):
   - `.venv\Scripts\python -m pytest minerva/test/test_reward_minerva.py`
 
-## RLVR GRPO training (old-cti-scripts)
-- Primary CTI runs use `rlvr/old-cti-scripts/train_minerva_llama.sh` or `rlvr/old-cti-scripts/train_minerva_qwen.sh`.
-  - Both call `python -m verl.trainer.main_ppo` with `algorithm.adv_estimator=grpo` and `custom_reward_function.path=rlvr/verl/utils/reward_score/reward_minerva.py`.
-  - Training data: `rlvr/mydata/minerva_base/minerva_base_train.parquet` (or `rlvr/mydata/minerva_lhc/minerva_lhc_train.parquet`); validation data: matching `*_dev.parquet` plus Athena CTI parquets from `rlvr/mydata/athena/`.
-  - Defaults target 8 GPUs, vLLM rollouts, and minimal KL (see the script flags).
-- Variants: `rlvr/old-cti-scripts/v0.1.sh` and `rlvr/old-cti-scripts/v0.2.sh` are config snapshots with different models/prompt lengths.
-- Single-task runs: `rlvr/old-cti-scripts/cti_ate_llama-8b.sh` and `rlvr/old-cti-scripts/cti_rcm_llama-8b.sh` train on `rlvr/mydata/cti_out/*.parquet` using `myreward_boxed.py` and the `reward_answer_only` scorer.
+## RLVR GRPO training (cti-scripts)
+- Base GRPO runs (no TARBA):
+  - `rlvr/cti-scripts/train_minerva_base_llama3b.sh`
+  - `rlvr/cti-scripts/train_minerva_base_llama8b.sh`
+  - `rlvr/cti-scripts/train_minerva_base_qwen3b.sh`
+  - `rlvr/cti-scripts/train_minerva_base_qwen8b.sh`
+  - These call `python -m verl.trainer.main_ppo` with `algorithm.adv_estimator=grpo` and `custom_reward_function.path=rlvr/verl/utils/reward_score/reward_minerva.py`.
+  - Training data: `rlvr/mydata/minerva_base/minerva_base_train.parquet`; validation data: `minerva_base_dev.parquet` plus Athena CTI parquets from `rlvr/mydata/athena/`.
+- Legacy scripts and variants now live under `rlvr/old-cti-scripts/` (e.g., `v0.1.sh`, `v0.2.sh`, and single-task runs).
 
 ## TARBA tool-augmented retrieval (RLVR)
 - Code flow: `minerva/retrieval/` builds canonical label docs + BM25 indexes; `minerva/retrieval/server.py` serves `/retrieve`; `rlvr/verl/tools/cti_retrieval_tool.py` calls the server; `rlvr/verl/utils/dataset/minerva_tarba_retrieval_dataset.py` injects tool instructions + per-task budgets; `rlvr/verl/utils/reward_score/reward_tarba.py` adds retrieval shaping; controller updates in `rlvr/verl/trainer/ppo/ray_trainer.py`.
