@@ -29,19 +29,44 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build TARBA BM25 indexes.")
     parser.add_argument("--label_docs_dir", required=True, help="Directory with label docs JSONL files.")
     parser.add_argument("--out_dir", required=True, help="Output directory for indexes.")
+    parser.add_argument(
+        "--global",
+        action="store_true",
+        help="Also build a global index from all label docs.",
+    )
     args = parser.parse_args()
 
     label_docs_dir = Path(args.label_docs_dir)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    for path in sorted(label_docs_dir.glob("*.jsonl")):
+    jsonl_paths = sorted(label_docs_dir.glob("*.jsonl"))
+    for path in jsonl_paths:
         label_type = path.stem
+        if label_type == "global":
+            continue
         rows = _load_label_docs(path)
         texts = [str(row.get("text_for_retrieval") or "") for row in rows]
         bm25 = BM25Index(texts)
         payload: Dict[str, object] = {"bm25": bm25}
         out_path = out_dir / f"{label_type}.pkl"
+        with out_path.open("wb") as handle:
+            pickle.dump(payload, handle)
+
+    if args.global:
+        global_path = label_docs_dir / "global.jsonl"
+        if global_path.exists():
+            rows = _load_label_docs(global_path)
+        else:
+            rows = []
+            for path in jsonl_paths:
+                if path.stem == "global":
+                    continue
+                rows.extend(_load_label_docs(path))
+        texts = [str(row.get("text_for_retrieval") or "") for row in rows]
+        bm25 = BM25Index(texts)
+        payload = {"bm25": bm25}
+        out_path = out_dir / "global.pkl"
         with out_path.open("wb") as handle:
             pickle.dump(payload, handle)
 

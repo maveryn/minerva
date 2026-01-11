@@ -181,9 +181,11 @@ class TarbaRLHFDataset(RLHFDataset):
             return False
         content = content.rstrip()
         block = (
+            "Retrieval tool:\n"
+            "Use short keyword queries to retrieve label docs that support the answer.\n"
             "You may request retrieval at most once.\n"
             f"Request at most B={budget_B} docs.\n"
-            "Use short keyword queries; do not paste long lists. Limit query to 128 characters.\n"
+            "Limit the query to 128 characters; do not paste long lists.\n"
             "Output exactly one JSON object with `query` and `topk` fields only; no extra text.\n"
             "Examples:\n"
             "1) {\"query\":\"cwe-79 xss sql inj\",\"topk\":3}\n"

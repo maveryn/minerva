@@ -122,6 +122,11 @@ def main() -> None:
         default=None,
         help="Path to cwec XML (default: dataset/cwe/cwec_v4.19.xml).",
     )
+    parser.add_argument(
+        "--global",
+        action="store_true",
+        help="Also write a global.jsonl combining all label docs.",
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -129,6 +134,7 @@ def main() -> None:
 
     paths = _default_paths()
     label_types = None
+    build_global = bool(args.global)
     if args.config:
         import yaml
 
@@ -148,6 +154,8 @@ def main() -> None:
             cfg_label_types = cfg.get("label_types")
             if cfg_label_types:
                 label_types = cfg_label_types
+            if cfg.get("retrieval_mode") == "global" or cfg.get("global_label_docs"):
+                build_global = True
     if args.mitre_path:
         paths["mitre"] = Path(args.mitre_path)
     if args.capec_path:
@@ -163,6 +171,7 @@ def main() -> None:
         label_types = sorted(corpora.keys())
     manifest = {"files": {}, "counts": {}}
 
+    all_rows: List[dict] = []
     for label_type in label_types:
         corpus = corpora.get(label_type)
         if corpus is None:
@@ -172,6 +181,14 @@ def main() -> None:
         sha = _write_jsonl(out_path, rows)
         manifest["files"][out_path.name] = sha
         manifest["counts"][label_type] = len(rows)
+        if build_global:
+            all_rows.extend(rows)
+
+    if build_global:
+        global_path = out_dir / "global.jsonl"
+        sha = _write_jsonl(global_path, all_rows)
+        manifest["files"][global_path.name] = sha
+        manifest["counts"]["global"] = len(all_rows)
 
     manifest_path = out_dir / "_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")

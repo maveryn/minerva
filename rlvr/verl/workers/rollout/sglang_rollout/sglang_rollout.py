@@ -1373,6 +1373,7 @@ class SGLangRollout(BaseRollout):
         reward_scores = []
         tarba_tool_call_counts = []
         tarba_tool_doc_ids = []
+        tarba_tool_topk = []
         multi_modal_inputs = []
         request_ids = []
         if self.config.calculate_log_probs:
@@ -1418,11 +1419,26 @@ class SGLangRollout(BaseRollout):
             tool_metrics = req.metrics.get("cti_retrieve", [])
             tarba_tool_call_counts.append(len(tool_metrics) if isinstance(tool_metrics, list) else 0)
             doc_ids = []
+            topk_vals = []
             if isinstance(tool_metrics, list) and tool_metrics:
                 first = tool_metrics[0]
                 if isinstance(first, dict):
                     doc_ids = first.get("doc_ids") or []
+                for entry in tool_metrics:
+                    if not isinstance(entry, dict):
+                        continue
+                    topk_val = entry.get("topk")
+                    if topk_val is None:
+                        continue
+                    try:
+                        topk_vals.append(float(topk_val))
+                    except (TypeError, ValueError):
+                        continue
             tarba_tool_doc_ids.append(doc_ids)
+            if topk_vals:
+                tarba_tool_topk.append(sum(topk_vals) / len(topk_vals))
+            else:
+                tarba_tool_topk.append(0.0)
             multi_modal_inputs.append(req.multi_modal_inputs)
             request_ids.append(req.request_id)
             if self.config.calculate_log_probs:
@@ -1532,6 +1548,7 @@ class SGLangRollout(BaseRollout):
             "reward_scores": np.array(reward_scores),
             "tarba_tool_call_counts": np.array(tarba_tool_call_counts),
             "tarba_tool_doc_ids": np.array(tarba_tool_doc_ids, dtype=object),
+            "tarba_tool_topk": np.array(tarba_tool_topk, dtype=float),
             "request_id": np.array(request_ids),
         }
 

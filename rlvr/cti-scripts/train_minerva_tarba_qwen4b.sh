@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-# Training script for Minerva TARBA with Qwen3 3B.
+# Training script for Minerva TARBA with Qwen3 4B.
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_DIR="$ROOT_DIR/mydata"
@@ -28,6 +28,7 @@ export TARBA_HIDE_TOOL_SCHEMA
 RETRIEVAL_HOST="${RETRIEVAL_HOST:-127.0.0.1}"
 RETRIEVAL_PORT="${RETRIEVAL_PORT:-8000}"
 RETRIEVAL_INDEX_DIR="${RETRIEVAL_INDEX_DIR:-$REPO_ROOT/dataset/retrieval/index}"
+RETRIEVAL_MODE="${RETRIEVAL_MODE:-per_type}"
 RETRIEVAL_URL="http://${RETRIEVAL_HOST}:${RETRIEVAL_PORT}/openapi.json"
 
 check_retrieval_server() {
@@ -77,6 +78,7 @@ stop_retrieval_server
 echo "Starting retrieval server on ${RETRIEVAL_HOST}:${RETRIEVAL_PORT}..."
 python3 -m minerva.retrieval.server \
   --index_dir "$RETRIEVAL_INDEX_DIR" \
+  --retrieval_mode "$RETRIEVAL_MODE" \
   --host "$RETRIEVAL_HOST" \
   --port "$RETRIEVAL_PORT" \
   >/tmp/minerva_tarba_retrieval.log 2>&1 &
@@ -149,7 +151,7 @@ python3 -m verl.trainer.main_ppo \
     data.max_response_length=2048 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
-    actor_rollout_ref.model.path=Qwen/Qwen3-3B-Instruct \
+    actor_rollout_ref.model.path=Qwen/Qwen3-4B-Instruct-2507 \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=64 \
@@ -179,7 +181,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger='["console", "wandb"]' \
     trainer.project_name='minerva' \
-    trainer.experiment_name='minerva_tarba_qwen3b' \
+    trainer.experiment_name='minerva_tarba_qwen4b' \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \

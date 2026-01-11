@@ -2082,6 +2082,15 @@ class RayPPOTrainer:
                 )
                 # collect metrics
                 metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))
+                tool_topk_vals = batch.non_tensor_batch.get("tarba_tool_topk")
+                if tool_topk_vals is not None:
+                    try:
+                        topk_arr = np.asarray(tool_topk_vals, dtype=float)
+                    except (TypeError, ValueError):
+                        topk_arr = None
+                    if topk_arr is not None and topk_arr.size > 0:
+                        used = topk_arr[topk_arr > 0]
+                        metrics["tarba/tool_topk/mean"] = float(used.mean()) if used.size > 0 else 0.0
                 metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
                 # TODO: implement actual tflpo and theoretical tflpo
                 n_gpus = self.resource_pool_manager.get_n_gpus()

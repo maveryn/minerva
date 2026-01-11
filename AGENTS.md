@@ -49,7 +49,7 @@
 - Base GRPO runs (no TARBA):
   - `rlvr/cti-scripts/train_minerva_base_llama3b.sh`
   - `rlvr/cti-scripts/train_minerva_base_llama8b.sh`
-  - `rlvr/cti-scripts/train_minerva_base_qwen3b.sh`
+  - `rlvr/cti-scripts/train_minerva_base_qwen4b.sh`
   - `rlvr/cti-scripts/train_minerva_base_qwen8b.sh`
   - These call `python -m verl.trainer.main_ppo` with `algorithm.adv_estimator=grpo` and `custom_reward_function.path=rlvr/verl/utils/reward_score/reward_minerva.py`.
   - Training data: `rlvr/mydata/minerva_base/minerva_base_train.parquet`; validation data: `minerva_base_dev.parquet` plus Athena CTI parquets from `rlvr/mydata/athena/`.
@@ -60,12 +60,13 @@
 - Build label docs + index (generated artifacts):
   - `python -m minerva.retrieval.build_label_docs --config configs/retrieval/label_docs.yaml --out_dir dataset/retrieval/label_docs`
   - `python -m minerva.retrieval.build_index --label_docs_dir dataset/retrieval/label_docs --out_dir dataset/retrieval/index`
+  - For global retrieval, add `--global` to both commands (or set `retrieval_mode: global` in the config).
 - Run retrieval server:
   - `python -m minerva.retrieval.server --index_dir dataset/retrieval/index --host 0.0.0.0 --port 8000`
 - Train TARBA (same train/val datasets as base/LHC/SLHC):
   - `rlvr/cti-scripts/train_minerva_tarba_llama3b.sh`
   - `rlvr/cti-scripts/train_minerva_tarba_llama8b.sh`
-  - `rlvr/cti-scripts/train_minerva_tarba_qwen3b.sh`
+  - `rlvr/cti-scripts/train_minerva_tarba_qwen4b.sh`
   - `rlvr/cti-scripts/train_minerva_tarba_qwen8b.sh`
 - Evaluate validation with retrieval on/off:
   - `rlvr/old-cti-scripts/eval_minerva_tarba_reton_llama3b.sh`

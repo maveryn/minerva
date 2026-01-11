@@ -70,11 +70,19 @@ class CTIRetrievalTool(BaseTool):
                 budget_B = None
         if budget_B is not None:
             if budget_B <= 0:
-                return ToolResponse(text="DOC_IDS: []\nRetrieval disabled for this sample."), 0.0, {"doc_ids": []}
+                return (
+                    ToolResponse(text="DOC_IDS: []\nRetrieval disabled for this sample."),
+                    0.0,
+                    {"doc_ids": [], "topk": 0},
+                )
             topk = min(topk, budget_B)
 
         if not query or not label_type:
-            return ToolResponse(text="DOC_IDS: []\nNo query or label_type provided."), 0.0, {"doc_ids": []}
+            return (
+                ToolResponse(text="DOC_IDS: []\nNo query or label_type provided."),
+                0.0,
+                {"doc_ids": [], "topk": 0},
+            )
 
         payload = {
             "label_type": label_type,
@@ -89,7 +97,7 @@ class CTIRetrievalTool(BaseTool):
             data = resp.json()
         except Exception as exc:
             msg = f"DOC_IDS: []\nRetrieval error: {exc}"
-            return ToolResponse(text=msg), 0.0, {"doc_ids": []}
+            return ToolResponse(text=msg), 0.0, {"doc_ids": [], "topk": 0}
 
         results = data.get("results", []) if isinstance(data, dict) else []
         doc_ids = []
@@ -109,7 +117,7 @@ class CTIRetrievalTool(BaseTool):
 
         header = f"DOC_IDS: {json.dumps(doc_ids)}"
         text = "\n".join([header] + lines) if lines else header
-        return ToolResponse(text=text), 0.0, {"doc_ids": doc_ids}
+        return ToolResponse(text=text), 0.0, {"doc_ids": doc_ids, "topk": int(topk)}
 
 
 __all__ = ["CTIRetrievalTool"]

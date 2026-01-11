@@ -2,6 +2,7 @@ sources:
   mitre_path: dataset/mitre/enterprise-attack.json
   capec_path: dataset/capec/stix-capec.json
   cwe_path: dataset/cwe/cwec_v4.19.xml
+retrieval_mode: per_type
 label_types:
   - attack_technique_id
   - attack_tactic_id
