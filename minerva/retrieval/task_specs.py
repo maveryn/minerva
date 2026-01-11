@@ -130,6 +130,26 @@ def extract_labels_from_truth(ground_truth: Any, spec: TaskSpec) -> list[str]:
     return out
 
 
+def extract_label_matches_any(text: str) -> list[tuple[str, str]]:
+    """
+    Extract all label IDs across known label types, preserving order of appearance.
+    """
+    if not text:
+        return []
+    matches = []
+    seen = set()
+    for label_type, pattern in LABEL_TYPE_REGEX.items():
+        for match in pattern.finditer(text):
+            norm = normalize_label(label_type, match.group(0))
+            key = (label_type, norm)
+            if not norm or key in seen:
+                continue
+            seen.add(key)
+            matches.append((match.start(), label_type, norm))
+    matches.sort(key=lambda item: item[0])
+    return [(label_type, norm) for _, label_type, norm in matches]
+
+
 __all__ = [
     "TaskSpec",
     "TASK_SPECS",
@@ -138,4 +158,5 @@ __all__ = [
     "regex_for_label_type",
     "normalize_label",
     "extract_labels_from_truth",
+    "extract_label_matches_any",
 ]

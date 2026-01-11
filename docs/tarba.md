@@ -4,10 +4,10 @@ This document describes the current TARBA implementation and configuration used 
 
 ## Summary
 - Multi-turn RL training with an optional CTI retrieval tool.
-- Per-task controller anneals retrieval budget and availability over training.
+- Per-task controller anneals retrieval availability over training.
 - Retrieval reward shaping uses a linear decay with a floor.
 - Training entrypoint: `rlvr/cti-scripts/train_minerva_tarba_llama3b.sh`.
-- Qwen3 entrypoint: `rlvr/cti-scripts/train_minerva_tarba_qwen3b.sh`.
+- Qwen3 4B entrypoint: `rlvr/cti-scripts/train_minerva_tarba_qwen4b.sh`.
 - Llama 8B entrypoint: `rlvr/cti-scripts/train_minerva_tarba_llama8b.sh`.
 - Qwen3 8B entrypoint: `rlvr/cti-scripts/train_minerva_tarba_qwen8b.sh`.
 
@@ -63,9 +63,9 @@ Per task key (`data_source`), TARBA maintains:
 
 Current training config (from `train_minerva_tarba_llama3b.sh`):
 - `p_noret_init=0.10`
+- `p_noret_max=0.90`
+- `p_step=0.05`
 - `default_B_max=8`
-- `B_min=0`
-- `B_step=1`
 - `ema_beta=0.90`
 - `target_acc_noret=0.60`
 - `tol=0.05`

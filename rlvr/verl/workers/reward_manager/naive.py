@@ -95,6 +95,12 @@ class NaiveRewardManager(AbstractRewardManager):
                     extra_info["tarba_tool_call_count"] = int(tool_call_count)
                 except (TypeError, ValueError):
                     extra_info["tarba_tool_call_count"] = tool_call_count
+            tool_topk = data_item.non_tensor_batch.get("tarba_tool_topk")
+            if tool_topk is not None:
+                try:
+                    extra_info["tarba_tool_topk"] = float(tool_topk)
+                except (TypeError, ValueError):
+                    extra_info["tarba_tool_topk"] = tool_topk
             num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
             extra_info["num_turns"] = num_turns
 

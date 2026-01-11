@@ -28,6 +28,7 @@ export TARBA_HIDE_TOOL_SCHEMA
 RETRIEVAL_HOST="${RETRIEVAL_HOST:-127.0.0.1}"
 RETRIEVAL_PORT="${RETRIEVAL_PORT:-8000}"
 RETRIEVAL_INDEX_DIR="${RETRIEVAL_INDEX_DIR:-$REPO_ROOT/dataset/retrieval/index}"
+RETRIEVAL_MODE="${RETRIEVAL_MODE:-per_type}"
 RETRIEVAL_URL="http://${RETRIEVAL_HOST}:${RETRIEVAL_PORT}/openapi.json"
 
 check_retrieval_server() {
@@ -77,6 +78,7 @@ stop_retrieval_server
 echo "Starting retrieval server on ${RETRIEVAL_HOST}:${RETRIEVAL_PORT}..."
 python3 -m minerva.retrieval.server \
   --index_dir "$RETRIEVAL_INDEX_DIR" \
+  --retrieval_mode "$RETRIEVAL_MODE" \
   --host "$RETRIEVAL_HOST" \
   --port "$RETRIEVAL_PORT" \
   >/tmp/minerva_tarba_retrieval.log 2>&1 &

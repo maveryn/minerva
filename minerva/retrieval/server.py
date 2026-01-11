@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
 
@@ -22,7 +22,7 @@ _ENGINE: Optional[RetrievalEngine] = None
 
 
 class RetrieveRequest(BaseModel):
-    label_type: str
+    label_type: Optional[str] = None
     query: str
     topk: int = 5
     return_scores: bool = True
@@ -49,12 +49,14 @@ def _get_engine() -> RetrievalEngine:
     topk_cap = int(os.environ.get("TARBA_TOPK_CAP", "8"))
     max_query_chars = int(os.environ.get("TARBA_MAX_QUERY_CHARS", "128"))
     max_snippet_chars = int(os.environ.get("TARBA_MAX_SNIPPET_CHARS", "800"))
+    retrieval_mode = os.environ.get("TARBA_RETRIEVAL_MODE", "per_type")
     _ENGINE = RetrievalEngine(
         label_docs_dir=Path(label_docs_dir),
         index_dir=Path(index_dir) if index_dir else None,
         topk_cap=topk_cap,
         max_query_chars=max_query_chars,
         max_snippet_chars=max_snippet_chars,
+        retrieval_mode=retrieval_mode,
     )
     return _ENGINE
 
@@ -67,7 +69,9 @@ def _startup() -> None:
 @app.post("/retrieve", response_model=RetrieveResponse)
 def retrieve(req: RetrieveRequest) -> RetrieveResponse:
     engine = _get_engine()
-    results = engine.retrieve(req.label_type, req.query, req.topk)
+    if engine.retrieval_mode != "global" and not (req.label_type and req.label_type.strip()):
+        raise HTTPException(status_code=400, detail="label_type is required for per_type retrieval mode.")
+    results = engine.retrieve(req.label_type or "", req.query, req.topk)
     items = []
     for res in results:
         score = res.score if req.return_scores else None
@@ -97,6 +101,7 @@ def main() -> None:
     parser.add_argument("--topk_cap", type=int, default=8)
     parser.add_argument("--max_query_chars", type=int, default=128)
     parser.add_argument("--max_snippet_chars", type=int, default=800)
+    parser.add_argument("--retrieval_mode", choices=["per_type", "global"], default="per_type")
     args = parser.parse_args()
 
     label_docs_dir = Path(args.label_docs_dir) if args.label_docs_dir else DEFAULT_LABEL_DOCS_DIR
@@ -106,6 +111,7 @@ def main() -> None:
     os.environ["TARBA_TOPK_CAP"] = str(args.topk_cap)
     os.environ["TARBA_MAX_QUERY_CHARS"] = str(args.max_query_chars)
     os.environ["TARBA_MAX_SNIPPET_CHARS"] = str(args.max_snippet_chars)
+    os.environ["TARBA_RETRIEVAL_MODE"] = str(args.retrieval_mode)
 
     uvicorn.run("minerva.retrieval.server:app", host=args.host, port=args.port, log_level="info")
 
