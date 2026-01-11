@@ -48,7 +48,7 @@ def _get_engine() -> RetrievalEngine:
     index_dir = os.environ.get("TARBA_INDEX_DIR")
     topk_cap = int(os.environ.get("TARBA_TOPK_CAP", "8"))
     max_query_chars = int(os.environ.get("TARBA_MAX_QUERY_CHARS", "128"))
-    max_snippet_chars = int(os.environ.get("TARBA_MAX_SNIPPET_CHARS", "800"))
+    max_snippet_chars = int(os.environ.get("TARBA_MAX_SNIPPET_CHARS", "1536"))
     retrieval_mode = os.environ.get("TARBA_RETRIEVAL_MODE", "per_type")
     _ENGINE = RetrievalEngine(
         label_docs_dir=Path(label_docs_dir),
@@ -100,7 +100,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--topk_cap", type=int, default=8)
     parser.add_argument("--max_query_chars", type=int, default=128)
-    parser.add_argument("--max_snippet_chars", type=int, default=800)
+    parser.add_argument("--max_snippet_chars", type=int, default=1536)
     parser.add_argument("--retrieval_mode", choices=["per_type", "global"], default="per_type")
     args = parser.parse_args()
 

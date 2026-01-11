@@ -441,7 +441,13 @@ class AsyncRolloutRequest(BaseModel):
         # We also handle the case when tool returns image
         # We require the processing of the image and video to be done at tool.execute() level
         delta_multi_modal_data = {key: [] for key in self.multi_modal_keys}
+        new_messages = []
         for content in contents:
+            if content.text and not content.image and not content.video:
+                msg = Message(role="tool", content=content.text)
+                self.messages.append(msg)
+                new_messages.append(msg)
+                continue
             content_list = []
             # When we update multi_model_keys, we also need to update this logic
             if content.image:
@@ -452,9 +458,15 @@ class AsyncRolloutRequest(BaseModel):
                 delta_multi_modal_data["video"].extend(content.video)
             if content.text:
                 content_list.append({"type": "text", "text": content.text})
-            self.messages.append(Message(role="tool", content=content_list))
+            if not content_list:
+                continue
+            msg = Message(role="tool", content=content_list)
+            self.messages.append(msg)
+            new_messages.append(msg)
+        if not new_messages:
+            return
 
-        messages = [*BASE_CHAT_HISTORY, *self.messages[-len(contents) :]]
+        messages = [*BASE_CHAT_HISTORY, *new_messages]
         tools = [tool.model_dump() for tool in self.tool_schemas] if self.tool_schemas else None
 
         for key in self.multi_modal_keys:

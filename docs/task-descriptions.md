@@ -188,21 +188,6 @@ Adversary procedure:
 {SCENARIO_TEXT}
 ```
 
-**Detection Strategy**
-- Input: Adversary procedure description
-- Output: ATT&CK detection strategy ID (DET####)
-- Reward: `reward_detection_id` (1 if ID matches, else 0)
-```
-Given the adversary procedure description below, provide the single most appropriate MITRE ATT&CK Enterprise detection strategy ID (DET####) that best detects this behavior.
-
-Requirements:
-- Use MITRE ATT&CK Enterprise detection strategy IDs only.
-- Return exactly ONE detection strategy ID.
-
-Adversary procedure:
-{SCENARIO_TEXT}
-```
-
 ---
 
 ## CAPEC example tasks
@@ -274,22 +259,21 @@ Options:
 All counts derive from `dataset/minerva_split/metadata.json`.
 
 file	Input	Output	Reward fn	#sample	#Train	#Val
-cve_to_attack_exploitation	CVE description	ATT&CK Technique ID	reward_technique_id	265	212	53
-cve_to_attack_primary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	230	184	46
-cve_to_attack_secondary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	74	59	15
-sigma_to_attack_technique	Sigma detection + logsource	ATT&CK Technique ID	reward_technique_id	1500	1200	300
-sigma_to_attack_tactics	Sigma detection + logsource	ATT&CK Tactic IDs	reward_tactic_ids	1500	1200	300
-scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_technique_id	8000	6400	1600
-scenario_to_tactics	ATT&CK procedure scenario	ATT&CK Tactic IDs	reward_tactic_ids	3000	2400	600
-scenario_to_detections	ATT&CK procedure scenario	ATT&CK Detection ID	reward_detection_id	3000	2400	600
-scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	3000	2400	600
-cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	10000	8000	2000
-cve_to_cvss_v31	CVE description	CVSS v3.1 vector string	reward_cvss_v31	4081	3265	816
-cve_to_cvss_v40	CVE description	CVSS v4.0 vector string	reward_cvss_v40	1000	800	200
-capec_example_to_capec	CAPEC example text	CAPEC ID	binary_id	380	304	76
-capec_example_to_cwe	CAPEC example text	CWE IDs	reward_cwe_ids	196	157	39
-capec_example_to_attack	CAPEC example text	ATT&CK Technique ID	reward_technique_id	144	115	29
-threat_actor_mcq	Procedures list	Threat actor option (A-E)	binary_id	3630	2904	726
+cve_to_attack_exploitation	CVE description	ATT&CK Technique ID	reward_technique_id	265	245	20
+cve_to_attack_primary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	230	210	20
+cve_to_attack_secondary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	74	54	20
+sigma_to_attack_technique	Sigma detection + logsource	ATT&CK Technique ID	reward_technique_id	1000	950	50
+sigma_to_attack_tactics	Sigma detection + logsource	ATT&CK Tactic IDs	reward_tactic_ids	1000	950	50
+scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_technique_id	7500	7350	150
+scenario_to_tactics	ATT&CK procedure scenario	ATT&CK Tactic IDs	reward_tactic_ids	1000	950	50
+scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	7500	7340	160
+cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	8000	7800	200
+cve_to_cvss_v31	CVE description	CVSS v3.1 vector string	reward_cvss_v31	2000	1900	100
+cve_to_cvss_v40	CVE description	CVSS v4.0 vector string	reward_cvss_v40	500	480	20
+capec_example_to_capec	CAPEC example text	CAPEC ID	binary_id	380	360	20
+capec_example_to_cwe	CAPEC example text	CWE IDs	reward_cwe_ids	196	176	20
+capec_example_to_attack	CAPEC example text	ATT&CK Technique ID	reward_technique_id	144	124	20
+threat_actor_mcq	Procedures list	Threat actor option (A-E)	binary_id	3211	3111	100
 
 ---
 
@@ -299,7 +283,6 @@ threat_actor_mcq	Procedures list	Threat actor option (A-E)	binary_id	3630	2904	7
 - `reward_cwe_ids`: F1 over predicted vs. ground-truth CWE ID sets.
 - `reward_cvss_v31` / `reward_cvss_v40`: parse base metrics from vectors (v3.1: AV, AC, PR, UI, S, C, I, A; v4.0: AV, AC, AT, PR, UI, VC, VI, VA, SC, SI, SA) and compute per-metric F1.
 - `reward_mitigation_ids`: F1 over predicted vs. ground-truth mitigation ID sets.
-- `reward_detection_id`: 1.0 if detection ID matches; else 0.
 - `binary_id`: 1.0 if IDs match; else 0.
 
 See `docs/task-descriptions.tex` for a LaTeX version of this document.

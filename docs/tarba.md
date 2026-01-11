@@ -31,7 +31,7 @@ This document describes the current TARBA implementation and configuration used 
 ## Retrieval tool
 - Tool: `cti_retrieve` implemented by `rlvr/verl/tools/cti_retrieval_tool.py`.
 - Tool config: `rlvr/cti-scripts/tool_config/cti_retrieval_tool.yaml`.
-  - `topk_cap=8`, `max_query_chars=128`, `max_snippet_chars=800`.
+  - `topk_cap=8`, `max_query_chars=128`, `max_snippet_chars=1536`.
 - Tool output includes machine-parsable IDs:
   - `DOC_IDS: ["attack_technique_id:T1059.003", ...]`
 
@@ -50,9 +50,13 @@ Per sample:
 - Add to `extra_info`:
   - `tarba_allow_retrieval`, `tarba_budget_B`, `tarba_label_type`, `tarba_gold_doc_ids`, `tarba_seed`
   - `tools_kwargs` with `{budget_B, label_type}` for the tool.
+- Retrieval label scope defaults to **global**:
+  - `data.tarba.train_label_type=all`
+  - `data.tarba.eval_label_type=all`
+  - Override with `task`/`per_type` (or a concrete label type) to force task-specific retrieval.
 
 Prompt filtering:
-- `data.max_prompt_length=2048` filters prompts **before** tool responses are added.
+- `data.max_prompt_length=1536` filters prompts **before** tool responses are added.
 - Tool responses are appended during rollout; runtime length is capped by `max_model_len`.
 
 ## Retrieval budget controller (current config)
@@ -65,7 +69,7 @@ Current training config (from `train_minerva_tarba_llama3b.sh`):
 - `p_noret_init=0.10`
 - `p_noret_max=0.90`
 - `p_step=0.05`
-- `default_B_max=8`
+- `default_B_max=5`
 - `ema_beta=0.90`
 - `target_acc_noret=0.60`
 - `tol=0.05`
@@ -81,6 +85,33 @@ Update rule:
 - Computes `acc_mix = (1 - p_noret) * ema_ret + p_noret * ema_noret`.
 - If `acc_mix > target_acc_noret + tol` (and after warmup), increases `p_noret` by `p_step` up to `p_noret_max=0.9`.
 - `B` remains fixed at its initial value (no budget annealing in the current policy).
+
+## Self-distillation (optional)
+TARBA can run periodic SFT on successful samples, mirroring the SLHC distillation flow.
+It is disabled by default and configured under `data.tarba.distill`.
+
+Behavior:
+- Collects the **best** rollout per prompt (reward ≥ `reward_threshold`) into a buffer.
+- Tie-breaks equal rewards by **highest entropy** (mean NLL).
+- Works for both retrieval-enabled and retrieval-disabled samples.
+- Runs an SFT pass every `interval` steps using the **original prompt without retrieval** and the
+  selected response, for exactly one epoch. The buffer is cleared after each SFT pass.
+
+Config (defaults):
+- `enabled=false`
+- `interval=10`
+- `reward_threshold=0.5`
+- `max_buffer=4096`
+- `batch_size=None` (falls back to PPO mini-batch size)
+- `max_seq_len=None` (falls back to `max_prompt_length + max_response_length`)
+- `entropy_tiebreak=mean_nll`
+- `drop_last=true`
+- `dedup_by_uid=true`
+
+Metrics:
+- Selection stats: `distill/uid_group_*`, `distill/selected_reward_mean`, `distill/entropy_proxy_*`
+- Buffer stats: `distill/buffer_size_local`, `distill/buffer_size_global`
+- SFT stats: `distill/sft_*` and `distill_sft/actor/sft_loss`
 
 ## Reward computation (current config)
 `rlvr/verl/utils/reward_score/reward_tarba.py`
@@ -107,13 +138,17 @@ Final score:
 Current reward kwargs (train script):
 - `lambda_ret=0.2`
 - `floor=0.2`
-- `tool_call_bonus=0.1`
+- `tool_call_bonus=0.0`
 
 ## Validation summary metrics
 During validation, we log aggregate reward means:
 - `val-core/minerva-dev/reward/mean` for the Minerva dev split.
 - `val-core/athena-bench/reward/mean` for the AthenaBench dev sets.
 - `val-core/global-val/reward/mean` as the average of the two.
+
+Optional retrieval-on evaluation for AthenaBench subsets can be added via
+`trainer.extra_val_runs` in TARBA scripts. These runs log under a separate
+`val-<prefix>-core/...` namespace and skip the global averages by default.
 
 ## Not used in the current configuration (but present in code)
 - Tool penalties:

@@ -7,7 +7,6 @@ label_types:
   - attack_technique_id
   - attack_tactic_id
   - mitigation_id
-  - detection_id
   - threat_actor_name
   - capec_id
   - cwe_id

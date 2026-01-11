@@ -17,7 +17,6 @@ from minerva.tasks import (
     build_cve_to_cvss_v31,
     build_cve_to_cvss_v40,
     build_cve_attack_datasets,
-    build_scenario_to_detections,
     build_scenario_to_mitigations,
     build_scenario_to_tactics,
     build_scenario_to_technique,
@@ -33,10 +32,9 @@ RESAMPLE_COUNTS: Dict[str, int] = {
     "cve_to_attack_secondary_impact": 74,
     "sigma_to_attack_technique": 1000,
     "sigma_to_attack_tactics": 1000,
-    "scenario_to_technique": 8000,
+    "scenario_to_technique": 7500,
     "scenario_to_tactics": 1000,
-    "scenario_to_detections": 2000,
-    "scenario_to_mitigations": 5000,
+    "scenario_to_mitigations": 7500,
     "cve_to_cwe": 8000,
     "cve_to_cvss_v31": 2000,
     "cve_to_cvss_v40": 500,
@@ -203,7 +201,6 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
 
     tactic_id_to_name: Dict[str, str] = {}
     mitigation_id_to_name: Dict[str, str] = {}
-    detection_id_to_name: Dict[str, str] = {}
     if detailed_prompts:
         from minerva.data_sources.mitre import load_bundle as load_mitre_bundle
 
@@ -212,10 +209,6 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
         mitigation_id_to_name = {
             mid: (obj.get("name", "") if isinstance(obj, dict) else "")
             for mid, obj in (mitre_bundle.get("mitigations", {}) or {}).items()
-        }
-        detection_id_to_name = {
-            det_id: (obj.get("name", "") if isinstance(obj, dict) else "")
-            for det_id, obj in (mitre_bundle.get("detection_strategies", {}) or {}).items()
         }
 
     # Mapping-explorer CVE -> ATT&CK datasets
@@ -377,22 +370,6 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
     except Exception as exc:
         logger.error("Failed scenario->mitigation: %s", exc)
 
-    # Scenario -> detection strategies
-    try:
-        det_cfg = tasks_cfg.get("SCENARIO_DETECTION", {})
-        det_tasks = build_scenario_to_detections(
-            scenario_tasks,
-            output_path=det_cfg.get("output_path", "data/processed/minerva/scenario_to_detections.jsonl"),
-            seed=int(det_cfg.get("seed", 1337)),
-            max_items=int(det_cfg.get("max_items", 0)),
-            include_id_names=bool(detailed_prompts),
-            detection_id_to_name=detection_id_to_name,
-            logger=logger,
-        )
-        summary["scenario_to_detections"] = len(det_tasks)
-    except Exception as exc:
-        logger.error("Failed scenario->detection: %s", exc)
-
     # Threat actor MCQ
     try:
         ta_cfg = tasks_cfg.get("THREAT_ACTOR", {})
@@ -426,7 +403,6 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
         "scenario_to_technique": Path(tasks_cfg.get("SCENARIO_TECHNIQUE", {}).get("output_path", "dataset/minerva/scenario_to_technique.jsonl")),
         "scenario_to_tactics": Path(tasks_cfg.get("SCENARIO_TACTIC", {}).get("output_path", "dataset/minerva/scenario_to_tactics.jsonl")),
         "scenario_to_mitigations": Path(tasks_cfg.get("SCENARIO_MITIGATION", {}).get("output_path", "dataset/minerva/scenario_to_mitigations.jsonl")),
-        "scenario_to_detections": Path(tasks_cfg.get("SCENARIO_DETECTION", {}).get("output_path", "dataset/minerva/scenario_to_detections.jsonl")),
     }
     dedupe_info: Dict[str, int] = {}
     for task_name, path in task_paths.items():

@@ -79,6 +79,7 @@ echo "Starting retrieval server on ${RETRIEVAL_HOST}:${RETRIEVAL_PORT}..."
 python3 -m minerva.retrieval.server \
   --index_dir "$RETRIEVAL_INDEX_DIR" \
   --retrieval_mode "$RETRIEVAL_MODE" \
+  --max_snippet_chars 1536 \
   --host "$RETRIEVAL_HOST" \
   --port "$RETRIEVAL_PORT" \
   >/tmp/minerva_tarba_retrieval.log 2>&1 &
@@ -114,6 +115,7 @@ val_paths=(
   "$DATA_DIR/athena/athena_cti_rcm.parquet"
   "$DATA_DIR/athena/athena_cti_rms.parquet"
 )
+extra_val_runs="[{name:athena_ret_on,metric_prefix:'val-ret_on',val_files:['$DATA_DIR/athena/athena_cti_ate.parquet','$DATA_DIR/athena/athena_cti_rcm.parquet','$DATA_DIR/athena/athena_cti_rms.parquet'],tarba_eval_mode:ret_on,tarba_eval_budget_B:5,skip_global_avg:true}]"
 
 reward_fn_path="$ROOT_DIR/verl/utils/reward_score/reward_tarba.py"
 custom_dataset_path="$ROOT_DIR/verl/utils/dataset/minerva_tarba_retrieval_dataset.py"
@@ -132,10 +134,12 @@ python3 -m verl.trainer.main_ppo \
     data.dataloader_num_workers=0 \
     data.return_raw_chat=True \
     +data.tarba.enabled=true \
+    +data.tarba.train_label_type=all \
+    +data.tarba.eval_label_type=all \
     +data.tarba.p_noret_init=0.10 \
     +data.tarba.p_noret_max=0.90 \
     +data.tarba.p_step=0.05 \
-    +data.tarba.default_B_max=8 \
+    +data.tarba.default_B_max=5 \
     +data.tarba.ema_beta=0.90 \
     +data.tarba.target_acc_noret=0.60 \
     +data.tarba.tol=0.05 \
@@ -144,10 +148,10 @@ python3 -m verl.trainer.main_ppo \
     custom_reward_function.name=reward_tarba \
     +custom_reward_function.reward_kwargs.lambda_ret=0.2 \
     +custom_reward_function.reward_kwargs.floor=0.2 \
-    +custom_reward_function.reward_kwargs.tool_call_bonus=0.1 \
+    +custom_reward_function.reward_kwargs.tool_call_bonus=0.0 \
     data.train_batch_size=64 \
     data.val_batch_size=2048 \
-    data.max_prompt_length=2048 \
+    data.max_prompt_length=1536 \
     data.max_response_length=2048 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
@@ -166,6 +170,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=sglang \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.90 \
+    actor_rollout_ref.rollout.max_model_len=8192 \
     actor_rollout_ref.rollout.enforce_eager=false \
     actor_rollout_ref.rollout.free_cache_engine=false \
     +actor_rollout_ref.rollout.engine_kwargs.sglang="$sglang_engine_kwargs" \
@@ -183,10 +188,11 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name='minerva' \
     trainer.experiment_name='minerva_tarba_llama8b' \
     trainer.val_before_train=false \
+    +trainer.extra_val_runs="$extra_val_runs" \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
-    trainer.save_freq=10 \
-    trainer.test_freq=10 \
+    trainer.save_freq=25 \
+    trainer.test_freq=25 \
     trainer.total_training_steps=500 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \

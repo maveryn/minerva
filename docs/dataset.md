@@ -25,7 +25,7 @@ Network fetches are rate-limited; use `NVD_API_KEY` to avoid strict NVD throttli
 The pipeline generates per-task JSONL files with standardized `task`, `input`, `ground_truth`, and `reward_fn` fields. Tasks include:
 - CVE -> ATT&CK exploitation / primary impact / secondary impact
 - Sigma -> ATT&CK technique / tactics
-- Scenario -> technique / tactics / detections / mitigations
+- Scenario -> technique / tactics / mitigations
 - CVE -> CWE
 - CVE -> CVSS v3.1 / v4.0
 - CAPEC example -> CAPEC / CWE / ATT&CK
@@ -41,19 +41,18 @@ After task generation, each per-task JSONL is resampled to a fixed target size u
 | cve_to_attack_exploitation | 245 | 20 | 265 |
 | cve_to_attack_primary_impact | 210 | 20 | 230 |
 | cve_to_attack_secondary_impact | 54 | 20 | 74 |
-| sigma_to_attack_technique | 975 | 25 | 1000 |
-| sigma_to_attack_tactics | 975 | 25 | 1000 |
-| scenario_to_technique | 7800 | 200 | 8000 |
+| sigma_to_attack_technique | 950 | 50 | 1000 |
+| sigma_to_attack_tactics | 950 | 50 | 1000 |
+| scenario_to_technique | 7350 | 150 | 7500 |
 | scenario_to_tactics | 950 | 50 | 1000 |
-| scenario_to_detections | 1950 | 50 | 2000 |
-| scenario_to_mitigations | 4850 | 150 | 5000 |
+| scenario_to_mitigations | 7340 | 160 | 7500 |
 | cve_to_cwe | 7800 | 200 | 8000 |
 | cve_to_cvss_v31 | 1900 | 100 | 2000 |
 | cve_to_cvss_v40 | 480 | 20 | 500 |
 | capec_example_to_capec | 360 | 20 | 380 |
 | capec_example_to_cwe | 176 | 20 | 196 |
 | capec_example_to_attack | 124 | 20 | 144 |
-| threat_actor_mcq | 3151 | 60 | 3211 |
+| threat_actor_mcq | 3111 | 100 | 3211 |
 | **Total** | **32000** | **1000** | **33000** |
 
 ## Train/validation split policy

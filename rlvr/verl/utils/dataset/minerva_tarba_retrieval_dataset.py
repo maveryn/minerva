@@ -159,6 +159,8 @@ class TarbaRLHFDataset(RLHFDataset):
         self.tarba_controller: Optional[RetrievalBudgetController] = None
         self.eval_mode = tarba_cfg.get("eval_mode")
         self.eval_budget_B = tarba_cfg.get("eval_budget_B", None)
+        self.train_label_type = tarba_cfg.get("train_label_type", "all")
+        self.eval_label_type = tarba_cfg.get("eval_label_type", "all")
         super().__init__(data_files=data_files, tokenizer=tokenizer, config=config, processor=processor)
 
         if self.tarba_enabled:
@@ -194,6 +196,20 @@ class TarbaRLHFDataset(RLHFDataset):
         )
         messages[target_idx]["content"] = f"{content}\n\n{block}" if content else block
         return True
+
+    def _resolve_label_type(self, raw_value: Any, label_type: Optional[str]) -> str:
+        raw = str(raw_value or "").strip().lower()
+        if raw in {"", "task", "per_type", "label"}:
+            return str(label_type or "")
+        if raw in {"all", "global"}:
+            return "all"
+        return str(raw_value)
+
+    def _resolve_eval_label_type(self, label_type: Optional[str]) -> str:
+        return self._resolve_label_type(self.eval_label_type, label_type)
+
+    def _resolve_train_label_type(self, label_type: Optional[str]) -> str:
+        return self._resolve_label_type(self.train_label_type, label_type)
 
     def _update_tools_kwargs(
         self,
@@ -315,6 +331,7 @@ class TarbaRLHFDataset(RLHFDataset):
         budget_B = 0
         seed = 0
 
+        retrieval_label_type = label_type or ""
         if label_type:
             if split_label and split_label not in {"train"}:
                 if str(self.eval_mode or "").lower() == "ret_on":
@@ -323,6 +340,7 @@ class TarbaRLHFDataset(RLHFDataset):
                         budget_B = int(self.eval_budget_B)
                     else:
                         budget_B = int(self.tarba_controller._get_state(task_key).budget_B)
+                    retrieval_label_type = self._resolve_eval_label_type(label_type)
                 else:
                     allow_retrieval = False
                     budget_B = 0
@@ -331,6 +349,8 @@ class TarbaRLHFDataset(RLHFDataset):
                 allow_retrieval = bool(decision["allow_retrieval"])
                 budget_B = int(decision["budget_B"])
                 seed = int(decision["seed"])
+                if allow_retrieval:
+                    retrieval_label_type = self._resolve_train_label_type(label_type)
         if allow_retrieval and budget_B <= 0:
             allow_retrieval = False
             budget_B = 0
@@ -344,7 +364,7 @@ class TarbaRLHFDataset(RLHFDataset):
             extra_info,
             allow_retrieval=allow_retrieval,
             budget_B=budget_B,
-            label_type=label_type,
+            label_type=retrieval_label_type or label_type,
         )
 
         messages = copy.deepcopy(messages)
