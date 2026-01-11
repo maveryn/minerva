@@ -13,17 +13,36 @@ TARGET_SAMPLES: Dict[str, int] = {
     "cve_to_attack_secondary_impact": 74,
     "sigma_to_attack_technique": 1000,
     "sigma_to_attack_tactics": 1000,
-    "scenario_to_technique": 10000,
-    "scenario_to_tactics": 2000,
+    "scenario_to_technique": 8000,
+    "scenario_to_tactics": 1000,
     "scenario_to_detections": 2000,
     "scenario_to_mitigations": 5000,
-    "cve_to_cwe": 10000,
-    "cve_to_cvss_v31": 3081,
-    "cve_to_cvss_v40": 1000,
+    "cve_to_cwe": 8000,
+    "cve_to_cvss_v31": 2000,
+    "cve_to_cvss_v40": 500,
     "capec_example_to_capec": 380,
     "capec_example_to_cwe": 196,
     "capec_example_to_attack": 144,
-    "threat_actor_mcq": 3630,
+    "threat_actor_mcq": 3211,
+}
+
+TARGET_VAL_SAMPLES: Dict[str, int] = {
+    "cve_to_attack_exploitation": 20,
+    "cve_to_attack_primary_impact": 20,
+    "cve_to_attack_secondary_impact": 20,
+    "sigma_to_attack_technique": 25,
+    "sigma_to_attack_tactics": 25,
+    "scenario_to_technique": 200,
+    "scenario_to_tactics": 50,
+    "scenario_to_detections": 50,
+    "scenario_to_mitigations": 150,
+    "cve_to_cwe": 200,
+    "cve_to_cvss_v31": 100,
+    "cve_to_cvss_v40": 20,
+    "capec_example_to_capec": 20,
+    "capec_example_to_cwe": 20,
+    "capec_example_to_attack": 20,
+    "threat_actor_mcq": 60,
 }
 
 FILE_MAP: Dict[str, str] = {
@@ -96,9 +115,9 @@ def _pick_example(rows: List[Dict]) -> Dict:
 
 
 def _project_row(row: Dict) -> Dict:
-    prompt = ""
-    if isinstance(row, dict):
-        prompt = (row.get("input") or {}).get("prompt", "")
+    if not isinstance(row, dict):
+        return {}
+    prompt = (row.get("input") or {}).get("prompt", "")
     out = {
         "task": row.get("task"),
         "prompt": prompt,
@@ -343,7 +362,7 @@ def build_splits(
     seed: int = 1337,
     train_ratio: float = 0.8,
     target_train: int = 32000,
-    target_dev: int = 8000,
+    target_dev: int = 1000,
     reuse_split: Optional[str] = None,
 ) -> None:
     logger = get_logger("split")
@@ -364,6 +383,8 @@ def build_splits(
         examples = {}
         per_task: Dict[str, Dict[str, List[Dict]]] = {}
 
+        use_fixed_val = bool(TARGET_VAL_SAMPLES)
+
         for task, target_n in TARGET_SAMPLES.items():
             path = in_dir / FILE_MAP[task]
             if not path.exists():
@@ -371,7 +392,21 @@ def build_splits(
                 continue
             sampled, total = _reservoir_sample_jsonl(path, target_n, rng)
             rng.shuffle(sampled)
-            train_part, dev_part = _split_rows(sampled, train_ratio)
+            if use_fixed_val:
+                target_val = TARGET_VAL_SAMPLES.get(task, 0)
+                if target_val > len(sampled):
+                    logger.warning(
+                        "Task %s -> requested dev=%d but only %d rows available; using %d.",
+                        task,
+                        target_val,
+                        len(sampled),
+                        len(sampled),
+                    )
+                    target_val = len(sampled)
+                dev_part = sampled[:target_val]
+                train_part = sampled[target_val:]
+            else:
+                train_part, dev_part = _split_rows(sampled, train_ratio)
             per_task[task] = {"train": train_part, "dev": dev_part}
             train_rows.extend(train_part)
             dev_rows.extend(dev_part)
@@ -413,20 +448,29 @@ def build_splits(
                 stats[task]["train"] += 1
             return True
 
-        while len(train_rows) < target_train and len(dev_rows) > target_dev:
-            if not _move_one("dev", "train"):
-                break
-        while len(train_rows) > target_train and len(dev_rows) < target_dev:
-            if not _move_one("train", "dev"):
-                break
+        if use_fixed_val:
+            logger.info(
+                "Fixed per-task dev sizes -> train=%d dev=%d (targets train=%d dev=%d)",
+                len(train_rows),
+                len(dev_rows),
+                target_train,
+                target_dev,
+            )
+        else:
+            while len(train_rows) < target_train and len(dev_rows) > target_dev:
+                if not _move_one("dev", "train"):
+                    break
+            while len(train_rows) > target_train and len(dev_rows) < target_dev:
+                if not _move_one("train", "dev"):
+                    break
 
-        logger.info(
-            "Adjusted splits to train=%d dev=%d (target train=%d dev=%d)",
-            len(train_rows),
-            len(dev_rows),
-            target_train,
-            target_dev,
-        )
+            logger.info(
+                "Adjusted splits to train=%d dev=%d (target train=%d dev=%d)",
+                len(train_rows),
+                len(dev_rows),
+                target_train,
+                target_dev,
+            )
 
     # Project rows to the minimal schema
     projected_train = [_project_row(r) for r in train_rows]
@@ -483,7 +527,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=1337, help="RNG seed (default: 1337)")
     parser.add_argument("--train-ratio", type=float, default=0.8, help="Train ratio per-task before global adjustment (default: 0.8)")
     parser.add_argument("--target-train", type=int, default=32000, help="Final target train size (default: 32000)")
-    parser.add_argument("--target-dev", type=int, default=8000, help="Final target dev size (default: 8000)")
+    parser.add_argument("--target-dev", type=int, default=1000, help="Final target dev size (default: 1000)")
     parser.add_argument(
         "--reuse-split",
         default=None,

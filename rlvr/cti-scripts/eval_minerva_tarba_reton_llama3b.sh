@@ -49,7 +49,7 @@ python3 -m verl.trainer.main_ppo \
     data.max_response_length=2048 \
     +data.tarba.enabled=true \
     +data.tarba.eval_mode=ret_on \
-    +data.tarba.eval_budget_B=5 \
+    +data.tarba.eval_budget_B=8 \
     custom_reward_function.path=$reward_fn_path \
     custom_reward_function.name=reward_tarba \
     actor_rollout_ref.model.path=meta-llama/Llama-3.2-3B-Instruct \

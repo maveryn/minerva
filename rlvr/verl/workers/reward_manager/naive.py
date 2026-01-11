@@ -82,6 +82,19 @@ class NaiveRewardManager(AbstractRewardManager):
             ground_truth = data_item.non_tensor_batch["reward_model"]["ground_truth"]
             data_source = data_item.non_tensor_batch[self.reward_fn_key]
             extra_info = data_item.non_tensor_batch.get("extra_info", {})
+            if not isinstance(extra_info, dict):
+                extra_info = {}
+            else:
+                extra_info = dict(extra_info)
+            tool_doc_ids = data_item.non_tensor_batch.get("tarba_tool_doc_ids")
+            if tool_doc_ids is not None:
+                extra_info["tarba_tool_doc_ids"] = tool_doc_ids
+            tool_call_count = data_item.non_tensor_batch.get("tarba_tool_call_counts")
+            if tool_call_count is not None:
+                try:
+                    extra_info["tarba_tool_call_count"] = int(tool_call_count)
+                except (TypeError, ValueError):
+                    extra_info["tarba_tool_call_count"] = tool_call_count
             num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
             extra_info["num_turns"] = num_turns
 

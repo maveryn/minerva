@@ -1371,6 +1371,8 @@ class SGLangRollout(BaseRollout):
         response_loss_mask = []
         messages = []
         reward_scores = []
+        tarba_tool_call_counts = []
+        tarba_tool_doc_ids = []
         multi_modal_inputs = []
         request_ids = []
         if self.config.calculate_log_probs:
@@ -1413,6 +1415,14 @@ class SGLangRollout(BaseRollout):
             response_loss_mask.append(req.response_loss_mask.to(tgt_device).squeeze(0))
             messages.append({"messages": req.messages})
             reward_scores.append(req.reward_scores)
+            tool_metrics = req.metrics.get("cti_retrieve", [])
+            tarba_tool_call_counts.append(len(tool_metrics) if isinstance(tool_metrics, list) else 0)
+            doc_ids = []
+            if isinstance(tool_metrics, list) and tool_metrics:
+                first = tool_metrics[0]
+                if isinstance(first, dict):
+                    doc_ids = first.get("doc_ids") or []
+            tarba_tool_doc_ids.append(doc_ids)
             multi_modal_inputs.append(req.multi_modal_inputs)
             request_ids.append(req.request_id)
             if self.config.calculate_log_probs:
@@ -1520,6 +1530,8 @@ class SGLangRollout(BaseRollout):
         non_tensor_batch = {
             "messages": np.array(messages),
             "reward_scores": np.array(reward_scores),
+            "tarba_tool_call_counts": np.array(tarba_tool_call_counts),
+            "tarba_tool_doc_ids": np.array(tarba_tool_doc_ids, dtype=object),
             "request_id": np.array(request_ids),
         }
 

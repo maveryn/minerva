@@ -37,9 +37,10 @@ class RetrievalBudgetController:
     def __init__(self, config: DictConfig | dict | None = None) -> None:
         cfg = config.get("tarba", {}) if config is not None else {}
         self.ema_beta = float(cfg.get("ema_beta", 0.90))
-        self.target_acc_noret = float(cfg.get("target_acc_noret", 0.70))
+        self.target_acc_noret = float(cfg.get("target_acc_noret", 0.60))
         self.tol = float(cfg.get("tol", 0.05))
         self.p_noret_init = float(cfg.get("p_noret_init", 0.10))
+        self.p_noret_max = float(cfg.get("p_noret_max", 0.90))
         self.p_step = float(cfg.get("p_step", 0.05))
         self.b_min = int(cfg.get("B_min", 0))
         self.default_b_max = int(cfg.get("default_B_max", 8))
@@ -68,26 +69,33 @@ class RetrievalBudgetController:
         }
 
     def update_from_groups(self, group_summaries: Iterable[Dict[str, Any]]) -> Dict[str, float]:
+        per_task: Dict[str, Dict[str, list[float]]] = {}
         for summary in group_summaries:
             task_key = str(summary.get("task_key", ""))
             allow_retrieval = bool(summary.get("allow_retrieval", False))
             acc_g = float(summary.get("acc_g", 0.0))
-            state = self._get_state(task_key)
-
+            buckets = per_task.setdefault(task_key, {"ret": [], "noret": []})
             if allow_retrieval:
-                state.steps_ret += 1
-                state.ema_acc_ret = self._ema(state.ema_acc_ret, acc_g)
-                if state.ema_acc_ret > self.target_acc_noret + self.tol and state.budget_B > self.b_min:
-                    state.budget_B = max(self.b_min, state.budget_B - self.b_step)
+                buckets["ret"].append(acc_g)
             else:
+                buckets["noret"].append(acc_g)
+
+        for task_key, buckets in per_task.items():
+            state = self._get_state(task_key)
+            ret_vals = buckets.get("ret", [])
+            noret_vals = buckets.get("noret", [])
+
+            if ret_vals:
+                state.steps_ret += 1
+                state.ema_acc_ret = self._ema(state.ema_acc_ret, sum(ret_vals) / len(ret_vals))
+            if noret_vals:
                 state.steps_noret += 1
-                state.ema_acc_noret = self._ema(state.ema_acc_noret, acc_g)
-                if (
-                    state.steps_noret >= self.min_steps_before_anneal
-                    and state.ema_acc_noret > self.target_acc_noret + self.tol
-                ):
-                    state.p_noret = min(1.0, state.p_noret + self.p_step)
-                    state.budget_B = max(self.b_min, state.budget_B - self.b_step)
+                state.ema_acc_noret = self._ema(state.ema_acc_noret, sum(noret_vals) / len(noret_vals))
+
+            if state.steps_noret >= self.min_steps_before_anneal:
+                acc_mix = (1.0 - state.p_noret) * state.ema_acc_ret + state.p_noret * state.ema_acc_noret
+                if acc_mix > self.target_acc_noret + self.tol:
+                    state.p_noret = min(self.p_noret_max, state.p_noret + self.p_step)
 
         return self.get_metrics(prefix="tarba_ctrl/")
 
@@ -159,6 +167,8 @@ class TarbaRLHFDataset(RLHFDataset):
     def _append_tool_instructions(self, messages: list[dict], allow_retrieval: bool, budget_B: int) -> bool:
         if not messages:
             return False
+        if not allow_retrieval:
+            return False
         target_idx = None
         for idx in range(len(messages) - 1, -1, -1):
             if messages[idx].get("role") == "user":
@@ -170,19 +180,16 @@ class TarbaRLHFDataset(RLHFDataset):
         if not isinstance(content, str):
             return False
         content = content.rstrip()
-        if allow_retrieval:
-            block = (
-                "You may request retrieval at most once.\n"
-                f"Request at most B={budget_B} docs.\n"
-                "Use short keyword queries; do not paste long lists. Limit query to 128 characters.\n"
-                "Output exactly one JSON object with `query` and `topk` fields only; no extra text.\n"
-                "Examples:\n"
-                "1) {\"query\":\"cwe-79 xss sql inj\",\"topk\":3}\n"
-                "2) {\"query\":\"credential dumping dcsync process injection\",\"topk\":5}\n"
-                "3) {\"query\":\"APT28 Lazarus FIN7 spearphishing banking malware\",\"topk\":2}"
-            )
-        else:
-            block = "Retrieval disabled for this sample. Do not call tools."
+        block = (
+            "You may request retrieval at most once.\n"
+            f"Request at most B={budget_B} docs.\n"
+            "Use short keyword queries; do not paste long lists. Limit query to 128 characters.\n"
+            "Output exactly one JSON object with `query` and `topk` fields only; no extra text.\n"
+            "Examples:\n"
+            "1) {\"query\":\"cwe-79 xss sql inj\",\"topk\":3}\n"
+            "2) {\"query\":\"credential dumping dcsync process injection\",\"topk\":5}\n"
+            "3) {\"query\":\"APT28 Lazarus FIN7 spearphishing banking malware\",\"topk\":2}"
+        )
         messages[target_idx]["content"] = f"{content}\n\n{block}" if content else block
         return True
 

@@ -93,12 +93,19 @@ def _extract_ate(text: str) -> str:
     return tid
 
 
+def _extract_mcq(text: str) -> str:
+    return _extract_from_lines(text, r"\b([A-E])\b", lambda s: s.upper())
+
+
 ATHENA_EXTRACTORS = {
     "athena-cti-rcm": _extract_rcm,
     "athena-cti-vsp": _extract_vsp,
     "athena-cti-taa": _extract_taa,
     "athena-cti-rms": _extract_rms,
     "athena-cti-ate": _extract_ate,
+    "athena-cti-mcq": _extract_mcq,
+    "athena-cti-mcq-3k": _extract_mcq,
+    "athena-cti-ckt": _extract_mcq,
 }
 
 
@@ -265,6 +272,9 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
         # Fallback simple compare of vectors/base metrics
         truth = _clean_freeform(str(_get_truth(ground_truth)))
         return 1.0 if pred == truth and truth else 0.0
+    if data_source in {"athena-cti-mcq", "athena-cti-mcq-3k", "athena-cti-ckt"}:
+        truth = _clean_freeform(str(_get_truth(ground_truth))).upper()
+        return 1.0 if pred.upper() == truth and truth else 0.0
 
     # Minerva tasks: use reward_fn names
     if minerva_reward and data_source:

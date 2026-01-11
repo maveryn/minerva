@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 import sys
 from pathlib import Path
@@ -112,17 +111,25 @@ def _rank_from_retrieval(
 def _compute_retrieval_reward(
     ranks: Dict[str, Optional[int]],
     *,
-    alpha: float,
+    floor: float,
+    topk: int,
     policy: str,
 ) -> float:
     if not ranks:
         return 0.0
+    if topk <= 0:
+        return 0.0
+    if topk <= 1:
+        slope = 0.0
+    else:
+        slope = (1.0 - float(floor)) / float(topk - 1)
     values = []
     for rank in ranks.values():
         if rank is None:
             values.append(0.0)
         else:
-            values.append(math.exp(-alpha * (rank - 1)))
+            score = 1.0 - slope * (rank - 1)
+            values.append(max(float(floor), score))
     if not values:
         return 0.0
     policy = (policy or "mean").lower()
@@ -140,8 +147,8 @@ def reward_tarba(
     extra_info: Optional[dict] = None,
     *,
     lambda_ret: float = 0.2,
-    alpha: float = math.log(2.0),
-    ans_threshold: float = 0.5,
+    floor: float = 0.2,
+    tool_call_bonus: float = 0.1,
     penalty_tool_call: float = 0.02,
     penalty_illegal_tool: float = 0.5,
     multilabel_policy: str = "mean",
@@ -170,6 +177,8 @@ def reward_tarba(
             budget_B = int(budget_B)
         except (TypeError, ValueError):
             budget_B = None
+    if budget_B is not None:
+        topk_cap = int(budget_B)
 
     tool_calls = _parse_tool_calls(solution_str)
     valid_calls = []
@@ -181,13 +190,28 @@ def reward_tarba(
     tool_called = False
     ranks: Dict[str, Optional[int]] = {gid: None for gid in gold_doc_ids}
 
+    tool_doc_ids = extra_info.get("tarba_tool_doc_ids")
+    tool_call_count_meta = extra_info.get("tarba_tool_call_count")
+    if tool_call_count_meta is not None:
+        try:
+            tool_call_count = int(tool_call_count_meta)
+        except (TypeError, ValueError):
+            tool_call_count = len(valid_calls)
+        tool_called = tool_call_count > 0
+    if isinstance(tool_doc_ids, list):
+        if tool_call_count_meta is None and tool_doc_ids:
+            tool_call_count = max(tool_call_count, 1)
+            tool_called = True
+        if tool_doc_ids and gold_doc_ids:
+            ranks = _rank_from_doc_ids(tool_doc_ids, list(gold_doc_ids))
+
     chosen_call = valid_calls[0] if valid_calls else None
     if chosen_call is not None:
         tool_called = True
         name, query, call_label_type, topk = _extract_tool_args(chosen_call)
         if not label_type and call_label_type:
             label_type = str(call_label_type)
-        if query and label_type and gold_doc_ids:
+        if not isinstance(tool_doc_ids, list) and query and label_type and gold_doc_ids:
             effective_topk = int(topk or len(gold_doc_ids) or 1)
             if budget_B is not None:
                 if budget_B <= 0:
@@ -213,17 +237,19 @@ def reward_tarba(
             tool_called = True
             ranks = _rank_from_doc_ids(doc_ids, list(gold_doc_ids))
 
-    r_ret = 0.0
-    if allow_retrieval and label_type:
-        r_ret = _compute_retrieval_reward(ranks, alpha=alpha, policy=multilabel_policy)
-    if r_ans < ans_threshold:
-        r_ret = 0.0
-
     illegal_tool = False
     if tool_called and not allow_retrieval:
         illegal_tool = True
     if tool_call_count > 1:
         illegal_tool = True
+    valid_tool = tool_called and allow_retrieval and tool_call_count == 1
+
+    r_ret = 0.0
+    if allow_retrieval and label_type:
+        r_ret = _compute_retrieval_reward(ranks, floor=floor, topk=topk_cap, policy=multilabel_policy)
+    if valid_tool and tool_call_bonus > 0:
+        r_ret += float(tool_call_bonus)
+    # Do not gate retrieval shaping on answer score.
     score = r_ans + lambda_ret * r_ret
     if tool_called:
         score -= penalty_tool_call
@@ -232,16 +258,17 @@ def reward_tarba(
 
     is_correct = r_ans >= score_threshold
 
-    return {
+    out = {
         "score": float(score),
         "r_ans": float(r_ans),
         "r_ret": float(r_ret),
-        "tool_called": int(tool_called),
-        "tool_call_count": int(tool_call_count),
-        "illegal_tool": int(illegal_tool),
-        "ranks": ranks,
         "is_correct": bool(is_correct),
     }
+    if penalty_tool_call > 0 or penalty_illegal_tool > 0:
+        out["tool_called"] = int(tool_called)
+        out["tool_call_count"] = int(tool_call_count)
+        out["illegal_tool"] = int(illegal_tool)
+    return out
 
 
 __all__ = ["reward_tarba"]
