@@ -300,7 +300,7 @@ Key env overrides:
 - `ACRD_ACR_RL_WEIGHT` (scales the ACR PPO update; only used if `data.acr.update_actor=true`)
 - `ACRD_ACR_ROLLOUT_N` (number of ACR samples per prompt; default 4)
 - `ACRD_ACR_DISTILL_INTERVAL` (SFT interval in steps; default 10)
-- `ACRD_ACR_DISTILL_LR_SCALE` (SFT LR scale vs RLVR; default 0.5)
+- `ACRD_ACR_DISTILL_LR_SCALE` (SFT LR scale vs RLVR; default 0.1)
 - `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 1.0)
 - `ACRD_ACR_DISTILL_ENTROPY_BETA` (softmax beta for entropy sampling; default 1.0)
 - `ACRD_ACR_DISTILL_ENTROPY_SAMPLING` (enable stochastic entropy tie-break; default true)
