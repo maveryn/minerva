@@ -139,45 +139,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.max_critic_ckpt_to_keep=1 \
     trainer.default_local_dir="$OUTPUT_ROOT" \
     "$@"
-#!/usr/bin/env bash
-set -euo pipefail
-
-# ACRD per-batch training: RLVR -> ACR (aux PPO) -> SFT each step.
-
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DATA_DIR="$ROOT_DIR/mydata"
-REPO_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
-export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
-
-export WANDB_START_METHOD=thread
-export WANDB_DISABLE_SERVICE=true
-export PYTHONUNBUFFERED=1
-export VERL_LOGGING_LEVEL="${VERL_LOGGING_LEVEL:-INFO}"
-export VERL_VAL_DEBUG="${VERL_VAL_DEBUG:-1}"
-export VERL_VAL_LOG_EVERY="${VERL_VAL_LOG_EVERY:-1}"
-export RAY_DEDUP_LOGS="${RAY_DEDUP_LOGS:-1}"
-export RAY_DEDUP_LOGS_AGG_WINDOW_S="${RAY_DEDUP_LOGS_AGG_WINDOW_S:-60}"
-export RAY_LOG_TO_STDERR="${RAY_LOG_TO_STDERR:-0}"
-export ACRD_DEBUG_SAMPLES="${ACRD_DEBUG_SAMPLES:-2}"
-export ACRD_DETAILS_DEBUG_SAMPLES="${ACRD_DETAILS_DEBUG_SAMPLES:-2}"
-MODEL_PATH="${ACRD_MODEL_PATH:-meta-llama/Llama-3.2-3B-Instruct}"
-MODEL_NAME="$(basename "$MODEL_PATH")"
-MODEL_SLUG="$(printf "%s" "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_' | sed 's/^_//;s/_$//')"
-if [ -z "$MODEL_SLUG" ]; then
-  MODEL_SLUG="model"
-fi
-
-TRAIN_PATH="${ACRD_TRAIN_PATH:-$DATA_DIR/minerva_base/minerva_base_train.parquet}"
-VAL_PATHS=(
-  "${ACRD_VAL_PATH_1:-$DATA_DIR/minerva_base/minerva_base_dev.parquet}"
-  "${ACRD_VAL_PATH_2:-$DATA_DIR/athena/athena_cti_ate.parquet}"
-  "${ACRD_VAL_PATH_3:-$DATA_DIR/athena/athena_cti_ckt.parquet}"
-  "${ACRD_VAL_PATH_4:-$DATA_DIR/athena/athena_cti_rcm.parquet}"
-  "${ACRD_VAL_PATH_5:-$DATA_DIR/athena/athena_cti_rms.parquet}"
-)
-
-TRAIN_FILES="['$TRAIN_PATH']"
-VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}']"
 
 OUTPUT_ROOT="${ACRD_OUTPUT_ROOT:-$REPO_ROOT/outputs/acrd}"
 LABEL_DETAILS_DIR="${ACRD_LABEL_DETAILS_DIR:-$REPO_ROOT/dataset/label_details}"
