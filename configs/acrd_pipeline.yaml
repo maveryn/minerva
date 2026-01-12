@@ -1,0 +1,61 @@
+pipeline:
+  mode: cycle
+  num_cycles: 1
+  rlvr_steps_per_cycle: 1
+  acr_steps_per_cycle: 1
+  sft_steps_per_cycle: 1
+  collect_traces_every_cycle: true
+  sft_buffer_path: outputs/acr_sft_buffer.jsonl
+  sft_parquet_path: outputs/acr_sft.parquet
+  clear_buffer_each_cycle: true
+  output_root: outputs/acrd
+
+# Command templates; placeholders are expanded by scripts/train_acrd_pipeline.py
+commands:
+  rlvr:
+    - python
+    - -m
+    - verl.trainer.main_ppo
+    - trainer.total_training_steps={steps}
+    - trainer.default_local_dir={default_local_dir}
+    - trainer.resume_mode={resume_mode}
+    - trainer.resume_from_path={resume_path}
+    # Add model/data overrides here
+
+  acr:
+    - python
+    - -m
+    - verl.trainer.main_ppo
+    - trainer.total_training_steps={steps}
+    - trainer.default_local_dir={default_local_dir}
+    - trainer.resume_mode={resume_mode}
+    - trainer.resume_from_path={resume_path}
+    # Add ACR dataset + reward overrides here
+
+  collect:
+    - python
+    - scripts/collect_acr_traces.py
+    - --ckpt
+    - "{ckpt}"
+    - --dataset
+    - "path/to/train.parquet"
+    - --out
+    - "{sft_buffer}"
+
+  build_sft:
+    - python
+    - scripts/build_sft_from_acr.py
+    - --input
+    - "{sft_buffer}"
+    - --out
+    - "{sft_parquet}"
+
+  sft:
+    - python
+    - -m
+    - verl.trainer.fsdp_sft_trainer
+    - trainer.total_training_steps={steps}
+    - trainer.default_local_dir={default_local_dir}
+    - trainer.resume_mode={resume_mode}
+    - trainer.resume_from_path={resume_path}
+    # Add SFT data/model overrides here

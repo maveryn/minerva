@@ -22,11 +22,13 @@ This trainer supports model-agonistic model initialization with huggingface
 import json
 import math
 import os
+import re
 import time
 import uuid
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
+from functools import partial
 from pprint import pprint
 from typing import Optional, Tuple
 
@@ -62,8 +64,9 @@ from verl.utils.metric import reduce_metrics
 from verl.utils.model import compute_position_id_with_mask
 from verl.utils.rollout_skip import RolloutSkip
 from verl.utils.seqlen_balancing import get_seqlen_balanced_partitions, log_seqlen_unbalance
-from verl.utils.torch_functional import masked_mean
+from verl.utils.torch_functional import masked_mean, postprocess_data
 from verl.utils.tracking import ValidationGenerationsLogger
+from verl.workers.reward_manager.naive import NaiveRewardManager
 
 ZERO_SOLVE_THRESH = 1e-3
 ALL_SOLVE_THRESH = 0.95
@@ -371,6 +374,7 @@ class RayPPOTrainer:
 
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
         self._init_distill_state()
+        self._init_acr_state()
 
     def _expanduser_in_config(self, cfg):
         """Recursively expand user home (~) in string paths within the config."""
@@ -1209,6 +1213,7 @@ class RayPPOTrainer:
     def _init_distill_state(self) -> None:
         slhc_cfg = self.config.data.get("stochastic_slhc", {}) if self.config is not None else {}
         tarba_cfg = self.config.data.get("tarba", {}) if self.config is not None else {}
+        acr_cfg = self.config.data.get("acr", {}) if self.config is not None else {}
         distill_cfg = None
         distill_source = None
 
@@ -1228,6 +1233,14 @@ class RayPPOTrainer:
                 distill_source = "tarba" if distill_cfg is not None else distill_source
 
         if distill_cfg is None:
+            if isinstance(acr_cfg, DictConfig):
+                distill_cfg = acr_cfg.get("distill", None)
+                distill_source = "acr" if distill_cfg is not None else distill_source
+            elif isinstance(acr_cfg, dict):
+                distill_cfg = acr_cfg.get("distill", None)
+                distill_source = "acr" if distill_cfg is not None else distill_source
+
+        if distill_cfg is None:
             distill_cfg = {}
         if isinstance(distill_cfg, DictConfig):
             distill_cfg = OmegaConf.to_container(distill_cfg, resolve=True)
@@ -1245,6 +1258,9 @@ class RayPPOTrainer:
             "drop_last": True,
             "dedup_by_uid": True,
         }
+        if distill_source == "acr":
+            defaults["interval"] = 1
+            defaults["reward_threshold"] = 0.5
         for key, value in defaults.items():
             distill_cfg.setdefault(key, value)
 
@@ -1253,6 +1269,245 @@ class RayPPOTrainer:
         self._distill_buffer_local = []
         self._distill_last_run_step = -1
         self._distill_actor_dp_size = None
+
+    def _init_acr_state(self) -> None:
+        self._acr_enabled = False
+        self._acr_cfg: dict = {}
+        self._acr_reward_fn = None
+        self._acr_details_store = None
+        self._acr_dedupe_labels = None
+        self._acr_extract_gold_labels = None
+        self._acr_try_build_messages = None
+        self._acr_get_task_spec = None
+        self._acr_normalize_label = None
+        self._acr_extract_labels_from_truth = None
+        self._acr_task_spec_cls = None
+        self._acr_reward_fn_key = self.config.data.get("reward_fn_key", "data_source")
+        self._acr_apply_chat_template_kwargs = self.config.data.get("apply_chat_template_kwargs", {})
+        self._acr_truncation = self.config.data.get("truncation", "error")
+        self._acr_debug_samples = max(0, int(os.getenv("ACRD_DEBUG_SAMPLES", "0")))
+        self._acr_details_debug_samples = max(0, int(os.getenv("ACRD_DETAILS_DEBUG_SAMPLES", "2")))
+
+        acr_cfg = self.config.data.get("acr", {}) if self.config is not None else {}
+        if isinstance(acr_cfg, DictConfig):
+            acr_cfg = OmegaConf.to_container(acr_cfg, resolve=True)
+        if not isinstance(acr_cfg, dict):
+            return
+        if not acr_cfg.get("per_batch", False):
+            return
+        if self.processor is not None:
+            print("ACR per-batch disabled: multimodal processor is not supported.")
+            return
+
+        try:
+            from minerva.acr_prompt import dedupe_labels, extract_gold_labels, try_build_acr_messages
+            from minerva.cti_task_specs import get_task_spec
+            from minerva.label_details_store import LabelDetailsStore
+            from minerva.retrieval.task_specs import TaskSpec as RetrievalTaskSpec
+            from minerva.retrieval.task_specs import extract_labels_from_truth, normalize_label
+        except Exception as exc:
+            print(f"ACR per-batch disabled: {exc}")
+            return
+
+        reward_kwargs = dict(acr_cfg.get("reward_kwargs", {}))
+        reward_kwargs.setdefault("enforce_no_id_in_reasoning", bool(acr_cfg.get("enforce_no_id_in_reasoning", True)))
+
+        try:
+            from verl.utils.reward_score.reward_acr import reward_acr
+        except Exception as exc:
+            print(f"ACR per-batch disabled: {exc}")
+            return
+
+        label_details_dir = acr_cfg.get("label_details_dir")
+        self._acr_details_store = LabelDetailsStore(label_details_dir)
+        self._acr_dedupe_labels = dedupe_labels
+        self._acr_extract_gold_labels = extract_gold_labels
+        self._acr_try_build_messages = try_build_acr_messages
+        self._acr_get_task_spec = get_task_spec
+        self._acr_normalize_label = normalize_label
+        self._acr_extract_labels_from_truth = extract_labels_from_truth
+        self._acr_task_spec_cls = RetrievalTaskSpec
+
+        self._acr_cfg = acr_cfg
+        self._acr_enabled = True
+        self._acr_max_details_chars = int(acr_cfg.get("max_details_chars", 4048))
+        self._acr_enforce_no_id = bool(acr_cfg.get("enforce_no_id_in_reasoning", True))
+        self._acr_max_prompt_length = int(
+            acr_cfg.get("max_prompt_length", self.config.data.get("max_prompt_length", 1024))
+        )
+        self._acr_rollout_n = max(1, int(acr_cfg.get("rollout_n", 4)))
+        self._acr_weight = float(acr_cfg.get("rl_weight", 0.3))
+        compute_score = partial(reward_acr, **reward_kwargs)
+        self._acr_reward_fn = NaiveRewardManager(
+            tokenizer=self.tokenizer,
+            num_examine=0,
+            compute_score=compute_score,
+            reward_fn_key=self._acr_reward_fn_key,
+        )
+
+    def _debug_log_acr_samples(
+        self,
+        acr_batch: DataProto,
+        reward_scalar: Optional[torch.Tensor],
+        reward_threshold_scalar: Optional[torch.Tensor],
+        reward_extra_infos: dict,
+    ) -> None:
+        max_samples = int(getattr(self, "_acr_debug_samples", 0) or 0)
+        if max_samples <= 0 or reward_scalar is None:
+            return
+
+        uid_arr = acr_batch.non_tensor_batch.get("uid")
+        extra_arr = acr_batch.non_tensor_batch.get("extra_info")
+        data_source_arr = acr_batch.non_tensor_batch.get(self._acr_reward_fn_key)
+        if uid_arr is None or extra_arr is None or data_source_arr is None:
+            return
+
+        responses = acr_batch.batch.get("responses")
+        if responses is None:
+            return
+        responses = responses.detach().cpu()
+
+        response_mask = acr_batch.batch.get("response_mask")
+        if response_mask is not None:
+            response_mask = response_mask.detach().cpu()
+
+        log_probs = acr_batch.batch.get("rollout_log_probs")
+        if log_probs is None:
+            log_probs = acr_batch.batch.get("old_log_probs")
+        if log_probs is not None:
+            log_probs = log_probs.detach().cpu()
+
+        uid_list = np.asarray(uid_arr, dtype=object).tolist()
+        extra_list = np.asarray(extra_arr, dtype=object).tolist()
+        data_source_list = np.asarray(data_source_arr, dtype=object).tolist()
+
+        reward_list = reward_scalar.detach().cpu().tolist()
+        reward_threshold_list = reward_list
+        if reward_threshold_scalar is not None:
+            try:
+                threshold_list = reward_threshold_scalar.detach().cpu().tolist()
+            except Exception:
+                threshold_list = None
+            if isinstance(threshold_list, list) and len(threshold_list) == len(reward_list):
+                reward_threshold_list = threshold_list
+
+        base_scores = reward_extra_infos.get("acr_base_score")
+        if isinstance(base_scores, np.ndarray):
+            base_scores = base_scores.tolist()
+        if not isinstance(base_scores, list) or len(base_scores) != len(reward_list):
+            base_scores = [None] * len(reward_list)
+
+        leak_hits = reward_extra_infos.get("acr_leak_hit")
+        if isinstance(leak_hits, np.ndarray):
+            leak_hits = leak_hits.tolist()
+        if not isinstance(leak_hits, list) or len(leak_hits) != len(reward_list):
+            leak_hits = [None] * len(reward_list)
+
+        threshold = float(self._distill_cfg.get("reward_threshold", 0.5))
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
+
+        def render_messages(messages: Optional[list]) -> str:
+            if not isinstance(messages, list):
+                return ""
+            try:
+                return self.tokenizer.apply_chat_template(
+                    messages, add_generation_prompt=True, tokenize=False, **self._acr_apply_chat_template_kwargs
+                )
+            except Exception:
+                return json.dumps(messages, ensure_ascii=True)
+
+        def truncate_text(text: str, max_chars: int = 4000) -> str:
+            if not text:
+                return ""
+            if len(text) <= max_chars:
+                return text
+            return text[:max_chars] + "\n...[truncated]"
+
+        def mean_nll(idx: int) -> Optional[float]:
+            if log_probs is None or response_mask is None:
+                return None
+            mask = response_mask[idx]
+            denom = mask.sum()
+            if denom.item() <= 0:
+                return None
+            return float(-(log_probs[idx] * mask).sum().item() / denom.item())
+
+        grouped: dict[str, list[int]] = {}
+        for idx, uid in enumerate(uid_list):
+            grouped.setdefault(str(uid), []).append(idx)
+
+        shown = 0
+        for uid, idxs in grouped.items():
+            if shown >= max_samples:
+                break
+            if not idxs:
+                continue
+            idxs = list(idxs)
+            ref_idx = idxs[0]
+            extra_info = extra_list[ref_idx] if isinstance(extra_list[ref_idx], dict) else {}
+            data_source = data_source_list[ref_idx]
+
+            orig_prompt = render_messages(extra_info.get("acr_orig_prompt"))
+            acr_prompt = render_messages(extra_info.get("acr_prompt"))
+
+            eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
+            chosen_idx = None
+            entropy_proxy = None
+            if eligible:
+                max_reward = max(reward_list[i] for i in eligible)
+                top = [i for i in eligible if reward_list[i] >= (max_reward - 1e-6)]
+                top.sort()
+                chosen_idx = top[0]
+                if len(top) > 1:
+                    entropy_map = {i: mean_nll(i) for i in top}
+                    chosen_idx = max(top, key=lambda i: (entropy_map.get(i, float("-inf")), -i))
+                    entropy_proxy = entropy_map.get(chosen_idx)
+                else:
+                    entropy_proxy = mean_nll(chosen_idx)
+
+            print(f"\n[ACRD DEBUG] uid={uid} data_source={data_source} eligible={len(eligible)}/{len(idxs)}")
+            if orig_prompt:
+                print("[ACRD DEBUG] original prompt:\n" + truncate_text(orig_prompt))
+            if acr_prompt:
+                print("[ACRD DEBUG] modified prompt:\n" + truncate_text(acr_prompt))
+
+            for j, idx in enumerate(idxs, start=1):
+                if response_mask is not None:
+                    valid_len = int(response_mask[idx].sum().item())
+                    response_ids = responses[idx][:valid_len].tolist()
+                else:
+                    response_ids = responses[idx].tolist()
+                    while response_ids and response_ids[-1] == pad_id:
+                        response_ids.pop()
+                response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True) if response_ids else ""
+                reward_val = reward_list[idx]
+                base_score_val = base_scores[idx]
+                leak_hit_val = leak_hits[idx]
+                is_eligible = reward_threshold_list[idx] >= threshold
+                base_str = f"{float(base_score_val):.3f}" if base_score_val is not None else "NA"
+                leak_str = "NA" if leak_hit_val is None else str(bool(leak_hit_val))
+                print(
+                    "[ACRD DEBUG] response "
+                    f"{j}/{len(idxs)} reward={reward_val:.3f} base={base_str} eligible={is_eligible} leak={leak_str}\n"
+                    + truncate_text(response_text)
+                )
+
+            if chosen_idx is not None:
+                if response_mask is not None:
+                    valid_len = int(response_mask[chosen_idx].sum().item())
+                    chosen_ids = responses[chosen_idx][:valid_len].tolist()
+                else:
+                    chosen_ids = responses[chosen_idx].tolist()
+                    while chosen_ids and chosen_ids[-1] == pad_id:
+                        chosen_ids.pop()
+                chosen_text = self.tokenizer.decode(chosen_ids, skip_special_tokens=True) if chosen_ids else ""
+                proxy_str = f"{entropy_proxy:.3f}" if entropy_proxy is not None else "NA"
+                print("[ACRD DEBUG] selected response (entropy_proxy=" + proxy_str + "):\n" + truncate_text(chosen_text))
+            else:
+                print(f"[ACRD DEBUG] selected response: none (no response >= {threshold:.2f})")
+            shown += 1
 
     def _get_actor_dp_size(self) -> int:
         if self._distill_actor_dp_size is not None:
@@ -1267,6 +1522,308 @@ class RayPPOTrainer:
         self._distill_actor_dp_size = max(1, dp_size)
         return self._distill_actor_dp_size
 
+    def _acr_prompt_too_long(self, messages: list[dict]) -> bool:
+        if not self._acr_enabled:
+            return False
+        try:
+            raw_prompt = self.tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=False, **self._acr_apply_chat_template_kwargs
+            )
+            input_ids = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
+            return len(input_ids) > self._acr_max_prompt_length
+        except Exception:
+            return False
+
+    def _acr_tokenize_messages(self, messages: list[dict]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        raw_prompt = self.tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, tokenize=False, **self._acr_apply_chat_template_kwargs
+        )
+        model_inputs = self.tokenizer(raw_prompt, return_tensors="pt", add_special_tokens=False)
+        input_ids = model_inputs.pop("input_ids")
+        attention_mask = model_inputs.pop("attention_mask")
+
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
+
+        input_ids, attention_mask = postprocess_data(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            max_length=self._acr_max_prompt_length,
+            pad_token_id=pad_id,
+            left_pad=True,
+            truncation=self._acr_truncation,
+        )
+        position_ids = compute_position_id_with_mask(attention_mask)
+        return input_ids[0], attention_mask[0], position_ids[0]
+
+    def _build_acr_batch(self, batch: DataProto) -> tuple[Optional[DataProto], dict[str, float]]:
+        metrics: dict[str, float] = {}
+        if not self._acr_enabled:
+            return None, metrics
+
+        raw_prompt_arr = batch.non_tensor_batch.get("raw_prompt")
+        extra_arr = batch.non_tensor_batch.get("extra_info")
+        reward_arr = batch.non_tensor_batch.get("reward_model")
+        data_source_arr = batch.non_tensor_batch.get(self._acr_reward_fn_key)
+        uid_arr = batch.non_tensor_batch.get("uid")
+
+        total = len(batch)
+        if reward_arr is None or data_source_arr is None or uid_arr is None:
+            metrics["acr/skip_missing_meta"] = float(total)
+            return None, metrics
+
+        raw_prompts = np.asarray(raw_prompt_arr, dtype=object).tolist() if raw_prompt_arr is not None else [None] * total
+        extras = np.asarray(extra_arr, dtype=object).tolist() if extra_arr is not None else [None] * total
+        rewards = np.asarray(reward_arr, dtype=object).tolist()
+        data_sources = np.asarray(data_source_arr, dtype=object).tolist()
+        uids = np.asarray(uid_arr, dtype=object).tolist()
+
+        optional_keys = []
+        for key in ("tools_kwargs", "interaction_kwargs", "need_tools_kwargs", "__num_turns__"):
+            if key in batch.non_tensor_batch:
+                optional_keys.append(key)
+        optional_values = {
+            key: np.asarray(batch.non_tensor_batch[key], dtype=object).tolist() for key in optional_keys
+        }
+
+        input_ids_list = []
+        attention_mask_list = []
+        position_ids_list = []
+        non_tensor_lists: dict[str, list] = {
+            self._acr_reward_fn_key: [],
+            "reward_model": [],
+            "extra_info": [],
+            "uid": [],
+            "raw_prompt": [],
+        }
+        for key in optional_keys:
+            non_tensor_lists[key] = []
+
+        skipped_missing_prompt = 0
+        skipped_missing_labels = 0
+        skipped_prompt_too_long = 0
+        skipped_tokenize_error = 0
+        details_missing = 0
+        details_omitted = 0
+        details_truncated = 0
+        details_not_applicable = 0
+        details_logged = 0
+        details_log_limit = int(getattr(self, "_acr_details_debug_samples", 0) or 0)
+
+        def log_details_issue(reason: str, *, details_text: str, used_details: str, option_text: str = "") -> None:
+            nonlocal details_logged
+            if details_log_limit <= 0 or details_logged >= details_log_limit:
+                return
+            source_file = extra_info.get("source_file") if isinstance(extra_info, dict) else None
+            task_name = extra_info.get("task") if isinstance(extra_info, dict) else None
+            details_len = len(details_text or "")
+            used_len = len(used_details or "")
+            label_str = ",".join(gold_norm)
+            print(
+                "[ACRD DETAILS] "
+                f"reason={reason} uid={uids[idx]} data_source={data_source} "
+                f"task_key={spec.task_key or ''} entity_type={entity_type or ''} "
+                f"labels={label_str} option_text={option_text or ''} source_file={source_file or ''} task={task_name or ''} "
+                f"details_len={details_len} used_details_len={used_len} "
+                f"max_details_chars={self._acr_max_details_chars} max_prompt_len={self._acr_max_prompt_length}"
+            )
+            details_logged += 1
+
+        def extract_option_map(messages: list[dict]) -> dict[str, str]:
+            text = ""
+            for msg in reversed(messages):
+                if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+                    text = msg["content"]
+                    break
+            if not text:
+                return {}
+            marker = "Options:"
+            if marker not in text:
+                return {}
+            tail = text.split(marker, 1)[1]
+            options: dict[str, str] = {}
+            for line in tail.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                match = re.match(r"^([A-Z])\s*[\.\)]\s*(.+)$", line)
+                if not match:
+                    continue
+                options[match.group(1).upper()] = match.group(2).strip()
+            return options
+
+        for idx in range(total):
+            extra_info = extras[idx] if isinstance(extras[idx], dict) else {}
+            messages = raw_prompts[idx]
+            if not isinstance(messages, list):
+                fallback = extra_info.get("acr_orig_prompt") if isinstance(extra_info, dict) else None
+                messages = fallback if isinstance(fallback, list) else None
+            if not isinstance(messages, list):
+                skipped_missing_prompt += 1
+                continue
+
+            reward_model = rewards[idx] if isinstance(rewards[idx], dict) else {}
+            ground_truth = reward_model.get("ground_truth")
+            data_source = data_sources[idx]
+
+            spec = self._acr_get_task_spec(data_source, ground_truth, extra_info)
+            entity_type = spec.entity_type
+            gold_norm = []
+            if self._acr_extract_labels_from_truth is not None and self._acr_task_spec_cls is not None:
+                try:
+                    retrieval_spec = self._acr_task_spec_cls(
+                        label_type=entity_type,
+                        is_multilabel=bool(spec.is_multilabel),
+                        label_id_regex=spec.label_id_regex,
+                    )
+                    gold_norm = self._acr_extract_labels_from_truth(ground_truth, retrieval_spec)
+                except Exception:
+                    gold_norm = []
+            if not gold_norm:
+                gold_labels = self._acr_extract_gold_labels(ground_truth)
+                gold_norm = [
+                    self._acr_normalize_label(entity_type, label) if entity_type else str(label).strip()
+                    for label in gold_labels
+                ]
+                gold_norm = self._acr_dedupe_labels(gold_norm)
+            if not gold_norm:
+                skipped_missing_labels += 1
+                continue
+
+            details_labels = gold_norm
+            option_text = ""
+            if (
+                entity_type
+                and len(gold_norm) == 1
+                and len(gold_norm[0]) == 1
+                and isinstance(messages, list)
+            ):
+                options = extract_option_map(messages)
+                option_text = options.get(gold_norm[0].upper(), "")
+                if option_text:
+                    if self._acr_extract_labels_from_truth is not None and self._acr_task_spec_cls is not None:
+                        try:
+                            retrieval_spec = self._acr_task_spec_cls(
+                                label_type=entity_type,
+                                is_multilabel=bool(spec.is_multilabel),
+                                label_id_regex=spec.label_id_regex,
+                            )
+                            extracted = self._acr_extract_labels_from_truth(option_text, retrieval_spec)
+                            if extracted:
+                                details_labels = extracted
+                        except Exception:
+                            pass
+                    if details_labels == gold_norm:
+                        details_labels = [option_text]
+
+            details_applicable = bool(entity_type)
+            details_text = None
+            if details_applicable:
+                details_text = self._acr_details_store.get_details(entity_type, details_labels)
+            acr_messages, skipped, used_details = self._acr_try_build_messages(
+                messages,
+                gold_norm,
+                details_text,
+                max_details_chars=self._acr_max_details_chars,
+                prompt_too_long=self._acr_prompt_too_long,
+                enforce_no_id=self._acr_enforce_no_id,
+            )
+            if skipped:
+                skipped_prompt_too_long += 1
+                continue
+
+            if details_applicable:
+                if not details_text:
+                    details_missing += 1
+                    log_details_issue(
+                        "details_missing",
+                        details_text=details_text or "",
+                        used_details=used_details or "",
+                        option_text=option_text,
+                    )
+                elif not used_details:
+                    details_omitted += 1
+                    log_details_issue(
+                        "details_omitted",
+                        details_text=details_text or "",
+                        used_details=used_details or "",
+                        option_text=option_text,
+                    )
+                elif used_details and details_text and used_details.endswith("...") and len(used_details) < len(details_text):
+                    details_truncated += 1
+            else:
+                details_not_applicable += 1
+
+            try:
+                input_ids, attention_mask, position_ids = self._acr_tokenize_messages(acr_messages)
+            except Exception:
+                skipped_tokenize_error += 1
+                continue
+
+            extra = dict(extra_info) if isinstance(extra_info, dict) else {}
+            extra.setdefault("acr_orig_prompt", deepcopy(messages))
+            extra["acr_prompt"] = acr_messages
+            extra["acr_skipped"] = False
+            if option_text:
+                extra["acr_option_text"] = option_text
+            if details_labels != gold_norm:
+                extra["acr_details_labels"] = details_labels
+            extra["acr_entity_type"] = entity_type or ""
+            extra["acr_gold_labels"] = gold_norm
+            extra["acr_gold_keys"] = [f"{entity_type}:{label}" if entity_type else label for label in gold_norm]
+            extra["acr_mode"] = "acr"
+            if spec.task_key:
+                extra["acr_task_key"] = spec.task_key
+            if used_details:
+                extra["acr_details_chars"] = int(len(used_details))
+
+            input_ids_list.append(input_ids)
+            attention_mask_list.append(attention_mask)
+            position_ids_list.append(position_ids)
+            non_tensor_lists[self._acr_reward_fn_key].append(data_source)
+            non_tensor_lists["reward_model"].append(reward_model)
+            non_tensor_lists["extra_info"].append(extra)
+            non_tensor_lists["uid"].append(uids[idx])
+            non_tensor_lists["raw_prompt"].append(acr_messages)
+            for key in optional_keys:
+                non_tensor_lists[key].append(optional_values[key][idx])
+
+        used = len(input_ids_list)
+        metrics["acr/batch_total"] = float(total)
+        metrics["acr/batch_used"] = float(used)
+        if skipped_missing_prompt:
+            metrics["acr/skip_missing_prompt"] = float(skipped_missing_prompt)
+        if skipped_missing_labels:
+            metrics["acr/skip_missing_labels"] = float(skipped_missing_labels)
+        if skipped_prompt_too_long:
+            metrics["acr/skip_prompt_long"] = float(skipped_prompt_too_long)
+        if skipped_tokenize_error:
+            metrics["acr/skip_tokenize_error"] = float(skipped_tokenize_error)
+        if details_missing:
+            metrics["acr/details_missing"] = float(details_missing)
+        if details_omitted:
+            metrics["acr/details_omitted"] = float(details_omitted)
+        if details_truncated:
+            metrics["acr/details_truncated"] = float(details_truncated)
+        if details_not_applicable:
+            metrics["acr/details_not_applicable"] = float(details_not_applicable)
+        if used:
+            metrics["acr/details_missing_frac"] = float(details_missing / used)
+            metrics["acr/details_omitted_frac"] = float(details_omitted / used)
+            metrics["acr/details_truncated_frac"] = float(details_truncated / used)
+
+        if used == 0:
+            return None, metrics
+
+        tensors = {
+            "input_ids": torch.stack(input_ids_list, dim=0),
+            "attention_mask": torch.stack(attention_mask_list, dim=0),
+            "position_ids": torch.stack(position_ids_list, dim=0),
+        }
+        non_tensors = {key: np.array(vals, dtype=object) for key, vals in non_tensor_lists.items()}
+        return DataProto.from_dict(tensors=tensors, non_tensors=non_tensors), metrics
+
     def _tokenize_prompt_nohint(self, messages: list[dict]) -> Optional[list[int]]:
         if not isinstance(messages, list):
             return None
@@ -1280,7 +1837,10 @@ class RayPPOTrainer:
             return None
 
     def _collect_distill_candidates(
-        self, batch: DataProto, reward_scalar: Optional[torch.Tensor]
+        self,
+        batch: DataProto,
+        reward_scalar: Optional[torch.Tensor],
+        reward_threshold_scalar: Optional[torch.Tensor] = None,
     ) -> dict[str, float]:
         cfg = self._distill_cfg
         if not cfg.get("enabled", False) or reward_scalar is None:
@@ -1302,6 +1862,14 @@ class RayPPOTrainer:
         reward_list = reward_scalar.detach().cpu().tolist()
         if len(uid_list) != len(reward_list):
             return {}
+        reward_threshold_list = reward_list
+        if reward_threshold_scalar is not None:
+            try:
+                threshold_list = reward_threshold_scalar.detach().cpu().tolist()
+            except Exception:
+                threshold_list = None
+            if isinstance(threshold_list, list) and len(threshold_list) == len(reward_list):
+                reward_threshold_list = threshold_list
 
         responses = batch.batch.get("responses")
         if responses is None:
@@ -1345,7 +1913,7 @@ class RayPPOTrainer:
         records = []
 
         for uid, idxs in grouped.items():
-            eligible = [i for i in idxs if reward_list[i] >= threshold]
+            eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
             if not eligible:
                 continue
             max_reward = max(reward_list[i] for i in eligible)
@@ -1366,13 +1934,19 @@ class RayPPOTrainer:
             prompt_nohint = None
             hint_used = False
             if isinstance(extra_info, dict):
-                prompt_nohint = extra_info.get("slhc_prompt_nohint")
-                if not isinstance(prompt_nohint, list):
-                    prompt_nohint = extra_info.get("tarba_prompt_no_tool")
-                if "slhc_hint_used" in extra_info:
-                    hint_used = bool(extra_info.get("slhc_hint_used", False))
+                if self._distill_source == "acr":
+                    prompt_nohint = extra_info.get("acr_prompt")
+                    if not isinstance(prompt_nohint, list):
+                        prompt_nohint = extra_info.get("acr_prompt_nohint")
+                    hint_used = True
                 else:
-                    hint_used = bool(extra_info.get("tarba_allow_retrieval", False))
+                    prompt_nohint = extra_info.get("slhc_prompt_nohint")
+                    if not isinstance(prompt_nohint, list):
+                        prompt_nohint = extra_info.get("tarba_prompt_no_tool")
+                    if "slhc_hint_used" in extra_info:
+                        hint_used = bool(extra_info.get("slhc_hint_used", False))
+                    else:
+                        hint_used = bool(extra_info.get("tarba_allow_retrieval", False))
 
             if not isinstance(prompt_nohint, list):
                 continue
@@ -1716,6 +2290,151 @@ class RayPPOTrainer:
         self._distill_last_run_step = global_step
         return metrics
 
+    def _run_acr_phase(self, acr_batch: Optional[DataProto], timing_raw: dict) -> dict[str, float]:
+        if not self._acr_enabled or acr_batch is None or len(acr_batch) == 0:
+            return {}
+
+        metrics: dict[str, float] = {}
+
+        acr_gen_batch = self._get_gen_batch(acr_batch)
+        acr_gen_batch.meta_info["global_steps"] = self.global_steps
+        acr_gen_batch = acr_gen_batch.repeat(repeat_times=self._acr_rollout_n, interleave=True)
+
+        with marked_timer("acr_gen", timing_raw, color="magenta"):
+            if not self.async_rollout_mode:
+                acr_gen_output = self.actor_rollout_wg.generate_sequences(acr_gen_batch)
+            else:
+                acr_gen_output = self.async_rollout_manager.generate_sequences(acr_gen_batch)
+            timing_raw.update(acr_gen_output.meta_info.get("timing", {}))
+            acr_gen_output.meta_info.pop("timing", None)
+
+        acr_batch = acr_batch.repeat(repeat_times=self._acr_rollout_n, interleave=True)
+        acr_batch = acr_batch.union(acr_gen_output)
+
+        if "response_mask" not in acr_batch.batch.keys():
+            acr_batch.batch["response_mask"] = compute_response_mask(acr_batch)
+
+        if self.config.trainer.balance_batch:
+            self._balance_batch(acr_batch, metrics=metrics, logging_prefix="acr_seqlen")
+
+        acr_batch.meta_info["global_token_num"] = torch.sum(acr_batch.batch["attention_mask"], dim=-1).tolist()
+
+        with marked_timer("acr_reward", timing_raw, color="yellow"):
+            reward_tensor_raw, reward_extra_infos_dict = compute_reward(acr_batch, self._acr_reward_fn)
+
+            for key, values in reward_extra_infos_dict.items():
+                if key == "score":
+                    continue
+                try:
+                    this_val = np.asarray(values, dtype=float)
+                except (TypeError, ValueError):
+                    continue
+                if this_val.size == 0:
+                    continue
+                metrics[f"acr/rewards/{key}"] = float(np.mean(this_val))
+
+        reward_scalar_raw = None
+        if reward_tensor_raw.dim() == 2:
+            reward_scalar_raw = reward_tensor_raw.max(dim=-1).values
+        elif reward_tensor_raw.dim() == 1:
+            reward_scalar_raw = reward_tensor_raw
+
+        reward_threshold_scalar = None
+        base_scores = reward_extra_infos_dict.get("acr_base_score")
+        if base_scores is not None:
+            try:
+                base_scores_arr = np.asarray(base_scores, dtype=float)
+            except (TypeError, ValueError):
+                base_scores_arr = None
+            if base_scores_arr is not None and base_scores_arr.size == len(acr_batch):
+                reward_threshold_scalar = torch.tensor(base_scores_arr)
+
+        reward_tensor = reward_tensor_raw
+        if self._acr_weight != 1.0:
+            reward_tensor = reward_tensor * float(self._acr_weight)
+        acr_batch.batch["token_level_scores"] = reward_tensor
+
+        with marked_timer("acr_old_log_prob", timing_raw, color="blue"):
+            old_log_prob = self.actor_rollout_wg.compute_log_prob(acr_batch)
+            entropys = old_log_prob.batch["entropys"]
+            response_masks = acr_batch.batch["response_mask"]
+            loss_agg_mode = self.config.actor_rollout_ref.actor.loss_agg_mode
+            entropy_agg = agg_loss(loss_mat=entropys, loss_mask=response_masks, loss_agg_mode=loss_agg_mode)
+            metrics["acr/actor_entropy"] = entropy_agg.detach().item()
+            old_log_prob.batch.pop("entropys")
+            acr_batch = acr_batch.union(old_log_prob)
+
+        self._debug_log_acr_samples(
+            acr_batch=acr_batch,
+            reward_scalar=reward_scalar_raw,
+            reward_threshold_scalar=reward_threshold_scalar,
+            reward_extra_infos=reward_extra_infos_dict,
+        )
+
+        if self.use_reference_policy:
+            with marked_timer("acr_ref", timing_raw, color="olive"):
+                if not self.ref_in_actor:
+                    ref_log_prob = self.ref_policy_wg.compute_ref_log_prob(acr_batch)
+                else:
+                    ref_log_prob = self.actor_rollout_wg.compute_ref_log_prob(acr_batch)
+                acr_batch = acr_batch.union(ref_log_prob)
+
+        if self.use_critic:
+            with marked_timer("acr_values", timing_raw, color="cyan"):
+                values = self.critic_wg.compute_values(acr_batch)
+                acr_batch = acr_batch.union(values)
+
+        with marked_timer("acr_adv", timing_raw, color="brown"):
+            if self.config.algorithm.use_kl_in_reward:
+                acr_batch, kl_metrics = apply_kl_penalty(
+                    acr_batch, kl_ctrl=self.kl_ctrl_in_reward, kl_penalty=self.config.algorithm.kl_penalty
+                )
+                for key, val in kl_metrics.items():
+                    metrics[f"acr/{key}"] = float(val)
+            else:
+                acr_batch.batch["token_level_rewards"] = acr_batch.batch["token_level_scores"]
+
+            norm_adv_by_std_in_grpo = self.config.algorithm.get("norm_adv_by_std_in_grpo", True)
+            acr_batch = compute_advantage(
+                acr_batch,
+                adv_estimator=self.config.algorithm.adv_estimator,
+                gamma=self.config.algorithm.gamma,
+                lam=self.config.algorithm.lam,
+                num_repeat=self._acr_rollout_n,
+                norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
+                config=self.config.algorithm,
+            )
+
+        if self.use_critic and self._acr_cfg.get("update_critic", False):
+            with marked_timer("acr_update_critic", timing_raw, color="pink"):
+                critic_output = self.critic_wg.update_critic(acr_batch)
+            critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
+            for key, val in critic_output_metrics.items():
+                metrics[f"acr/{key}"] = float(val)
+
+        with marked_timer("acr_update_actor", timing_raw, color="red"):
+            acr_batch.meta_info["multi_turn"] = self.config.actor_rollout_ref.rollout.multi_turn.enable
+            actor_output = self.actor_rollout_wg.update_actor(acr_batch)
+        actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
+        for key, val in actor_output_metrics.items():
+            metrics[f"acr/{key}"] = float(val)
+
+        if reward_scalar_raw is not None and self._distill_source == "acr":
+            distill_metrics = self._collect_distill_candidates(
+                batch=acr_batch,
+                reward_scalar=reward_scalar_raw,
+                reward_threshold_scalar=reward_threshold_scalar,
+            )
+            if distill_metrics:
+                metrics.update({f"acr_{k}": float(v) for k, v in distill_metrics.items()})
+
+        if self._distill_source == "acr":
+            distill_metrics = self._maybe_run_distill_sft(self.global_steps)
+            if distill_metrics:
+                metrics.update({f"acr_{k}": float(v) for k, v in distill_metrics.items()})
+
+        return metrics
+
     def fit(self):
         """
         The training loop of PPO.
@@ -1790,6 +2509,11 @@ class RayPPOTrainer:
                 batch.non_tensor_batch["uid"] = np.array(
                     [str(uuid.uuid4()) for _ in range(len(batch.batch))], dtype=object
                 )
+                acr_batch = None
+                if self._acr_enabled:
+                    acr_batch, acr_build_metrics = self._build_acr_batch(batch)
+                    if acr_build_metrics:
+                        metrics.update(acr_build_metrics)
 
                 gen_batch = self._get_gen_batch(batch)
 
@@ -2064,9 +2788,10 @@ class RayPPOTrainer:
                                     if isinstance(tarba_metrics, dict):
                                         metrics.update(tarba_metrics)
 
-                        distill_metrics = self._collect_distill_candidates(batch=batch, reward_scalar=reward_scalar)
-                        if isinstance(distill_metrics, dict) and distill_metrics:
-                            metrics.update(distill_metrics)
+                        if self._distill_source != "acr":
+                            distill_metrics = self._collect_distill_candidates(batch=batch, reward_scalar=reward_scalar)
+                            if isinstance(distill_metrics, dict) and distill_metrics:
+                                metrics.update(distill_metrics)
 
                         # compute rewards. apply_kl_penalty if available
                         if self.config.algorithm.use_kl_in_reward:
@@ -2109,9 +2834,15 @@ class RayPPOTrainer:
                         actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
                         metrics.update(actor_output_metrics)
 
-                        distill_metrics = self._maybe_run_distill_sft(self.global_steps)
-                        if distill_metrics:
-                            metrics.update(distill_metrics)
+                        if self._distill_source != "acr":
+                            distill_metrics = self._maybe_run_distill_sft(self.global_steps)
+                            if distill_metrics:
+                                metrics.update(distill_metrics)
+
+                        if self._acr_enabled:
+                            acr_metrics = self._run_acr_phase(acr_batch, timing_raw)
+                            if acr_metrics:
+                                metrics.update(acr_metrics)
 
                     # Log rollout generations if enabled
                     rollout_data_dir = self.config.trainer.get("rollout_data_dir", None)

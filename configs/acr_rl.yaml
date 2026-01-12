@@ -1,0 +1,24 @@
+data:
+  custom_cls:
+    path: rlvr/verl/utils/dataset/minerva_acr_dataset.py
+    name: ACRRLHFDataset
+  dataloader_num_workers: 0
+  acr:
+    enabled: true
+    label_details_dir: dataset/label_details
+    max_details_chars: 4048
+    rollout_n: 4
+    enforce_no_id_in_reasoning: true
+
+actor_rollout_ref:
+  rollout:
+    n: 1
+
+custom_reward_function:
+  path: rlvr/verl/utils/reward_score/reward_acr.py
+  name: reward_acr
+    reward_kwargs:
+      r_correct: 0.2
+      leak_penalty: 0.5
+      multilabel_match: exact
+      enforce_no_id_in_reasoning: true
