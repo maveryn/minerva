@@ -2621,7 +2621,13 @@ class RayPPOTrainer:
             acr_batch.batch["response_mask"] = compute_response_mask(acr_batch)
 
         if self.config.trainer.balance_batch:
-            self._balance_batch(acr_batch, metrics=metrics, logging_prefix="acr_seqlen")
+            world_size = self.actor_rollout_wg.world_size
+            if len(acr_batch) % world_size == 0:
+                self._balance_batch(acr_batch, metrics=metrics, logging_prefix="acr_seqlen")
+            else:
+                metrics["acr/balance_skipped"] = 1.0
+                metrics["acr/balance_skip_size"] = float(len(acr_batch))
+                metrics["acr/balance_skip_world_size"] = float(world_size)
 
         acr_batch.meta_info["global_token_num"] = torch.sum(acr_batch.batch["attention_mask"], dim=-1).tolist()
 
