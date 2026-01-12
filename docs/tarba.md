@@ -14,8 +14,8 @@ This document describes the current TARBA implementation and configuration used 
 ## High-level flow
 1) TARBA wraps each CTI sample with optional tool instructions that let the model request retrieval once using a short JSON query (hidden tool schema mode).
 2) The rollout executes the retrieval tool when requested, injects the results into the prompt, and continues multi-turn generation.
-3) Rewards combine the task answer score with a retrieval shaping term based on the rank of gold labels in the returned docs; a small bonus is added for a valid tool call.
-4) A per-task controller adjusts the retrieval budget and the probability of disabling retrieval as training progresses.
+3) Rewards combine the task answer score with a retrieval shaping term based on the rank of gold labels in the returned docs; a tool-call bonus is optional (0 in current scripts).
+4) A per-task controller anneals retrieval availability (`p_noret`); per-task budgets are fixed in the current policy.
 
 ## Data and artifacts
 - Label docs: `dataset/retrieval/label_docs/`
@@ -83,7 +83,7 @@ Update rule:
 - Uses group accuracy from the trainer (per-uid rollouts), aggregated per task per step.
 - Updates EMA for retrieval-on/off accuracy.
 - Computes `acc_mix = (1 - p_noret) * ema_ret + p_noret * ema_noret`.
-- If `acc_mix > target_acc_noret + tol` (and after warmup), increases `p_noret` by `p_step` up to `p_noret_max=0.9`.
+- After at least `min_steps_before_anneal` **no-retrieval** groups (`steps_noret`), if `acc_mix > target_acc_noret + tol`, increase `p_noret` by `p_step` up to `p_noret_max=0.9`.
 - `B` remains fixed at its initial value (no budget annealing in the current policy).
 
 ## Self-distillation (optional)
@@ -118,7 +118,7 @@ Metrics:
 
 Components:
 - `r_ans`: task reward from `reward_minerva.reward_minerva`.
-- `r_ret`: retrieval shaping reward using **linear decay** over retrieval rank, plus a tool-call bonus.
+- `r_ret`: retrieval shaping reward using **linear decay** over retrieval rank, plus an optional tool-call bonus.
 
 Linear decay:
 - Per-label rank score for a gold label at rank `r` (1-indexed):
@@ -150,8 +150,8 @@ Optional retrieval-on evaluation for AthenaBench subsets can be added via
 `trainer.extra_val_runs` in TARBA scripts. These runs log under a separate
 `val-<prefix>-core/...` namespace and skip the global averages by default.
 
-## Not used in the current configuration (but present in code)
-- Tool penalties:
+## Not used in the current configuration
+- Legacy tool penalties (not applied by the reward code):
   - `penalty_tool_call`
   - `penalty_illegal_tool`
 - Alternative aggregation policies for multi-label retrieval:
