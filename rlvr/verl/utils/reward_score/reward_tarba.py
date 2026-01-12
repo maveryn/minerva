@@ -149,8 +149,6 @@ def reward_tarba(
     lambda_ret: float = 0.2,
     floor: float = 0.2,
     tool_call_bonus: float = 0.1,
-    penalty_tool_call: float = 0.02,
-    penalty_illegal_tool: float = 0.5,
     multilabel_policy: str = "mean",
     score_threshold: float = 0.5,
     label_docs_dir: Optional[str] = None,
@@ -237,11 +235,6 @@ def reward_tarba(
             tool_called = True
             ranks = _rank_from_doc_ids(doc_ids, list(gold_doc_ids))
 
-    illegal_tool = False
-    if tool_called and not allow_retrieval:
-        illegal_tool = True
-    if tool_call_count > 1:
-        illegal_tool = True
     valid_tool = tool_called and allow_retrieval and tool_call_count == 1
 
     r_ret = 0.0
@@ -251,10 +244,6 @@ def reward_tarba(
         r_ret += float(tool_call_bonus)
     # Do not gate retrieval shaping on answer score.
     score = r_ans + lambda_ret * r_ret
-    if tool_called:
-        score -= penalty_tool_call
-    if illegal_tool:
-        score -= penalty_illegal_tool
 
     is_correct = r_ans >= score_threshold
 
@@ -264,10 +253,6 @@ def reward_tarba(
         "r_ret": float(r_ret),
         "is_correct": bool(is_correct),
     }
-    if penalty_tool_call > 0 or penalty_illegal_tool > 0:
-        out["tool_called"] = int(tool_called)
-        out["tool_call_count"] = int(tool_call_count)
-        out["illegal_tool"] = int(illegal_tool)
     return out
 
 
