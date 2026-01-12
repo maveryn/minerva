@@ -24,6 +24,8 @@ reward_fn_path="$ROOT_DIR/verl/utils/reward_score/reward_minerva.py"
 
 train_files="['$train_path']"
 val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}','${val_paths[4]}']"
+experiment_name="${BASE_EXPERIMENT_NAME:-minerva_base_grpo_llama8b}"
+default_local_dir="${BASE_DEFAULT_LOCAL_DIR:-$ROOT_DIR/checkpoints/minerva/$experiment_name}"
 save_best_only="${BASE_SAVE_BEST_ONLY:-true}"
 save_best_metric="${BASE_SAVE_BEST_METRIC:-val-core/global-val/reward/mean}"
 save_best_mode="${BASE_SAVE_BEST_MODE:-max}"
@@ -62,7 +64,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger='["console", "wandb"]' \
     trainer.project_name='minerva' \
-    trainer.experiment_name='minerva_base_grpo_llama8b' \
+    trainer.experiment_name="$experiment_name" \
     trainer.val_before_train=True \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
@@ -75,4 +77,5 @@ python3 -m verl.trainer.main_ppo \
     trainer.total_training_steps=500 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
+    trainer.default_local_dir="$default_local_dir" \
     "$@"
