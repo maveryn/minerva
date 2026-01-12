@@ -363,6 +363,8 @@ class DataParallelPPOActor(BasePPOActor):
 
     @GPUMemoryLogger(role="dp actor", logger=logger)
     def update_policy(self, data: DataProto):
+        if data.meta_info.get("dpo_mode"):
+            return self.update_policy_dpo(data)
         if data.meta_info.get("sft_mode"):
             return self.update_policy_sft(data)
         # make sure we are in training mode
@@ -621,6 +623,103 @@ class DataParallelPPOActor(BasePPOActor):
                 loss = sft_loss * loss_scale_factor
                 loss.backward()
                 append_to_dict(metrics, {"actor/sft_loss": sft_loss.detach().item() * loss_scale_factor})
+
+            grad_norm = self._optimizer_step()
+            append_to_dict(metrics, {"actor/grad_norm": grad_norm.detach().item()})
+
+        self.actor_optimizer.zero_grad()
+        return metrics
+
+    @GPUMemoryLogger(role="dp actor", logger=logger)
+    def update_policy_dpo(self, data: DataProto):
+        self.actor_module.train()
+
+        temperature = data.meta_info.get("temperature", 1.0)
+        beta = float(data.meta_info.get("dpo_beta", 0.1))
+        select_keys = [
+            "responses",
+            "response_mask",
+            "input_ids",
+            "attention_mask",
+            "position_ids",
+            "ref_log_prob",
+            "dpo_pair_weight",
+        ]
+
+        has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
+        non_tensor_select_keys = ["multi_modal_inputs"] if has_multi_modal_inputs else []
+        data = data.select(batch_keys=select_keys, non_tensor_batch_keys=non_tensor_select_keys)
+
+        mini_batch_size = data.meta_info.get("dpo_mini_batch_size", self.config.ppo_mini_batch_size)
+        micro_batch_size = data.meta_info.get("dpo_micro_batch_size", self.config.ppo_micro_batch_size_per_gpu)
+        if micro_batch_size is None:
+            micro_batch_size = mini_batch_size
+        self.gradient_accumulation = max(1, mini_batch_size // micro_batch_size)
+
+        mini_batches = data.split(mini_batch_size)
+        metrics = {}
+        for mini_batch in mini_batches:
+            micro_batches = mini_batch.split(micro_batch_size)
+            self.actor_optimizer.zero_grad()
+
+            for micro_batch in micro_batches:
+                micro_batch = micro_batch.to(get_device_id())
+                model_inputs = {**micro_batch.batch, **micro_batch.non_tensor_batch}
+                response_mask = model_inputs["response_mask"].to(torch.float32)
+                ref_log_prob = model_inputs.get("ref_log_prob")
+                if ref_log_prob is None:
+                    continue
+
+                _, log_prob = self._forward_micro_batch(model_inputs, temperature=temperature, calculate_entropy=False)
+
+                logp = (log_prob * response_mask).sum(dim=1)
+                ref_logp = (ref_log_prob * response_mask).sum(dim=1)
+                pair_weight = model_inputs.get("dpo_pair_weight")
+                if pair_weight is not None:
+                    pair_weight = pair_weight.to(logp.device)
+
+                batch_size = logp.size(0)
+                if batch_size < 2:
+                    continue
+                if batch_size % 2 != 0:
+                    logp = logp[:-1]
+                    ref_logp = ref_logp[:-1]
+                    if pair_weight is not None:
+                        pair_weight = pair_weight[:-1]
+                    batch_size -= 1
+                if batch_size < 2:
+                    continue
+
+                pair_count = batch_size // 2
+                logp = logp.view(pair_count, 2)
+                ref_logp = ref_logp.view(pair_count, 2)
+                margin = (logp[:, 0] - logp[:, 1]) - (ref_logp[:, 0] - ref_logp[:, 1])
+                loss = -F.logsigmoid(margin * beta)
+
+                weight = None
+                if pair_weight is not None:
+                    weight = pair_weight.view(pair_count, 2)[:, 0]
+                    weight_sum = weight.sum()
+                    if weight_sum.item() > 0:
+                        loss = (loss * weight).sum() / weight_sum
+                    else:
+                        weight = None
+                if weight is None:
+                    loss = loss.mean()
+
+                loss_scale_factor = 1 / self.gradient_accumulation
+                (loss * loss_scale_factor).backward()
+
+                pair_acc = (margin > 0).float().mean().detach().item()
+                append_to_dict(
+                    metrics,
+                    {
+                        "actor/dpo_loss": loss.detach().item() * loss_scale_factor,
+                        "actor/dpo_margin_mean": margin.detach().mean().item(),
+                        "actor/dpo_pair_acc": pair_acc,
+                        "actor/dpo_beta": beta,
+                    },
+                )
 
             grad_norm = self._optimizer_step()
             append_to_dict(metrics, {"actor/grad_norm": grad_norm.detach().item()})

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ACRD per-batch training: RLVR -> ACR (aux PPO) -> SFT each step.
+# ACRD per-batch training: RLVR -> ACR generation -> distill (SFT or DPO).
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_DIR="$ROOT_DIR/mydata"
@@ -57,6 +57,9 @@ ACR_DISTILL_MAX_BUFFER="${ACRD_ACR_DISTILL_MAX_BUFFER:-4096}"
 ACR_DISTILL_LR_SCALE="${ACRD_ACR_DISTILL_LR_SCALE:-0.1}"
 ACR_DISTILL_ENTROPY_BETA="${ACRD_ACR_DISTILL_ENTROPY_BETA:-1.0}"
 ACR_DISTILL_ENTROPY_SAMPLING="${ACRD_ACR_DISTILL_ENTROPY_SAMPLING:-true}"
+ACR_DISTILL_METHOD="${ACRD_ACR_DISTILL_METHOD:-sft}"
+DPO_BETA="${ACRD_DPO_BETA:-0.1}"
+DPO_REQUIRE_REJECTED_PARSES="${ACRD_DPO_REQUIRE_REJECTED_PARSES:-true}"
 
 TRAIN_BATCH_SIZE="${ACRD_TRAIN_BATCH_SIZE:-64}"
 TOTAL_STEPS="${ACRD_TOTAL_STEPS:-500}"
@@ -101,6 +104,9 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.distill.lr_scale="$ACR_DISTILL_LR_SCALE" \
     +data.acr.distill.entropy_beta="$ACR_DISTILL_ENTROPY_BETA" \
     +data.acr.distill.entropy_sampling="$ACR_DISTILL_ENTROPY_SAMPLING" \
+    +data.acr.distill.method="$ACR_DISTILL_METHOD" \
+    +data.acr.distill.dpo.beta="$DPO_BETA" \
+    +data.acr.distill.dpo.require_rejected_parses="$DPO_REQUIRE_REJECTED_PARSES" \
     custom_reward_function.path="$REWARD_FN_PATH" \
     custom_reward_function.name=reward_minerva \
     data.train_batch_size="$TRAIN_BATCH_SIZE" \

@@ -195,10 +195,16 @@ class TaskRunner:
             self.mapping[Role.RewardModel] = "global_pool"
 
     def add_ref_policy_worker(self, config, ref_policy_cls):
-        """Add reference policy worker if KL loss or KL reward is used."""
+        """Add reference policy worker if KL loss, KL reward, or DPO distill is used."""
         from verl.trainer.ppo.ray_trainer import Role
 
-        if config.algorithm.use_kl_in_reward or config.actor_rollout_ref.actor.use_kl_loss:
+        need_ref = bool(config.algorithm.use_kl_in_reward or config.actor_rollout_ref.actor.use_kl_loss)
+        if not need_ref:
+            distill_method = OmegaConf.select(config, "data.acr.distill.method")
+            if isinstance(distill_method, str) and distill_method.strip().lower() == "dpo":
+                need_ref = True
+
+        if need_ref:
             self.role_worker_mapping[Role.RefPolicy] = ray.remote(ref_policy_cls)
             self.mapping[Role.RefPolicy] = "global_pool"
 
