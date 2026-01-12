@@ -149,7 +149,7 @@ python3 -m verl.trainer.main_ppo \
     +custom_reward_function.reward_kwargs.lambda_ret=0.2 \
     +custom_reward_function.reward_kwargs.floor=0.2 \
     +custom_reward_function.reward_kwargs.tool_call_bonus=0.0 \
-    data.train_batch_size=128 \
+    data.train_batch_size=64 \
     data.val_batch_size=2048 \
     data.max_prompt_length=1536 \
     data.max_response_length=2048 \
@@ -158,7 +158,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=meta-llama/Llama-3.1-8B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=64 \
     actor_rollout_ref.actor.use_dynamic_bsz=True \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=0.001 \
@@ -191,7 +191,7 @@ python3 -m verl.trainer.main_ppo \
     +trainer.extra_val_runs="$extra_val_runs" \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
-    trainer.save_freq=25 \
+    trainer.save_freq=10 \
     trainer.test_freq=10 \
     trainer.total_training_steps=500 \
     trainer.max_actor_ckpt_to_keep=1 \

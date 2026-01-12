@@ -211,6 +211,7 @@ _rlvr/
 athena_data/
 _scratch/
 athenabench/
+outputs/
 
 # Minerva datasets (generated / local)
 
