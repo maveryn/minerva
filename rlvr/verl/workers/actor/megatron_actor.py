@@ -279,7 +279,18 @@ class MegatronPPOActor(BasePPOActor):
 
         """
         sft_mode = bool(data.meta_info.get("sft_mode", False))
-        if sft_mode:
+        dpo_mode = bool(data.meta_info.get("dpo_mode", False))
+        if dpo_mode:
+            select_keys = [
+                "responses",
+                "input_ids",
+                "attention_mask",
+                "response_mask",
+                "position_ids",
+                "ref_log_prob",
+                "dpo_pair_weight",
+            ]
+        elif sft_mode:
             select_keys = [
                 "responses",
                 "input_ids",
@@ -304,9 +315,14 @@ class MegatronPPOActor(BasePPOActor):
             data = data.select(select_keys, ["multi_modal_inputs"])
         else:
             data = data.select(batch_keys=select_keys)
-        mini_batch_size = data.meta_info.get("sft_mini_batch_size", self.config.ppo_mini_batch_size)
-        epochs = data.meta_info.get("sft_epochs", self.config.ppo_epochs)
-        shuffle = data.meta_info.get("sft_shuffle", self.config.shuffle)
+        if dpo_mode:
+            mini_batch_size = data.meta_info.get("dpo_mini_batch_size", self.config.ppo_mini_batch_size)
+            epochs = data.meta_info.get("dpo_epochs", 1)
+            shuffle = data.meta_info.get("dpo_shuffle", False)
+        else:
+            mini_batch_size = data.meta_info.get("sft_mini_batch_size", self.config.ppo_mini_batch_size)
+            epochs = data.meta_info.get("sft_epochs", self.config.ppo_epochs)
+            shuffle = data.meta_info.get("sft_shuffle", self.config.shuffle)
         return data.make_iterator(
             mini_batch_size=mini_batch_size,
             epochs=epochs,
@@ -374,6 +390,7 @@ class MegatronPPOActor(BasePPOActor):
         forward_only=False,
         calculate_entropy=False,
         use_sft=False,
+        use_dpo=False,
         use_dynamic_bsz=False,
         micro_batch_size=None,
         max_token_len=None,
@@ -410,6 +427,7 @@ class MegatronPPOActor(BasePPOActor):
 
         indices = None
         temperature = data.meta_info["temperature"]
+        dpo_beta = float(data.meta_info.get("dpo_beta", 0.1))
         if use_dynamic_bsz:
             assert max_token_len is not None, "max_token_len must be set when use_dynamic_bsz is True"
             vpp_size = mpu.get_virtual_pipeline_model_parallel_world_size()
@@ -455,6 +473,52 @@ class MegatronPPOActor(BasePPOActor):
                 return torch.tensor(1.0, device=device), model_output
 
             # for training
+            if use_dpo:
+                response_mask = data["response_mask"].to(torch.float32)
+                ref_log_prob = data["ref_log_prob"]
+                dpo_pair_weight = data["dpo_pair_weight"] if "dpo_pair_weight" in data.keys() else None
+
+                logp = (log_prob * response_mask).sum(dim=1)
+                ref_logp = (ref_log_prob * response_mask).sum(dim=1)
+                if dpo_pair_weight is not None:
+                    dpo_pair_weight = dpo_pair_weight.to(logp.device)
+
+                batch_size = logp.size(0)
+                if batch_size < 2:
+                    loss = logp.sum() * 0.0
+                    return loss, {"actor/dpo_loss": loss.detach().item()}
+                if batch_size % 2 != 0:
+                    logp = logp[:-1]
+                    ref_logp = ref_logp[:-1]
+                    if dpo_pair_weight is not None:
+                        dpo_pair_weight = dpo_pair_weight[:-1]
+                    batch_size -= 1
+                if batch_size < 2:
+                    loss = logp.sum() * 0.0
+                    return loss, {"actor/dpo_loss": loss.detach().item()}
+
+                pair_count = batch_size // 2
+                logp = logp.view(pair_count, 2)
+                ref_logp = ref_logp.view(pair_count, 2)
+                margin = (logp[:, 0] - logp[:, 1]) - (ref_logp[:, 0] - ref_logp[:, 1])
+                loss = -torch.nn.functional.logsigmoid(margin * dpo_beta)
+                if dpo_pair_weight is not None:
+                    weight = dpo_pair_weight.view(pair_count, 2)[:, 0]
+                    weight_sum = weight.sum()
+                    if weight_sum.item() > 0:
+                        loss = (loss * weight).sum() / weight_sum
+                    else:
+                        loss = loss.mean()
+                else:
+                    loss = loss.mean()
+                metrics = {
+                    "actor/dpo_loss": loss.detach().item(),
+                    "actor/dpo_margin_mean": margin.detach().mean().item(),
+                    "actor/dpo_pair_acc": (margin > 0).float().mean().detach().item(),
+                    "actor/dpo_beta": dpo_beta,
+                }
+                return loss, metrics
+
             if use_sft:
                 response_mask = data["response_mask"].to(torch.float32)
                 denom = response_mask.sum()
@@ -599,13 +663,15 @@ class MegatronPPOActor(BasePPOActor):
                 chunk.zero_grad_buffer()
 
             use_sft = bool(data.meta_info.get("sft_mode", False))
-            calculate_entropy = self.config.entropy_coeff != 0 and not use_sft
+            use_dpo = bool(data.meta_info.get("dpo_mode", False))
+            calculate_entropy = self.config.entropy_coeff != 0 and not (use_sft or use_dpo)
             if data.meta_info.get("micro_batch_size", None) is not None:
                 micro_batch_size = data.meta_info["micro_batch_size"]
             else:
                 micro_batch_size = self.config.ppo_micro_batch_size_per_gpu
             max_token_len = None
-            if self.config.use_dynamic_bsz:
+            use_dynamic_bsz = self.config.use_dynamic_bsz and not use_dpo
+            if use_dynamic_bsz:
                 if use_sft and data.meta_info.get("sft_max_token_len") is not None:
                     max_token_len = data.meta_info.get("sft_max_token_len")
                 else:
@@ -614,7 +680,8 @@ class MegatronPPOActor(BasePPOActor):
                 data,
                 calculate_entropy=calculate_entropy,
                 use_sft=use_sft,
-                use_dynamic_bsz=self.config.use_dynamic_bsz,
+                use_dpo=use_dpo,
+                use_dynamic_bsz=use_dynamic_bsz,
                 micro_batch_size=micro_batch_size,
                 max_token_len=max_token_len,
             )

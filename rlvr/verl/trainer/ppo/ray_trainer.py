@@ -19,6 +19,7 @@ PPO Trainer with Ray-based single controller.
 This trainer supports model-agonistic model initialization with huggingface
 """
 
+import hashlib
 import json
 import math
 import os
@@ -1261,10 +1262,14 @@ class RayPPOTrainer:
 
         if distill_cfg is None:
             distill_cfg = {}
+        dedup_by_uid_present = False
         if isinstance(distill_cfg, DictConfig):
+            dedup_by_uid_present = "dedup_by_uid" in distill_cfg
             distill_cfg = OmegaConf.to_container(distill_cfg, resolve=True)
         if not isinstance(distill_cfg, dict):
             distill_cfg = {}
+        if isinstance(distill_cfg, dict) and "dedup_by_uid" in distill_cfg:
+            dedup_by_uid_present = True
 
         defaults = {
             "enabled": False,
@@ -1287,6 +1292,25 @@ class RayPPOTrainer:
             defaults["entropy_sampling"] = True
         for key, value in defaults.items():
             distill_cfg.setdefault(key, value)
+
+        distill_method = str(distill_cfg.get("method", "sft")).lower().strip()
+        if distill_method not in {"sft", "dpo"}:
+            distill_method = "sft"
+        distill_cfg["method"] = distill_method
+
+        dpo_cfg = distill_cfg.get("dpo", {})
+        if not isinstance(dpo_cfg, dict):
+            dpo_cfg = {}
+        dpo_defaults = {
+            "beta": 0.1,
+            "require_rejected_parses": True,
+        }
+        for key, value in dpo_defaults.items():
+            dpo_cfg.setdefault(key, value)
+        distill_cfg["dpo"] = dpo_cfg
+
+        if distill_method == "dpo" and distill_source == "acr" and not dedup_by_uid_present:
+            distill_cfg["dedup_by_uid"] = False
 
         self._distill_cfg = distill_cfg
         self._distill_source = distill_source
@@ -2050,6 +2074,13 @@ class RayPPOTrainer:
         reward_extra_infos: Optional[dict] = None,
     ) -> dict[str, float]:
         cfg = self._distill_cfg
+        if str(cfg.get("method", "sft")).lower().strip() == "dpo" and self._distill_source == "acr":
+            return self._collect_distill_candidates_dpo(
+                batch=batch,
+                reward_scalar=reward_scalar,
+                reward_threshold_scalar=reward_threshold_scalar,
+                reward_extra_infos=reward_extra_infos,
+            )
         if not cfg.get("enabled", False) or reward_scalar is None:
             return {}
 
@@ -2293,6 +2324,246 @@ class RayPPOTrainer:
         metrics["distill/buffer_size_local"] = float(len(self._distill_buffer_local))
         return metrics
 
+    def _collect_distill_candidates_dpo(
+        self,
+        batch: DataProto,
+        reward_scalar: Optional[torch.Tensor],
+        reward_threshold_scalar: Optional[torch.Tensor] = None,
+        reward_extra_infos: Optional[dict] = None,
+    ) -> dict[str, float]:
+        cfg = self._distill_cfg
+        if not cfg.get("enabled", False) or reward_scalar is None:
+            return {}
+
+        uid_arr = batch.non_tensor_batch.get("uid")
+        extra_arr = batch.non_tensor_batch.get("extra_info")
+        if uid_arr is None or extra_arr is None:
+            return {}
+
+        uid_list = np.asarray(uid_arr, dtype=object).tolist()
+        extra_list = np.asarray(extra_arr, dtype=object).tolist()
+        task_arr = batch.non_tensor_batch.get("data_source")
+        if task_arr is not None:
+            task_list = np.asarray(task_arr, dtype=object).tolist()
+        else:
+            task_list = [None] * len(uid_list)
+
+        reward_list = reward_scalar.detach().cpu().tolist()
+        if len(uid_list) != len(reward_list):
+            return {}
+        reward_threshold_list = reward_list
+        if reward_threshold_scalar is not None:
+            try:
+                threshold_list = reward_threshold_scalar.detach().cpu().tolist()
+            except Exception:
+                threshold_list = None
+            if isinstance(threshold_list, list) and len(threshold_list) == len(reward_list):
+                reward_threshold_list = threshold_list
+
+        base_scores_list = None
+        extracted_list = None
+        leak_hits_list = None
+        if isinstance(reward_extra_infos, dict):
+            base_scores_list = reward_extra_infos.get("acr_base_score")
+            extracted_list = reward_extra_infos.get("acr_extracted")
+            leak_hits_list = reward_extra_infos.get("acr_leak_hit")
+        if isinstance(base_scores_list, np.ndarray):
+            base_scores_list = base_scores_list.tolist()
+        if not isinstance(base_scores_list, list) or len(base_scores_list) != len(reward_list):
+            base_scores_list = None
+        if isinstance(extracted_list, np.ndarray):
+            extracted_list = extracted_list.tolist()
+        if not isinstance(extracted_list, list) or len(extracted_list) != len(reward_list):
+            extracted_list = None
+        if isinstance(leak_hits_list, np.ndarray):
+            leak_hits_list = leak_hits_list.tolist()
+        if not isinstance(leak_hits_list, list) or len(leak_hits_list) != len(reward_list):
+            leak_hits_list = None
+
+        rubric_scores_list = None
+        if isinstance(reward_extra_infos, dict):
+            rubric_scores_list = reward_extra_infos.get("acr_rubric_score")
+            if rubric_scores_list is None:
+                rubric_scores_list = reward_extra_infos.get("acr_rubric")
+        if isinstance(rubric_scores_list, np.ndarray):
+            rubric_scores_list = rubric_scores_list.tolist()
+        if not isinstance(rubric_scores_list, list) or len(rubric_scores_list) != len(reward_list):
+            rubric_scores_list = None
+
+        responses = batch.batch.get("responses")
+        if responses is None:
+            return {}
+        responses = responses.detach().cpu()
+
+        response_mask = batch.batch.get("response_mask")
+        if response_mask is not None:
+            response_mask = response_mask.detach().cpu()
+
+        threshold = float(cfg.get("reward_threshold", 0.5))
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
+
+        def extract_response_ids(idx: int) -> Optional[list[int]]:
+            if response_mask is not None:
+                valid_len = int(response_mask[idx].sum().item())
+                response_ids = responses[idx][:valid_len].tolist()
+            else:
+                response_ids = responses[idx].tolist()
+                while response_ids and response_ids[-1] == pad_id:
+                    response_ids.pop()
+            return response_ids or None
+
+        def is_eligible(base_score: Optional[float], extracted: bool, leak_hit: bool) -> bool:
+            if base_score is None or base_score < threshold:
+                return False
+            if not extracted:
+                return False
+            if leak_hit:
+                return False
+            return True
+
+        dpo_cfg = cfg.get("dpo", {})
+        if not isinstance(dpo_cfg, dict):
+            dpo_cfg = {}
+        require_rejected_parses = bool(dpo_cfg.get("require_rejected_parses", True))
+
+        grouped: dict[str, list[int]] = {}
+        for idx, uid in enumerate(uid_list):
+            grouped.setdefault(str(uid), []).append(idx)
+
+        total_groups = len(grouped)
+        selected_groups = 0
+        selected_rewards: list[float] = []
+        total_pairs = 0
+        skipped_pairs = 0
+        records = []
+
+        for uid, idxs in grouped.items():
+            extra_info = extra_list[idxs[0]]
+            prompt_nohint = None
+            if isinstance(extra_info, dict):
+                prompt_nohint = extra_info.get("acr_orig_prompt")
+                if not isinstance(prompt_nohint, list):
+                    prompt_nohint = extra_info.get("orig_prompt")
+            if not isinstance(prompt_nohint, list):
+                continue
+
+            candidates = []
+            for i in idxs:
+                response_ids = extract_response_ids(i)
+                if not response_ids:
+                    continue
+                base_score = None
+                if base_scores_list is not None:
+                    base_score = base_scores_list[i]
+                elif reward_threshold_list is not None:
+                    base_score = reward_threshold_list[i]
+                extracted = bool(extracted_list[i]) if extracted_list is not None else True
+                leak_hit = bool(leak_hits_list[i]) if leak_hits_list is not None else False
+                rubric_score = float(rubric_scores_list[i]) if rubric_scores_list is not None else 0.0
+                response_len = len(response_ids)
+                clean_correct = is_eligible(base_score, extracted, leak_hit)
+                candidates.append(
+                    {
+                        "idx": i,
+                        "response_ids": response_ids,
+                        "reward": float(reward_list[i]),
+                        "base_score": base_score,
+                        "extracted": extracted,
+                        "leak_hit": leak_hit,
+                        "rubric": rubric_score,
+                        "response_len": response_len,
+                        "is_clean_correct": clean_correct,
+                    }
+                )
+
+            if not candidates:
+                continue
+
+            eligible_candidates = [c for c in candidates if c["is_clean_correct"]]
+            if not eligible_candidates:
+                continue
+
+            def base_score_val(item: dict) -> float:
+                val = item.get("base_score")
+                return float(val) if val is not None else 0.0
+
+            def tiebreak_rand(item: dict) -> int:
+                token = f"{uid}-{item['idx']}".encode("utf-8")
+                return int.from_bytes(hashlib.md5(token).digest()[:8], "big")
+
+            def best_candidate(pool: list[dict]) -> dict:
+                return max(
+                    pool,
+                    key=lambda c: (c["rubric"], base_score_val(c), -c["response_len"], tiebreak_rand(c)),
+                )
+
+            def worst_candidate(pool: list[dict]) -> dict:
+                return min(
+                    pool,
+                    key=lambda c: (c["rubric"], base_score_val(c), c["response_len"], tiebreak_rand(c)),
+                )
+
+            chosen = best_candidate(eligible_candidates)
+
+            noneligible = [c for c in candidates if not c["is_clean_correct"] and c["idx"] != chosen["idx"]]
+            if require_rejected_parses:
+                noneligible = [c for c in noneligible if c["extracted"]]
+
+            if noneligible:
+                rejected = best_candidate(noneligible)
+            else:
+                fallback = [c for c in eligible_candidates if c["idx"] != chosen["idx"]]
+                if not fallback:
+                    skipped_pairs += 1
+                    continue
+                rejected = worst_candidate(fallback)
+
+            record = {
+                "uid": uid,
+                "task_key": str(task_list[chosen["idx"]]) if task_list[chosen["idx"]] is not None else "unknown",
+                "prompt_nohint": deepcopy(prompt_nohint),
+                "chosen_ids": chosen["response_ids"],
+                "rejected_ids": rejected["response_ids"],
+                "chosen_meta": {
+                    "acr_score": float(chosen["reward"]),
+                    "acr_base_score": float(chosen["base_score"]) if chosen["base_score"] is not None else None,
+                    "rubric_score": float(chosen["rubric"]),
+                },
+                "rejected_meta": {
+                    "acr_score": float(rejected["reward"]),
+                    "acr_base_score": float(rejected["base_score"]) if rejected["base_score"] is not None else None,
+                    "rubric_score": float(rejected["rubric"]),
+                },
+                "pair_weight": 1.0,
+            }
+            records.append(record)
+            total_pairs += 1
+            selected_rewards.append(float(chosen["reward"]))
+            selected_groups += 1
+
+        if records:
+            self._distill_buffer_local.extend(records)
+            max_buffer = int(cfg.get("max_buffer", 0) or 0)
+            if max_buffer > 0:
+                world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
+                max_local = max(1, int(math.ceil(max_buffer / world_size)))
+                if len(self._distill_buffer_local) > max_local:
+                    self._distill_buffer_local = self._distill_buffer_local[-max_local:]
+
+        metrics: dict[str, float] = {}
+        if total_groups > 0:
+            metrics["distill/uid_group_frac"] = float(selected_groups / max(1, total_groups))
+            metrics["distill/uid_group_count"] = float(selected_groups)
+            metrics["distill/uid_group_total"] = float(total_groups)
+        if selected_rewards:
+            metrics["distill/selected_reward_mean"] = float(np.mean(selected_rewards))
+        metrics["distill/dpo_pairs_added"] = float(total_pairs)
+        metrics["distill/dpo_pairs_skipped"] = float(skipped_pairs)
+        metrics["distill/buffer_size_local"] = float(len(self._distill_buffer_local))
+        return metrics
+
     def _dedup_distill_records(self, records: list[dict]) -> list[dict]:
         deduped: dict[str, dict] = {}
         for record in records:
@@ -2310,6 +2581,24 @@ class RayPPOTrainer:
             prev_entropy = prev.get("entropy_proxy")
             prev_entropy_val = float(prev_entropy) if prev_entropy is not None else float("-inf")
             if reward > prev_reward + 1e-6 or (abs(reward - prev_reward) <= 1e-6 and entropy_val > prev_entropy_val):
+                deduped[uid] = record
+        return list(deduped.values())
+
+    def _dedup_distill_pairs(self, records: list[dict]) -> list[dict]:
+        deduped: dict[str, dict] = {}
+        for record in records:
+            uid = record.get("uid")
+            if uid is None:
+                continue
+            chosen_meta = record.get("chosen_meta") or {}
+            chosen_score = float(chosen_meta.get("acr_score", 0.0) or 0.0)
+            prev = deduped.get(uid)
+            if prev is None:
+                deduped[uid] = record
+                continue
+            prev_meta = prev.get("chosen_meta") or {}
+            prev_score = float(prev_meta.get("acr_score", 0.0) or 0.0)
+            if chosen_score > prev_score + 1e-6:
                 deduped[uid] = record
         return list(deduped.values())
 
@@ -2441,9 +2730,129 @@ class RayPPOTrainer:
         stats["sft_skipped"] = float(skipped)
         return data, stats
 
+    def _build_distill_dpo_dataproto(
+        self, records: list[dict], max_seq_len: Optional[int], beta: float
+    ) -> tuple[Optional[DataProto], dict[str, float]]:
+        stats: dict[str, float] = {}
+        if max_seq_len is not None:
+            try:
+                max_seq_len = int(max_seq_len)
+            except (TypeError, ValueError):
+                max_seq_len = None
+
+        prompt_limit = self.config.data.get("max_prompt_length", None)
+        response_limit = self.config.data.get("max_response_length", None)
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
+
+        examples = []
+        pair_weights: list[float] = []
+        skipped = 0
+        for record in records:
+            prompt_nohint = record.get("prompt_nohint")
+            prompt_ids = self._tokenize_prompt_nohint(prompt_nohint)
+            if not prompt_ids:
+                skipped += 1
+                continue
+            if prompt_limit is not None and len(prompt_ids) > prompt_limit:
+                prompt_ids = prompt_ids[-int(prompt_limit) :]
+
+            chosen_ids = record.get("chosen_ids")
+            rejected_ids = record.get("rejected_ids")
+            if isinstance(chosen_ids, torch.Tensor):
+                chosen_ids = chosen_ids.tolist()
+            if isinstance(rejected_ids, torch.Tensor):
+                rejected_ids = rejected_ids.tolist()
+            if not chosen_ids or not rejected_ids:
+                skipped += 1
+                continue
+
+            if response_limit is not None:
+                chosen_ids = chosen_ids[: int(response_limit)]
+                rejected_ids = rejected_ids[: int(response_limit)]
+
+            if max_seq_len is not None:
+                total_len = len(prompt_ids) + max(len(chosen_ids), len(rejected_ids))
+                if total_len > max_seq_len:
+                    if len(chosen_ids) >= max_seq_len or len(rejected_ids) >= max_seq_len:
+                        chosen_ids = chosen_ids[-max_seq_len:]
+                        rejected_ids = rejected_ids[-max_seq_len:]
+                        prompt_ids = []
+                    else:
+                        keep_prompt = max_seq_len - max(len(chosen_ids), len(rejected_ids))
+                        prompt_ids = prompt_ids[-keep_prompt:]
+
+            pair_weight = float(record.get("pair_weight", 1.0))
+            examples.append({"prompt_ids": prompt_ids, "response_ids": chosen_ids})
+            examples.append({"prompt_ids": prompt_ids, "response_ids": rejected_ids})
+            pair_weights.append(pair_weight)
+
+        if not examples:
+            stats["dpo_skipped"] = float(skipped)
+            return None, stats
+
+        max_prompt_len = max(len(ex["prompt_ids"]) for ex in examples)
+        max_resp_len = max(len(ex["response_ids"]) for ex in examples)
+
+        input_ids = []
+        attention_mask = []
+        responses = []
+        response_mask = []
+
+        for ex in examples:
+            prompt_ids = ex["prompt_ids"]
+            response_ids = ex["response_ids"]
+            prompt_pad = max_prompt_len - len(prompt_ids)
+            resp_pad = max_resp_len - len(response_ids)
+
+            input_ids.append([pad_id] * prompt_pad + prompt_ids + response_ids + [pad_id] * resp_pad)
+            attention_mask.append(
+                [0] * prompt_pad + [1] * len(prompt_ids) + [1] * len(response_ids) + [0] * resp_pad
+            )
+            responses.append(response_ids + [pad_id] * resp_pad)
+            response_mask.append([1] * len(response_ids) + [0] * resp_pad)
+
+        input_ids = torch.tensor(input_ids, dtype=torch.long)
+        attention_mask = torch.tensor(attention_mask, dtype=torch.long)
+        responses = torch.tensor(responses, dtype=torch.long)
+        response_mask = torch.tensor(response_mask, dtype=torch.long)
+        position_ids = compute_position_id_with_mask(attention_mask)
+
+        dpo_pair_weight = []
+        for weight in pair_weights:
+            dpo_pair_weight.extend([weight, weight])
+        dpo_pair_weight = torch.tensor(dpo_pair_weight, dtype=torch.float)
+
+        meta_info = {
+            "dpo_mode": True,
+            "dpo_beta": float(beta),
+            "temperature": float(self.config.actor_rollout_ref.rollout.get("temperature", 1.0)),
+            "global_token_num": attention_mask.sum(dim=-1).tolist(),
+            "dpo_pair_count": int(len(pair_weights)),
+        }
+
+        data = DataProto.from_dict(
+            tensors={
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "position_ids": position_ids,
+                "responses": responses,
+                "response_mask": response_mask,
+                "dpo_pair_weight": dpo_pair_weight,
+            },
+            meta_info=meta_info,
+        )
+
+        stats["dpo_pairs"] = float(len(pair_weights))
+        stats["dpo_skipped"] = float(skipped)
+        return data, stats
+
     def _maybe_run_distill_sft(self, global_step: int) -> dict[str, float]:
         cfg = self._distill_cfg
         if not cfg.get("enabled", False):
+            return {}
+        if str(cfg.get("method", "sft")).lower().strip() != "sft":
             return {}
 
         interval = int(cfg.get("interval", 0) or 0)
@@ -2588,6 +2997,183 @@ class RayPPOTrainer:
         self._distill_buffer_local = []
         self._distill_last_run_step = global_step
         return metrics
+
+    def _maybe_run_distill_dpo(self, global_step: int) -> dict[str, float]:
+        cfg = self._distill_cfg
+        if not cfg.get("enabled", False):
+            return {}
+        if str(cfg.get("method", "sft")).lower().strip() != "dpo":
+            return {}
+
+        interval = int(cfg.get("interval", 0) or 0)
+        if interval <= 0:
+            return {}
+        if (global_step + 1) % interval != 0:
+            return {}
+        if global_step == self._distill_last_run_step:
+            return {}
+
+        local_records = list(self._distill_buffer_local)
+        if not local_records:
+            return {}
+
+        if dist.is_available() and dist.is_initialized():
+            gathered = [None for _ in range(dist.get_world_size())]
+            dist.all_gather_object(gathered, local_records)
+            all_records: list[dict] = []
+            for chunk in gathered:
+                if chunk:
+                    all_records.extend(chunk)
+            if dist.get_rank() == 0:
+                records = all_records
+                if cfg.get("dedup_by_uid", False):
+                    records = self._dedup_distill_pairs(records)
+                records.sort(
+                    key=lambda r: (
+                        -float((r.get("chosen_meta") or {}).get("acr_score", 0.0)),
+                        str(r.get("uid", "")),
+                    )
+                )
+                max_buffer = int(cfg.get("max_buffer", 0) or 0)
+                if max_buffer > 0:
+                    records = records[:max_buffer]
+            else:
+                records = None
+            obj_list = [records]
+            dist.broadcast_object_list(obj_list, src=0)
+            records = obj_list[0] or []
+        else:
+            records = local_records
+            if cfg.get("dedup_by_uid", False):
+                records = self._dedup_distill_pairs(records)
+            records.sort(
+                key=lambda r: (
+                    -float((r.get("chosen_meta") or {}).get("acr_score", 0.0)),
+                    str(r.get("uid", "")),
+                )
+            )
+            max_buffer = int(cfg.get("max_buffer", 0) or 0)
+            if max_buffer > 0:
+                records = records[:max_buffer]
+
+        if not records:
+            self._distill_buffer_local = []
+            return {}
+
+        dpo_cfg = cfg.get("dpo", {})
+        if not isinstance(dpo_cfg, dict):
+            dpo_cfg = {}
+        beta = dpo_cfg.get("beta", 0.1)
+        try:
+            beta = float(beta)
+        except (TypeError, ValueError):
+            beta = 0.1
+
+        dp_size = self._get_actor_dp_size()
+        drop_last = bool(cfg.get("drop_last", True))
+
+        dpo_batch_size = cfg.get("batch_size", None)
+        if dpo_batch_size is not None:
+            dpo_batch_size = int(dpo_batch_size)
+            if dpo_batch_size <= 0:
+                dpo_batch_size = None
+            elif len(records) < dpo_batch_size:
+                dpo_batch_size = len(records)
+        if dpo_batch_size is None and records:
+            dpo_batch_size = len(records)
+
+        pair_divisor = max(1, math.lcm(dp_size, 2) // 2)
+        if dpo_batch_size is not None and dpo_batch_size > 0:
+            pair_divisor = math.lcm(pair_divisor, dpo_batch_size)
+
+        if drop_last and pair_divisor > 1:
+            usable_pairs = (len(records) // pair_divisor) * pair_divisor
+            records = records[:usable_pairs]
+            if not records:
+                self._distill_buffer_local = []
+                return {}
+
+        max_seq_len = cfg.get("max_seq_len", None)
+        if max_seq_len is None:
+            max_prompt = self.config.data.get("max_prompt_length", None)
+            max_response = self.config.data.get("max_response_length", None)
+            if max_prompt is not None and max_response is not None:
+                max_seq_len = int(max_prompt) + int(max_response)
+
+        data, stats = self._build_distill_dpo_dataproto(records, max_seq_len, beta=beta)
+        if data is None or len(data) == 0:
+            self._distill_buffer_local = []
+            return {}
+
+        lr_scale = cfg.get("lr_scale", 1.0)
+        try:
+            lr_scale = float(lr_scale)
+        except (TypeError, ValueError):
+            lr_scale = 1.0
+        data.meta_info["dpo_lr_scale"] = lr_scale
+        data.meta_info["dpo_epochs"] = 1
+        data.meta_info["dpo_shuffle"] = False
+        dpo_mini_batch_size = int(dpo_batch_size) if dpo_batch_size is not None else len(records)
+        dpo_mini_batch_size = max(1, dpo_mini_batch_size) * 2
+        if dpo_mini_batch_size % 2 != 0:
+            dpo_mini_batch_size = max(2, dpo_mini_batch_size - 1)
+        data.meta_info["dpo_mini_batch_size"] = dpo_mini_batch_size
+
+        actor_cfg = self.config.actor_rollout_ref.actor
+        if isinstance(actor_cfg, DictConfig):
+            micro_bsz = actor_cfg.get("ppo_micro_batch_size_per_gpu", None)
+            if micro_bsz is None:
+                micro_bsz = actor_cfg.get("ppo_mini_batch_size", None)
+        else:
+            micro_bsz = getattr(actor_cfg, "ppo_micro_batch_size_per_gpu", None)
+            if micro_bsz is None:
+                micro_bsz = getattr(actor_cfg, "ppo_mini_batch_size", None)
+        if micro_bsz is None:
+            micro_bsz = dpo_mini_batch_size
+        micro_bsz = int(micro_bsz)
+        if micro_bsz % 2 != 0:
+            micro_bsz = max(2, micro_bsz - 1)
+        if micro_bsz > dpo_mini_batch_size:
+            micro_bsz = dpo_mini_batch_size
+        data.meta_info["dpo_micro_batch_size"] = int(micro_bsz)
+
+        ref_worker = self._get_dpo_ref_worker()
+
+        divisor = math.lcm(dp_size, 2)
+        pad_size = 0
+        if not drop_last and divisor > 1:
+            data, pad_size = pad_dataproto_to_divisor(data, divisor)
+
+        ref_batch, ref_pad = pad_dataproto_to_divisor(data, dp_size)
+        ref_log_prob = ref_worker.compute_ref_log_prob(ref_batch)
+        if ref_pad:
+            ref_log_prob = unpad_dataproto(ref_log_prob, pad_size=ref_pad)
+        data = data.union(ref_log_prob)
+
+        actor_output = self.actor_rollout_wg.update_actor(data)
+        actor_metrics = reduce_metrics(actor_output.meta_info["metrics"])
+
+        metrics: dict[str, float] = {
+            "distill/ran": 1.0,
+            "distill/buffer_size_global": float(len(records)),
+        }
+        for key, val in stats.items():
+            metrics[f"distill/{key}"] = float(val)
+        for key, val in actor_metrics.items():
+            mapped = key[len("actor/") :] if key.startswith("actor/") else key
+            metrics[f"distill_dpo/{mapped}"] = float(val)
+        metrics["distill_dpo/beta"] = float(beta)
+
+        self._distill_buffer_local = []
+        self._distill_last_run_step = global_step
+        return metrics
+
+    def _get_dpo_ref_worker(self):
+        if not self.use_reference_policy:
+            raise RuntimeError("DPO distill requires a reference policy worker. Enable ref policy for DPO runs.")
+        if self.ref_in_actor:
+            return self.actor_rollout_wg
+        return self.ref_policy_wg
 
     def _run_acr_phase(self, acr_batch: Optional[DataProto], timing_raw: dict) -> dict[str, float]:
         if not self._acr_enabled or acr_batch is None or len(acr_batch) == 0:
@@ -2763,7 +3349,10 @@ class RayPPOTrainer:
                 metrics.update({f"acr_{k}": float(v) for k, v in distill_metrics.items()})
 
         if self._distill_source == "acr":
-            distill_metrics = self._maybe_run_distill_sft(self.global_steps)
+            if str(self._distill_cfg.get("method", "sft")).lower().strip() == "dpo":
+                distill_metrics = self._maybe_run_distill_dpo(self.global_steps)
+            else:
+                distill_metrics = self._maybe_run_distill_sft(self.global_steps)
             if distill_metrics:
                 metrics.update({f"acr_{k}": float(v) for k, v in distill_metrics.items()})
 

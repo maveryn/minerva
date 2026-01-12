@@ -594,17 +594,20 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
             load_megatron_optimizer(self.actor_optimizer)
             log_gpu_memory_usage("After load actor optimizer during update_actor", logger=logger)
 
-        sft_lr_scale = 1.0
+        lr_scale = 1.0
         orig_lrs = None
-        if data.meta_info.get("sft_mode", False):
+        sft_mode = bool(data.meta_info.get("sft_mode", False))
+        dpo_mode = bool(data.meta_info.get("dpo_mode", False))
+        if sft_mode or dpo_mode:
+            scale_key = "dpo_lr_scale" if dpo_mode else "sft_lr_scale"
             try:
-                sft_lr_scale = float(data.meta_info.get("sft_lr_scale", 1.0))
+                lr_scale = float(data.meta_info.get(scale_key, 1.0))
             except (TypeError, ValueError):
-                sft_lr_scale = 1.0
-            if sft_lr_scale != 1.0:
+                lr_scale = 1.0
+            if lr_scale != 1.0:
                 orig_lrs = [pg.get("lr", 0.0) for pg in self.actor_optimizer.param_groups]
                 for pg in self.actor_optimizer.param_groups:
-                    pg["lr"] = pg.get("lr", 0.0) * sft_lr_scale
+                    pg["lr"] = pg.get("lr", 0.0) * lr_scale
 
         micro_batch_size = self.config.actor.ppo_micro_batch_size_per_gpu
         data.meta_info["micro_batch_size"] = micro_batch_size
@@ -623,7 +626,10 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
         if orig_lrs is not None:
             for pg, lr in zip(self.actor_optimizer.param_groups, orig_lrs):
                 pg["lr"] = lr
-            metrics["actor/sft_lr_scale"] = sft_lr_scale
+            if dpo_mode:
+                metrics["actor/dpo_lr_scale"] = lr_scale
+            else:
+                metrics["actor/sft_lr_scale"] = lr_scale
 
         metrics["actor/lr"] = get_megatron_last_lr(self.actor_optimizer)
         self.actor_optimizer_scheduler.step(1)
