@@ -1019,6 +1019,10 @@ class RayPPOTrainer:
         dataloader_state_dict = self.train_dataloader.state_dict()
         torch.save(dataloader_state_dict, dataloader_local_path)
 
+        step_marker_path = os.path.join(local_global_step_folder, "checkpoint_step.txt")
+        with open(step_marker_path, "w") as f:
+            f.write(str(self.global_steps))
+
         # latest checkpointed iteration tracker (for atomic usage)
         if update_tracker:
             local_latest_checkpointed_iteration = os.path.join(
@@ -1049,16 +1053,25 @@ class RayPPOTrainer:
         else:
             if self.config.trainer.resume_mode == "resume_path":
                 assert isinstance(self.config.trainer.resume_from_path, str), "resume ckpt must be str type"
-                assert "global_step_" in self.config.trainer.resume_from_path, (
-                    "resume ckpt must specify the global_steps"
-                )
                 global_step_folder = self.config.trainer.resume_from_path
                 if not os.path.isabs(global_step_folder):
                     working_dir = os.getcwd()
                     global_step_folder = os.path.join(working_dir, global_step_folder)
         print(f"Load from checkpoint folder: {global_step_folder}")
         # set global step
-        self.global_steps = int(global_step_folder.split("global_step_")[-1])
+        if "global_step_" in global_step_folder:
+            self.global_steps = int(global_step_folder.split("global_step_")[-1])
+        else:
+            step_marker_path = os.path.join(global_step_folder, "checkpoint_step.txt")
+            if os.path.exists(step_marker_path):
+                with open(step_marker_path, "r") as f:
+                    try:
+                        self.global_steps = int(f.read().strip())
+                    except (TypeError, ValueError):
+                        self.global_steps = 0
+            else:
+                print(f"Warning: missing checkpoint_step.txt in {global_step_folder}, setting global_step=0")
+                self.global_steps = 0
 
         print(f"Setting global step to {self.global_steps}")
         print(f"Resuming from {global_step_folder}")
@@ -2587,12 +2600,19 @@ class RayPPOTrainer:
         acr_gen_batch = acr_gen_batch.repeat(repeat_times=self._acr_rollout_n, interleave=True)
 
         with marked_timer("acr_gen", timing_raw, color="magenta"):
+            size_divisor = (
+                self.actor_rollout_wg.world_size
+                if not self.async_rollout_mode
+                else self.config.actor_rollout_ref.rollout.agent.num_workers
+            )
+            acr_gen_batch_padded, pad_size = pad_dataproto_to_divisor(acr_gen_batch, size_divisor)
             if not self.async_rollout_mode:
-                acr_gen_output = self.actor_rollout_wg.generate_sequences(acr_gen_batch)
+                acr_gen_output_padded = self.actor_rollout_wg.generate_sequences(acr_gen_batch_padded)
             else:
-                acr_gen_output = self.async_rollout_manager.generate_sequences(acr_gen_batch)
-            timing_raw.update(acr_gen_output.meta_info.get("timing", {}))
-            acr_gen_output.meta_info.pop("timing", None)
+                acr_gen_output_padded = self.async_rollout_manager.generate_sequences(acr_gen_batch_padded)
+            timing_raw.update(acr_gen_output_padded.meta_info.get("timing", {}))
+            acr_gen_output_padded.meta_info.pop("timing", None)
+            acr_gen_output = unpad_dataproto(acr_gen_output_padded, pad_size=pad_size)
 
         acr_batch = acr_batch.repeat(repeat_times=self._acr_rollout_n, interleave=True)
         acr_batch = acr_batch.union(acr_gen_output)
