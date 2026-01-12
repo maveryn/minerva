@@ -24,6 +24,10 @@ reward_fn_path="$ROOT_DIR/verl/utils/reward_score/reward_minerva.py"
 
 train_files="['$train_path']"
 val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}','${val_paths[4]}']"
+save_best_only="${BASE_SAVE_BEST_ONLY:-true}"
+save_best_metric="${BASE_SAVE_BEST_METRIC:-val-core/global-val/reward/mean}"
+save_best_mode="${BASE_SAVE_BEST_MODE:-max}"
+save_best_dir="${BASE_SAVE_BEST_DIR:-best}"
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -64,6 +68,10 @@ python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.save_freq=10 \
     trainer.test_freq=10 \
+    +trainer.save_best_only="$save_best_only" \
+    +trainer.save_best_metric="$save_best_metric" \
+    +trainer.save_best_mode="$save_best_mode" \
+    +trainer.save_best_dir="$save_best_dir" \
     trainer.total_training_steps=500 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \

@@ -47,16 +47,24 @@ MAX_RESPONSE_LEN="${ACRD_MAX_RESPONSE_LEN:-2048}"
 ACR_MAX_DETAILS_CHARS="${ACRD_MAX_DETAILS_CHARS:-8096}"
 ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-4}"
 ACR_RL_WEIGHT="${ACRD_ACR_RL_WEIGHT:-0.3}"
+ACR_HARD_REWARD_THRESHOLD="${ACRD_ACR_HARD_REWARD_THRESHOLD:-0.5}"
 
-ACR_DISTILL_INTERVAL="${ACRD_ACR_DISTILL_INTERVAL:-1}"
-ACR_DISTILL_THRESHOLD="${ACRD_ACR_DISTILL_THRESHOLD:-0.5}"
+ACR_DISTILL_INTERVAL="${ACRD_ACR_DISTILL_INTERVAL:-10}"
+ACR_DISTILL_THRESHOLD="${ACRD_ACR_DISTILL_THRESHOLD:-1.0}"
 ACR_DISTILL_MAX_BUFFER="${ACRD_ACR_DISTILL_MAX_BUFFER:-4096}"
+ACR_DISTILL_LR_SCALE="${ACRD_ACR_DISTILL_LR_SCALE:-0.5}"
+ACR_DISTILL_ENTROPY_BETA="${ACRD_ACR_DISTILL_ENTROPY_BETA:-1.0}"
+ACR_DISTILL_ENTROPY_SAMPLING="${ACRD_ACR_DISTILL_ENTROPY_SAMPLING:-true}"
 
 TRAIN_BATCH_SIZE="${ACRD_TRAIN_BATCH_SIZE:-64}"
 TOTAL_STEPS="${ACRD_TOTAL_STEPS:-500}"
 SAVE_FREQ="${ACRD_SAVE_FREQ:-10}"
 TEST_FREQ="${ACRD_TEST_FREQ:-10}"
 EXPERIMENT_NAME="${ACRD_EXPERIMENT_NAME:-minerva_acrd_grpo_${MODEL_SLUG}}"
+SAVE_BEST_ONLY="${ACRD_SAVE_BEST_ONLY:-true}"
+SAVE_BEST_METRIC="${ACRD_SAVE_BEST_METRIC:-val-core/global-val/reward/mean}"
+SAVE_BEST_MODE="${ACRD_SAVE_BEST_MODE:-max}"
+SAVE_BEST_DIR="${ACRD_SAVE_BEST_DIR:-best}"
 
 REWARD_FN_PATH="$ROOT_DIR/verl/utils/reward_score/reward_minerva.py"
 
@@ -78,6 +86,8 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.max_prompt_length="$ACR_MAX_PROMPT_LEN" \
     +data.acr.rollout_n="$ACR_ROLLOUT_N" \
     +data.acr.rl_weight="$ACR_RL_WEIGHT" \
+    +data.acr.hard_reward_threshold="$ACR_HARD_REWARD_THRESHOLD" \
+    +data.acr.update_actor=false \
     +data.acr.enforce_no_id_in_reasoning=true \
     +data.acr.reward_kwargs.r_correct=0.1 \
     +data.acr.reward_kwargs.leak_penalty=0.5 \
@@ -87,6 +97,9 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.distill.interval="$ACR_DISTILL_INTERVAL" \
     +data.acr.distill.reward_threshold="$ACR_DISTILL_THRESHOLD" \
     +data.acr.distill.max_buffer="$ACR_DISTILL_MAX_BUFFER" \
+    +data.acr.distill.lr_scale="$ACR_DISTILL_LR_SCALE" \
+    +data.acr.distill.entropy_beta="$ACR_DISTILL_ENTROPY_BETA" \
+    +data.acr.distill.entropy_sampling="$ACR_DISTILL_ENTROPY_SAMPLING" \
     custom_reward_function.path="$REWARD_FN_PATH" \
     custom_reward_function.name=reward_minerva \
     data.train_batch_size="$TRAIN_BATCH_SIZE" \
@@ -117,6 +130,10 @@ python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.save_freq="$SAVE_FREQ" \
     trainer.test_freq="$TEST_FREQ" \
+    +trainer.save_best_only="$SAVE_BEST_ONLY" \
+    +trainer.save_best_metric="$SAVE_BEST_METRIC" \
+    +trainer.save_best_mode="$SAVE_BEST_MODE" \
+    +trainer.save_best_dir="$SAVE_BEST_DIR" \
     trainer.total_training_steps="$TOTAL_STEPS" \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
