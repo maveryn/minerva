@@ -191,8 +191,8 @@ python3 -m verl.trainer.main_ppo \
     +trainer.extra_val_runs="$extra_val_runs" \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
-    trainer.save_freq=25 \
-    trainer.test_freq=25 \
+    trainer.save_freq=10 \
+    trainer.test_freq=10 \
     trainer.total_training_steps=500 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
