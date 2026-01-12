@@ -2,8 +2,8 @@
 
 This spec replaces LHC-style candidate hints and TARBA retrieval with a per-batch loop:
 1) regular RLVR on the original prompt,
-2) answer-conditioned reasoning RL on the same batch (lower weight),
-3) SFT distillation on the ACR traces every iteration.
+2) answer-conditioned reasoning trace generation on hard examples (no PPO update by default),
+3) periodic SFT distillation from accepted ACR traces.
 
 ACRD uses the same RLVR trainer, with a per-batch ACR + distill phase inserted into
 `rlvr/verl/trainer/ppo/ray_trainer.py`.
@@ -17,7 +17,7 @@ Let training samples be (x, y*) with `data_source` identifying the task.
 ### Step 1: RLVR (baseline)
 Run your existing RLVR training loop on the standard prompts (no ground truth revealed).
 
-### Step 2: ACR-RL (answer-conditioned reasoning RL)
+### Step 2: ACR trace generation (answer-conditioned)
 Per-batch ACR is built inside `rlvr/verl/trainer/ppo/ray_trainer.py` from the same
 training batch used in Step 1. It appends an ACR block to the last user message of
 `raw_prompt` (so `data.return_raw_chat=true` is required).
@@ -38,7 +38,11 @@ For MCQ tasks with option letters, the ACR builder maps the gold option letter t
 option text and uses that text (or its extracted ID) to fetch label details.
 
 ACR rollouts use the same actor as RLVR but a separate repeat count:
-`data.acr.rollout_n` (default 4).
+`data.acr.rollout_n` (default 4). No PPO update is run by default; the ACR score is
+used only for filtering/ranking traces before distillation.
+Hard-example gating: per-batch ACR only runs for prompts whose mean RLVR reward
+across rollouts is below `data.acr.hard_reward_threshold` (default 0.5). This keeps distillation focused
+on unsolved cases and avoids over-teaching already-correct samples.
 
 Reward (`reward_acr`) uses the RLVR parsing logic (`reward_minerva`) and returns:
 - `acr_base_score` = `reward_minerva` score (0..1), before scaling
@@ -48,20 +52,25 @@ Reward (`reward_acr`) uses the RLVR parsing logic (`reward_minerva`) and returns
 
 ### Step 3: Distillation SFT
 Per-batch distillation is handled by the PPO trainer and uses the same batch.
+SFT input is the original RLVR prompt (`acr_orig_prompt`), while the target is the ACR trace.
+The ACR prompt (with answer hints) is kept only for debugging and selection analysis.
 Selection is per-UID (one record per original prompt):
 
-- Eligibility: `acr_base_score >= data.acr.distill.reward_threshold`
-  (threshold is applied before r_correct scaling).
+- Eligibility: `acr_base_score >= data.acr.distill.reward_threshold` (default 1.0),
+  `acr_extracted == true`, and `acr_leak_hit == false`.
 - Among eligible rollouts, pick the response with the highest weighted ACR reward
-  (`score` includes leak penalty). Tie-breaker is mean NLL (`entropy_tiebreak=mean_nll`).
+  (`score` includes leak penalty). Then sample from the top-rewarded candidates
+  with probability proportional to `exp(beta * mean_nll)` (stochastic entropy tie-break);
+  mean NLL is computed over assistant tokens only.
 
 Accepted records are stored as:
-- `prompt_nohint`: `extra_info["acr_prompt"]` (the modified prompt with answer hints)
+- `prompt_nohint`: `extra_info["acr_orig_prompt"]` (original RLVR prompt; no answer hints)
 - `response_ids`: selected response token IDs
 - `reward`: weighted ACR score
-- `entropy_proxy`: mean NLL of the selected response
+- `entropy_proxy`: mean NLL of the selected response (assistant tokens only)
 
-SFT runs every `data.acr.distill.interval` steps (default 1).
+SFT runs every `data.acr.distill.interval` steps (default 10).
+The buffer is cleared after each SFT run.
 
 ---
 
@@ -221,6 +230,7 @@ Return a dict with:
 - `acr_extracted`
 - `acr_leak_hit`
 - `acr_id_leak_hit`
+The score is used for filtering/ranking traces, not for PPO updates by default.
 
 ---
 
@@ -234,15 +244,16 @@ The JSONL buffer is only needed for the optional offline pipeline.
 Each per-batch record includes:
 - `uid` (original prompt ID)
 - `task_key` (data_source)
-- `prompt_nohint` (historical name; contains the ACR prompt with answer hints)
+- `prompt_nohint` (historical name; contains the original RLVR prompt)
 - `response_ids` (selected rollout response)
 - `reward` (weighted ACR score)
 - `entropy_proxy` (mean NLL of the selected response)
 
 #### 4.2 Acceptance criteria (per-batch)
-- Eligibility: `acr_base_score >= reward_threshold` (pre-scaling).
-- Selection: max weighted `score` among eligible rollouts, tie-break by mean NLL.
-- Leak hits are not hard-filtered; they are penalized via `leak_penalty`.
+- Eligibility: `acr_base_score >= reward_threshold` (default 1.0),
+  `acr_extracted == true`, and `acr_leak_hit == false`.
+- Selection: max weighted `score` among eligible rollouts, then stochastic entropy tie-break
+  using mean NLL over assistant tokens only.
 
 #### 4.3 Collection mode
 Option A (preferred): per-batch collection via `data.acr.distill.enabled=true` and
@@ -266,7 +277,7 @@ Use `scripts/build_sft_from_acr.py` to transform the JSONL buffer into an SFT da
 
 Output format (recommended for MultiTurnSFTDataset):
 - `messages`: `orig_prompt + [{"role":"assistant","content": target_completion}]`
-Uses `acr_prompt` when available; falls back to `orig_prompt` for older buffers.
+Uses `orig_prompt` only (ACR prompt is not used for SFT).
 
 ---
 
@@ -286,10 +297,14 @@ rlvr/cti-scripts/train_minerva_acrd.sh
 ```
 
 Key env overrides:
-- `ACRD_ACR_RL_WEIGHT` (scales the ACR PPO update)
+- `ACRD_ACR_RL_WEIGHT` (scales the ACR PPO update; only used if `data.acr.update_actor=true`)
 - `ACRD_ACR_ROLLOUT_N` (number of ACR samples per prompt; default 4)
-- `ACRD_ACR_DISTILL_INTERVAL` (set to 1 for per-step SFT)
-- `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 0.5)
+- `ACRD_ACR_DISTILL_INTERVAL` (SFT interval in steps; default 10)
+- `ACRD_ACR_DISTILL_LR_SCALE` (SFT LR scale vs RLVR; default 0.5)
+- `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 1.0)
+- `ACRD_ACR_DISTILL_ENTROPY_BETA` (softmax beta for entropy sampling; default 1.0)
+- `ACRD_ACR_DISTILL_ENTROPY_SAMPLING` (enable stochastic entropy tie-break; default true)
+- `ACRD_ACR_HARD_REWARD_THRESHOLD` (only ACR prompts with mean RLVR reward < threshold; default 0.5)
 - `ACRD_DEBUG_SAMPLES` (prints original prompt -> ACR prompt -> rollouts -> selected response; default 2)
 - `ACRD_DETAILS_DEBUG_SAMPLES` (prints details-missing/omitted locations; default 2)
 - `ACRD_MAX_DETAILS_CHARS`, `ACRD_ACR_MAX_PROMPT_LEN`
@@ -335,10 +350,12 @@ custom_reward_function:
 Defaults:
 - `banned_phrases` is defined in `rlvr/verl/utils/reward_score/reward_acr.py` (answer/label variants).
 - `use_fuzzy_leak_check` is enabled by default.
+- Distill selection uses `entropy_tiebreak=mean_nll`, `entropy_sampling=true`, `entropy_beta=1.0` by default for ACR.
 
 Per-batch ACRD needs:
 - `data.return_raw_chat=true`
 - `data.acr.per_batch=true` plus `data.acr.*` overrides (weight, rollout_n, distill interval)
+Set `data.acr.update_actor=true` only if you explicitly want PPO updates on ACR (default false).
 
 ---
 
@@ -353,11 +370,15 @@ Supports `--multilabel-match` and `--enforce-no-id`.
 - Keep ACR reward small. It is a format/compliance shaper, not a second task objective.
 - Keep the final answer on the last line, using the same format as the original task.
 - Keep label details short. Do not blow up prompt length.
-- Per-step SFT (`interval=1`) keeps the same batch for RLVR->ACR->SFT.
-- Distill eligibility uses `acr_base_score` (pre-scaling); selection uses weighted reward and mean-NLL tie-break.
+- Periodic SFT (`interval=10`) stabilizes training by replaying from the buffer.
+- Distill eligibility uses `acr_base_score` (pre-scaling); selection uses weighted reward and
+  stochastic mean-NLL tie-break.
+- Hard-example gating uses mean RLVR reward per UID (acc@G); only harder cases flow into ACR.
 - `ACRD_DEBUG_SAMPLES` prints original prompt -> ACR prompt -> rollouts -> selected response for quick inspection.
 - `acr/details_missing`, `acr/details_omitted`, `acr/details_truncated` metrics track label-detail coverage.
 - `acr/details_not_applicable` counts samples where no label details are expected (e.g., CVSS).
+- `acr/hard_uid_total`, `acr/hard_uid_count`, `acr/hard_uid_used` report hard-example gating coverage.
+- `acr/ppo_update_skipped=1` indicates ACR is running in generation-only mode (no PPO update).
 
 ## Practical recommendations
 - Treat Step 2 as a trace generator + filter, not a direct accuracy booster.

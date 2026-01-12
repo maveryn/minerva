@@ -594,6 +594,18 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
             load_megatron_optimizer(self.actor_optimizer)
             log_gpu_memory_usage("After load actor optimizer during update_actor", logger=logger)
 
+        sft_lr_scale = 1.0
+        orig_lrs = None
+        if data.meta_info.get("sft_mode", False):
+            try:
+                sft_lr_scale = float(data.meta_info.get("sft_lr_scale", 1.0))
+            except (TypeError, ValueError):
+                sft_lr_scale = 1.0
+            if sft_lr_scale != 1.0:
+                orig_lrs = [pg.get("lr", 0.0) for pg in self.actor_optimizer.param_groups]
+                for pg in self.actor_optimizer.param_groups:
+                    pg["lr"] = pg.get("lr", 0.0) * sft_lr_scale
+
         micro_batch_size = self.config.actor.ppo_micro_batch_size_per_gpu
         data.meta_info["micro_batch_size"] = micro_batch_size
         dataloader = self.actor.make_minibatch_iterator(data=data)
@@ -607,6 +619,11 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
         metrics["perf/max_memory_reserved_gb"] = get_torch_device().max_memory_reserved() / (1024**3)
         metrics["perf/cpu_memory_used_gb"] = psutil.virtual_memory().used / (1024**3)
         from verl.utils.megatron.optimizer import get_megatron_last_lr
+
+        if orig_lrs is not None:
+            for pg, lr in zip(self.actor_optimizer.param_groups, orig_lrs):
+                pg["lr"] = lr
+            metrics["actor/sft_lr_scale"] = sft_lr_scale
 
         metrics["actor/lr"] = get_megatron_last_lr(self.actor_optimizer)
         self.actor_optimizer_scheduler.step(1)

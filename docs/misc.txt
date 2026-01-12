@@ -1,0 +1,15 @@
+2) You’re logging acr_id_leak_hit but not using it for filtering
+
+If data.acr.enforce_no_id_in_reasoning=true, but you still distill traces that leak IDs in the reasoning, you’re effectively teaching the student that it’s “okay” to mention the answer ID in the chain.
+
+Even if your evaluator extracts the last line correctly, ID-leak traces can:
+
+cause distribution drift in generation
+
+encourage shortcut behaviors (“just state ID early”), especially on tasks where the label ID is the answer
+
+Recommendation
+
+When enforce_no_id_in_reasoning=true, make acr_id_leak_hit == false part of eligibility, not just logging.
+
+If you don’t want to hard-filter, at least add a strong penalty in the trace ranking so those almost never get picked.

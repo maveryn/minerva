@@ -53,7 +53,7 @@ def main() -> None:
 
     rows = []
     for record in records:
-        orig_prompt = record.get("acr_prompt") or record.get("orig_prompt")
+        orig_prompt = record.get("orig_prompt") or record.get("acr_orig_prompt")
         target = record.get("target_completion")
         if not isinstance(orig_prompt, list) or not isinstance(target, str):
             continue

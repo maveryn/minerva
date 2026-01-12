@@ -713,6 +713,18 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
         if self._is_offload_optimizer:
             load_fsdp_optimizer(optimizer=self.actor_optimizer, device_id=get_device_id())
 
+        sft_lr_scale = 1.0
+        orig_lrs = None
+        if data.meta_info.get("sft_mode", False):
+            try:
+                sft_lr_scale = float(data.meta_info.get("sft_lr_scale", 1.0))
+            except (TypeError, ValueError):
+                sft_lr_scale = 1.0
+            if sft_lr_scale != 1.0:
+                orig_lrs = [pg.get("lr", 0.0) for pg in self.actor_optimizer.param_groups]
+                for pg in self.actor_optimizer.param_groups:
+                    pg["lr"] = pg.get("lr", 0.0) * sft_lr_scale
+
         with self.ulysses_sharding_manager:
             data = data.to("cpu")  # data will to device with each micro batch on actor.update_policy
 
@@ -728,6 +740,11 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
             metrics["perf/max_memory_allocated_gb"] = get_torch_device().max_memory_allocated() / (1024**3)
             metrics["perf/max_memory_reserved_gb"] = get_torch_device().max_memory_reserved() / (1024**3)
             metrics["perf/cpu_memory_used_gb"] = psutil.virtual_memory().used / (1024**3)
+
+            if orig_lrs is not None:
+                for pg, lr in zip(self.actor_optimizer.param_groups, orig_lrs):
+                    pg["lr"] = lr
+                metrics["actor/sft_lr_scale"] = sft_lr_scale
 
             lr = self.actor_lr_scheduler.get_last_lr()[0]
             metrics["actor/lr"] = lr
