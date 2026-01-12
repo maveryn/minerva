@@ -2595,17 +2595,19 @@ class RayPPOTrainer:
 
         metrics: dict[str, float] = {}
 
+        rollout_divisor = (
+            self.actor_rollout_wg.world_size
+            if not self.async_rollout_mode
+            else self.config.actor_rollout_ref.rollout.agent.num_workers
+        )
+        actor_divisor = self.actor_rollout_wg.world_size
+
         acr_gen_batch = self._get_gen_batch(acr_batch)
         acr_gen_batch.meta_info["global_steps"] = self.global_steps
         acr_gen_batch = acr_gen_batch.repeat(repeat_times=self._acr_rollout_n, interleave=True)
 
         with marked_timer("acr_gen", timing_raw, color="magenta"):
-            size_divisor = (
-                self.actor_rollout_wg.world_size
-                if not self.async_rollout_mode
-                else self.config.actor_rollout_ref.rollout.agent.num_workers
-            )
-            acr_gen_batch_padded, pad_size = pad_dataproto_to_divisor(acr_gen_batch, size_divisor)
+            acr_gen_batch_padded, pad_size = pad_dataproto_to_divisor(acr_gen_batch, rollout_divisor)
             if not self.async_rollout_mode:
                 acr_gen_output_padded = self.actor_rollout_wg.generate_sequences(acr_gen_batch_padded)
             else:
@@ -2621,13 +2623,12 @@ class RayPPOTrainer:
             acr_batch.batch["response_mask"] = compute_response_mask(acr_batch)
 
         if self.config.trainer.balance_batch:
-            world_size = self.actor_rollout_wg.world_size
-            if len(acr_batch) % world_size == 0:
+            if len(acr_batch) % actor_divisor == 0:
                 self._balance_batch(acr_batch, metrics=metrics, logging_prefix="acr_seqlen")
             else:
                 metrics["acr/balance_skipped"] = 1.0
                 metrics["acr/balance_skip_size"] = float(len(acr_batch))
-                metrics["acr/balance_skip_world_size"] = float(world_size)
+                metrics["acr/balance_skip_world_size"] = float(actor_divisor)
 
         acr_batch.meta_info["global_token_num"] = torch.sum(acr_batch.batch["attention_mask"], dim=-1).tolist()
 
@@ -2672,7 +2673,10 @@ class RayPPOTrainer:
             acr_batch.batch["token_level_scores"] = reward_tensor
 
         with marked_timer("acr_old_log_prob", timing_raw, color="blue"):
-            old_log_prob = self.actor_rollout_wg.compute_log_prob(acr_batch)
+            acr_batch_lp, pad_size = pad_dataproto_to_divisor(acr_batch, actor_divisor)
+            old_log_prob = self.actor_rollout_wg.compute_log_prob(acr_batch_lp)
+            if pad_size:
+                old_log_prob = unpad_dataproto(old_log_prob, pad_size=pad_size)
             entropys = old_log_prob.batch["entropys"]
             response_masks = acr_batch.batch["response_mask"]
             loss_agg_mode = self.config.actor_rollout_ref.actor.loss_agg_mode
@@ -2691,15 +2695,21 @@ class RayPPOTrainer:
         if do_acr_update:
             if self.use_reference_policy:
                 with marked_timer("acr_ref", timing_raw, color="olive"):
+                    acr_batch_ref, pad_size = pad_dataproto_to_divisor(acr_batch, actor_divisor)
                     if not self.ref_in_actor:
-                        ref_log_prob = self.ref_policy_wg.compute_ref_log_prob(acr_batch)
+                        ref_log_prob = self.ref_policy_wg.compute_ref_log_prob(acr_batch_ref)
                     else:
-                        ref_log_prob = self.actor_rollout_wg.compute_ref_log_prob(acr_batch)
+                        ref_log_prob = self.actor_rollout_wg.compute_ref_log_prob(acr_batch_ref)
+                    if pad_size:
+                        ref_log_prob = unpad_dataproto(ref_log_prob, pad_size=pad_size)
                     acr_batch = acr_batch.union(ref_log_prob)
 
             if self.use_critic:
                 with marked_timer("acr_values", timing_raw, color="cyan"):
-                    values = self.critic_wg.compute_values(acr_batch)
+                    acr_batch_val, pad_size = pad_dataproto_to_divisor(acr_batch, actor_divisor)
+                    values = self.critic_wg.compute_values(acr_batch_val)
+                    if pad_size:
+                        values = unpad_dataproto(values, pad_size=pad_size)
                     acr_batch = acr_batch.union(values)
 
             with marked_timer("acr_adv", timing_raw, color="brown"):
@@ -2725,15 +2735,17 @@ class RayPPOTrainer:
 
             if self.use_critic and self._acr_cfg.get("update_critic", False):
                 with marked_timer("acr_update_critic", timing_raw, color="pink"):
-                    critic_output = self.critic_wg.update_critic(acr_batch)
+                    acr_batch_update, _ = pad_dataproto_to_divisor(acr_batch, actor_divisor)
+                    critic_output = self.critic_wg.update_critic(acr_batch_update)
                 critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
                 for key, val in critic_output_metrics.items():
                     metrics[f"acr/{key}"] = float(val)
 
             if self._acr_update_actor:
                 with marked_timer("acr_update_actor", timing_raw, color="red"):
-                    acr_batch.meta_info["multi_turn"] = self.config.actor_rollout_ref.rollout.multi_turn.enable
-                    actor_output = self.actor_rollout_wg.update_actor(acr_batch)
+                    acr_batch_update, _ = pad_dataproto_to_divisor(acr_batch, actor_divisor)
+                    acr_batch_update.meta_info["multi_turn"] = self.config.actor_rollout_ref.rollout.multi_turn.enable
+                    actor_output = self.actor_rollout_wg.update_actor(acr_batch_update)
                 actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
                 for key, val in actor_output_metrics.items():
                     metrics[f"acr/{key}"] = float(val)
