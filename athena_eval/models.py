@@ -188,8 +188,8 @@ class HuggingFaceModel(BaseModel):
         room = max(1, ctx - ids.shape[-1])
         return max(1, min(requested, room))
 
-    def generate(self, prompt: str, temperature: float = 0.0, **_: object) -> str:
-        formatted = self._format_prompt(prompt)
+    def generate(self, prompt: str, temperature: float = 0.0, apply_chat_template: bool = True, **_: object) -> str:
+        formatted = self._format_prompt(prompt) if apply_chat_template else prompt
         do_sample = temperature > 0.0
         max_new = self._cap_new_tokens(formatted, self.max_new_tokens)
         eos = self._eos_ids()
@@ -304,4 +304,3 @@ class DummyModel(BaseModel):
     def generate(self, prompt: str, answer: str = "", **_: object) -> str:  # type: ignore[override]
         _ = prompt  # Prompt is unused but kept for interface compatibility
         return answer if random.random() < 0.5 else "I don't know"
-

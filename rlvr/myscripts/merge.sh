@@ -2,7 +2,7 @@ python -m verl.model_merger merge \
     --backend fsdp \
     --local_dir checkpoints/minerva/minerva_base_grpo_llama8b/best/actor/ \
     --target_dir checkpoints/minerva/minerva_base_grpo_llama8b/best/hf \
-    --hf_upload_path athena-security/minerva_grpo_llama8b_500 \
+    --hf_upload_path xashru/minerva_grpo_llama8b_500 \
     --private
 
 

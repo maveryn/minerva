@@ -6,14 +6,14 @@ using the defaults documented in `docs/acrd.md` and `docs/acrd-dpo.md`.
 ## Key knobs (DPO-relevant defaults)
 
 - `data.acr.rollout_n = 4` (3 supported, but default 4)
-- `data.acr.hard_reward_threshold = 0.5` (run ACR only if mean RLVR reward < threshold)
+- `data.acr.hard_reward_mode = no_perfect` (run ACR only if no rollout reaches reward 1.0)
+- `data.acr.hard_reward_threshold = 0.05` (used when `hard_reward_mode=mean_reward`)
 - `data.acr.distill.enabled = true` (required for distillation, SFT/DPO)
 - `data.acr.distill.method = dpo` (default is `sft`, so you must set to `dpo`)
 - `data.acr.distill.interval = 10`
-- `data.acr.distill.reward_threshold = 0.5` (chosen/rejected split; default matches SFT/DPO)
+- `data.acr.distill.reward_threshold = 0.99` (chosen/rejected split; default matches SFT/DPO)
 - `data.acr.distill.lr_scale = 1.0` (distill step uses the same LR as RLVR)
 - `data.acr.distill.dpo.beta = 0.1`
-- `data.acr.distill.dpo.require_rejected_parses = true`
 
 ## Step 1: RLVR baseline update (unchanged)
 
@@ -30,9 +30,9 @@ trace" generation pass, but only for hard prompts.
 
 For each prompt UID in the batch:
 
-- Compute mean RLVR reward across the RLVR rollouts.
-- Only if that mean is below `data.acr.hard_reward_threshold` (default 0.5) do
-  you generate ACR traces.
+- `hard_reward_mode=no_perfect` (default): generate ACR traces only if max RLVR reward < 1.0.
+- `hard_reward_mode=mean_reward`: generate ACR traces only if mean RLVR reward across
+  rollouts is below `data.acr.hard_reward_threshold` (default 0.05).
 
 This concentrates Step 2/3 compute on prompts the model is not reliably solving.
 For DPO, we skip hard-example gating and reuse RLVR rollouts when max reward is 1.0.
@@ -117,10 +117,9 @@ Choose CHOSEN:
 - Among responses with reward >= `data.acr.distill.reward_threshold`, pick the highest rubric score
   (if present). If no reward>=threshold response exists, skip the UID.
 
-Choose REJECTED (default `require_rejected_parses=true`):
+Choose REJECTED:
 
 - Among responses with reward < `data.acr.distill.reward_threshold`, pick the highest rubric (tie-break by higher reward).
-- If `require_rejected_parses=true`, restrict rejected to `acr_extracted==true`.
 - If no reward<threshold response (all reward>=threshold), pick the lowest rubric among reward>=threshold candidates
   (distinct from chosen). Skip if you cannot form a pair.
 
@@ -134,6 +133,13 @@ Every `data.acr.distill.interval=10` steps, you:
 - Flush the DPO pair buffer.
 - Run a DPO optimization step over these (prompt, chosen, rejected) pairs.
 - Clear the buffer.
+
+## SFT note (default method)
+
+When `data.acr.distill.method = sft`, each distill step samples up to
+`data.acr.distill.batch_size` records uniformly at random from the buffer
+(no replacement) and runs a single SFT update. If fewer records exist, all
+available records are used.
 
 ### 3.4 DPO loss (exactly as in the guide)
 

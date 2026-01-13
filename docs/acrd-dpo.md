@@ -15,8 +15,7 @@ Step 2 is method-aware for DPO (reuse RLVR rollouts when max reward is 1.0).
   judge rubric `acr_rubric_score` (0..1). Leak penalties and `reward_acr.score` are not used.
 - Pair per UID:
   - Chosen: highest rubric among reward>=threshold responses (deterministic tie-break).
-  - Rejected: highest rubric among reward<threshold responses (tie-break by higher reward, then deterministic);
-    if `require_rejected_parses=true`, rejected must have `acr_extracted==true`.
+  - Rejected: highest rubric among reward<threshold responses (tie-break by higher reward, then deterministic).
   - If no reward<threshold response (all reward>=threshold), fall back to reward>=threshold candidates and pick the
     worst rubric as rejected (still distinct from chosen). Skip if you cannot form a pair.
 - Distill buffer stores `(prompt_nohint, chosen_ids, rejected_ids)` and DPO updates run
@@ -77,13 +76,12 @@ data:
       interval: 10
 
       # existing SFT fields (also used by DPO as the chosen/rejected threshold)
-      reward_threshold: 0.5
+      reward_threshold: 0.99
       lr_scale: 1.0
 
       # DPO config
       dpo:
         beta: 0.1
-        require_rejected_parses: true
 ```
 
 Note: DPO is still gated by `data.acr.distill.enabled=true`; method selection only applies when distill is enabled.
@@ -94,7 +92,6 @@ Add:
 
 - `ACRD_ACR_DISTILL_METHOD` (`sft` or `dpo`)
 - `ACRD_DPO_BETA`
-- `ACRD_DPO_REQUIRE_REJECTED_PARSES`
 
 Map them to Hydra overrides like the existing SFT knobs.
 
@@ -150,8 +147,7 @@ Leak penalties and `reward_acr.score` are not used for DPO selection.
 - Chosen: among responses with reward >= `data.acr.distill.reward_threshold`, pick the highest rubric score (if present).
   Tie-break is deterministic random (seeded by UID + index).
 - Rejected: among responses with reward < `data.acr.distill.reward_threshold`, pick the highest rubric (tie-break by higher
-  reward, then deterministic random); if `require_rejected_parses=true`, restrict rejected to
-  `acr_extracted==true`.
+  reward, then deterministic random).
 - If no reward<threshold response (all reward>=threshold), pick the lowest rubric among reward>=threshold candidates
   as rejected (distinct from chosen). Skip if you cannot form a pair.
 
@@ -221,7 +217,6 @@ Example:
 ```bash
 ACRD_ACR_DISTILL_METHOD=dpo \
 ACRD_DPO_BETA=0.1 \
-ACRD_DPO_REQUIRE_REJECTED_PARSES=true \
 bash rlvr/cti-scripts/train_minerva_acrd_llama8b.sh
 ```
 
@@ -250,6 +245,8 @@ You will be given:
 - RESPONSE: the model's full response (reasoning + final answer line)
 
 Return ONLY a valid JSON object with integer scores (no rationale, no extra keys, no markdown).
+IMPORTANT: Output must be a single JSON object and nothing else. Do not add any commentary
+or rationale or surrounding text. The response must start with "{" and end with "}".
 
 ========================
 QUESTION:
@@ -262,7 +259,7 @@ RESPONSE:
 Use a 1-4 Likert scale for each axis:
 1 = Poor, 2 = Fair, 3 = Good, 4 = Excellent
 
-Q1 - No hint/label leakage (weight 0.30)
+Q1 - No hint/label leakage
 Score how well the RESPONSE avoids stating or implying that the answer/labels/options were provided.
 Includes phrases like: "given the answer", "ground truth", "based on provided label/options",
 "since we know the correct label", etc., and indirect meta-language implying label access.
@@ -271,14 +268,14 @@ Includes phrases like: "given the answer", "ground truth", "based on provided la
 3: minor borderline phrasing but generally clean
 4: completely clean (no leakage or implication)
 
-Q2 - Clarity + conciseness + non-redundancy (weight 0.30)
+Q2 - Clarity + conciseness + non-redundancy
 Score readability and efficiency: clear structure, no repetition, no rambling, no degenerate loops.
 1: confusing/gibberish OR highly repetitive/verbose
 2: understandable but wordy/redundant
 3: mostly clear and reasonably concise; minor redundancy
 4: very clear, crisp, minimal redundancy
 
-Q3 - Groundedness to the input (weight 0.20)
+Q3 - Groundedness to the input
 Score how well the reasoning is anchored in specific evidence from the QUESTION
 and avoids hallucinated specifics not supported by the QUESTION.
 1: generic/unanchored OR introduces major unsupported specifics
@@ -286,7 +283,7 @@ and avoids hallucinated specifics not supported by the QUESTION.
 3: grounded with multiple concrete ties to the QUESTION; minimal unsupported detail
 4: strongly grounded; evidence-based; no unsupported specifics
 
-Q4 - Evidence->answer alignment (weight 0.20)
+Q4 - Evidence->answer alignment
 Score whether the reasoning logically supports the final answer stated in the RESPONSE,
 without contradictions or non sequiturs. (Do NOT judge whether the answer is correct.)
 1: reasoning contradicts the final answer or is unrelated
@@ -294,17 +291,18 @@ without contradictions or non sequiturs. (Do NOT judge whether the answer is cor
 3: generally supports the final answer with a coherent link
 4: strong, consistent support with clear linkage from evidence to the stated answer
 
-OUTPUT (STRICT): return ONLY this JSON:
+OUTPUT (STRICT): return ONLY a JSON object with keys Q1, Q2, Q3, Q4 and integer values 1-4.
 
+Example valid output:
 {
-  "Q1_no_leakage": 1|2|3|4,
-  "Q2_clarity": 1|2|3|4,
-  "Q3_groundedness": 1|2|3|4,
-  "Q4_alignment": 1|2|3|4
+  "Q1": 4,
+  "Q2": 3,
+  "Q3": 3,
+  "Q4": 4
 }
 ```
 
-The rubric score is computed in code (not by the LLM) as:
+The rubric score is computed in code (not by the LLM); the weights are not provided to the judge:
 
 ```
 S_1to4 = 0.30*Q1 + 0.30*Q2 + 0.20*Q3 + 0.20*Q4
