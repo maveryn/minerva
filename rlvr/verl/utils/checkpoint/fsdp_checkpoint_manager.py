@@ -203,9 +203,12 @@ class FSDPCheckpointManager(BaseCheckpointManager):
         # record the previous global step
         self.previous_global_step = global_step
 
+        track_path = self.should_track_ckpt_path(local_path)
+
         # remove previous local_path, only rank 0 should do this
         if (
             self.rank == 0
+            and track_path
             and max_ckpt_to_keep
             and isinstance(max_ckpt_to_keep, int)
             and max_ckpt_to_keep > 0
@@ -354,4 +357,5 @@ class FSDPCheckpointManager(BaseCheckpointManager):
             # wait for rank0 to dump hf_model to local
             torch.distributed.barrier()
 
-        self.previous_saved_paths.append(local_path)
+        if track_path:
+            self.previous_saved_paths.append(local_path)

@@ -142,6 +142,12 @@ class BaseCheckpointManager:
                 continue
             shutil.rmtree(abs_path, ignore_errors=True)
 
+    def should_track_ckpt_path(self, local_path: str) -> bool:
+        if not local_path:
+            return False
+        parent_dir = os.path.basename(os.path.dirname(os.path.abspath(local_path)))
+        return parent_dir.startswith("global_step_")
+
     @staticmethod
     def get_rng_state():
         rng_state = {
