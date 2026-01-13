@@ -32,7 +32,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from functools import partial
 from pprint import pprint
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import ray
@@ -1297,7 +1297,7 @@ class RayPPOTrainer:
         }
         if distill_source == "acr":
             defaults["interval"] = 10
-            defaults["reward_threshold"] = 1.0
+            defaults["reward_threshold"] = 0.5
             defaults["entropy_tiebreak"] = "mean_nll"
             defaults["entropy_sampling"] = True
         for key, value in defaults.items():
@@ -1368,11 +1368,16 @@ class RayPPOTrainer:
             print(f"ACR per-batch disabled: {exc}")
             return
 
+        reward_manager_name = str(acr_cfg.get("reward_manager", "naive")).strip().lower()
         reward_kwargs = dict(acr_cfg.get("reward_kwargs", {}))
         reward_kwargs.setdefault("enforce_no_id_in_reasoning", bool(acr_cfg.get("enforce_no_id_in_reasoning", True)))
-
+        if reward_manager_name != "batch":
+            reward_kwargs = {k: v for k, v in reward_kwargs.items() if not str(k).startswith("judge_")}
         try:
-            from verl.utils.reward_score.reward_acr import reward_acr
+            if reward_manager_name == "batch":
+                from verl.utils.reward_score.reward_acr_batch import reward_acr_batch
+            else:
+                from verl.utils.reward_score.reward_acr import reward_acr
         except Exception as exc:
             print(f"ACR per-batch disabled: {exc}")
             return
@@ -1398,13 +1403,24 @@ class RayPPOTrainer:
         self._acr_weight = float(acr_cfg.get("rl_weight", 0.3))
         self._acr_update_actor = bool(acr_cfg.get("update_actor", False))
         self._acr_hard_reward_threshold = float(acr_cfg.get("hard_reward_threshold", 0.5))
-        compute_score = partial(reward_acr, **reward_kwargs)
-        self._acr_reward_fn = NaiveRewardManager(
-            tokenizer=self.tokenizer,
-            num_examine=0,
-            compute_score=compute_score,
-            reward_fn_key=self._acr_reward_fn_key,
-        )
+        if reward_manager_name == "batch":
+            from verl.workers.reward_manager.batch import BatchRewardManager
+
+            compute_score = partial(reward_acr_batch, **reward_kwargs)
+            self._acr_reward_fn = BatchRewardManager(
+                tokenizer=self.tokenizer,
+                num_examine=0,
+                compute_score=compute_score,
+                reward_fn_key=self._acr_reward_fn_key,
+            )
+        else:
+            compute_score = partial(reward_acr, **reward_kwargs)
+            self._acr_reward_fn = NaiveRewardManager(
+                tokenizer=self.tokenizer,
+                num_examine=0,
+                compute_score=compute_score,
+                reward_fn_key=self._acr_reward_fn_key,
+            )
 
     def _debug_log_acr_samples(
         self,
@@ -2029,6 +2045,72 @@ class RayPPOTrainer:
 
         return hard_uids, metrics
 
+    def _compute_uid_max_rewards(
+        self, batch: DataProto, reward_scalar: Optional[torch.Tensor]
+    ) -> tuple[dict[str, float], dict[str, float]]:
+        metrics: dict[str, float] = {}
+        if reward_scalar is None:
+            return {}, metrics
+
+        uid_arr = batch.non_tensor_batch.get("uid")
+        if uid_arr is None:
+            return {}, metrics
+
+        uid_list = np.asarray(uid_arr, dtype=object).tolist()
+        reward_list = reward_scalar.detach().cpu().tolist()
+        if len(uid_list) != len(reward_list):
+            return {}, metrics
+
+        max_reward_by_uid: dict[str, float] = {}
+        for uid, reward in zip(uid_list, reward_list):
+            key = str(uid)
+            reward_val = float(reward)
+            prev = max_reward_by_uid.get(key)
+            if prev is None or reward_val > prev:
+                max_reward_by_uid[key] = reward_val
+
+        if max_reward_by_uid:
+            metrics["acr/uid_max_reward_mean"] = float(np.mean(list(max_reward_by_uid.values())))
+        return max_reward_by_uid, metrics
+
+    def _filter_acr_batch_by_uid_max_reward(
+        self, acr_batch: Optional[DataProto], uid_max_rewards: Optional[dict[str, float]]
+    ) -> tuple[Optional[DataProto], dict[str, float]]:
+        metrics: dict[str, float] = {}
+        if acr_batch is None or len(acr_batch) == 0:
+            return acr_batch, metrics
+
+        if not uid_max_rewards:
+            metrics["acr/dpo_prompt_uid_used"] = 0.0
+            metrics["acr/dpo_prompt_uid_filtered"] = float(len(acr_batch))
+            return None, metrics
+
+        uid_arr = acr_batch.non_tensor_batch.get("uid")
+        if uid_arr is None:
+            return acr_batch, metrics
+
+        uid_list = np.asarray(uid_arr, dtype=object).tolist()
+        target_uids = {uid for uid, score in uid_max_rewards.items() if score < 1.0 - 1e-6}
+        total = len(uid_list)
+
+        if not target_uids:
+            metrics["acr/dpo_prompt_uid_used"] = 0.0
+            metrics["acr/dpo_prompt_uid_filtered"] = float(total)
+            return None, metrics
+
+        mask = np.array([str(uid) in target_uids for uid in uid_list], dtype=bool)
+        used = int(mask.sum())
+        metrics["acr/dpo_prompt_uid_used"] = float(used)
+        metrics["acr/dpo_prompt_uid_filtered"] = float(total - used)
+        metrics["acr/dpo_prompt_uid_used_frac"] = float(used / max(1, total))
+
+        if used == 0:
+            return None, metrics
+        if used < total:
+            acr_batch = acr_batch.select_idxs(mask)
+
+        return acr_batch, metrics
+
     def _filter_acr_batch_by_uids(
         self, acr_batch: Optional[DataProto], hard_uids: Optional[set[str]]
     ) -> tuple[Optional[DataProto], dict[str, float]]:
@@ -2078,10 +2160,13 @@ class RayPPOTrainer:
 
     def _collect_distill_candidates(
         self,
-        batch: DataProto,
+        batch: Optional[DataProto],
         reward_scalar: Optional[torch.Tensor],
         reward_threshold_scalar: Optional[torch.Tensor] = None,
         reward_extra_infos: Optional[dict] = None,
+        rollout_batch: Optional[DataProto] = None,
+        rollout_reward_scalar: Optional[torch.Tensor] = None,
+        uid_max_rewards: Optional[dict[str, float]] = None,
     ) -> dict[str, float]:
         cfg = self._distill_cfg
         if str(cfg.get("method", "sft")).lower().strip() == "dpo" and self._distill_source == "acr":
@@ -2090,6 +2175,9 @@ class RayPPOTrainer:
                 reward_scalar=reward_scalar,
                 reward_threshold_scalar=reward_threshold_scalar,
                 reward_extra_infos=reward_extra_infos,
+                rollout_batch=rollout_batch,
+                rollout_reward_scalar=rollout_reward_scalar,
+                uid_max_rewards=uid_max_rewards,
             )
         if not cfg.get("enabled", False) or reward_scalar is None:
             return {}
@@ -2336,85 +2424,79 @@ class RayPPOTrainer:
 
     def _collect_distill_candidates_dpo(
         self,
-        batch: DataProto,
+        batch: Optional[DataProto],
         reward_scalar: Optional[torch.Tensor],
         reward_threshold_scalar: Optional[torch.Tensor] = None,
         reward_extra_infos: Optional[dict] = None,
+        rollout_batch: Optional[DataProto] = None,
+        rollout_reward_scalar: Optional[torch.Tensor] = None,
+        uid_max_rewards: Optional[dict[str, float]] = None,
     ) -> dict[str, float]:
         cfg = self._distill_cfg
-        if not cfg.get("enabled", False) or reward_scalar is None:
+        if not cfg.get("enabled", False) or rollout_batch is None or rollout_reward_scalar is None:
             return {}
 
-        uid_arr = batch.non_tensor_batch.get("uid")
-        extra_arr = batch.non_tensor_batch.get("extra_info")
+        uid_arr = rollout_batch.non_tensor_batch.get("uid")
+        extra_arr = rollout_batch.non_tensor_batch.get("extra_info")
         if uid_arr is None or extra_arr is None:
             return {}
 
         uid_list = np.asarray(uid_arr, dtype=object).tolist()
         extra_list = np.asarray(extra_arr, dtype=object).tolist()
-        task_arr = batch.non_tensor_batch.get("data_source")
+        task_arr = rollout_batch.non_tensor_batch.get("data_source")
         if task_arr is not None:
             task_list = np.asarray(task_arr, dtype=object).tolist()
         else:
             task_list = [None] * len(uid_list)
 
-        reward_list = reward_scalar.detach().cpu().tolist()
-        if len(uid_list) != len(reward_list):
+        rollout_reward_list = rollout_reward_scalar.detach().cpu().tolist()
+        if len(uid_list) != len(rollout_reward_list):
             return {}
-        reward_threshold_list = reward_list
-        if reward_threshold_scalar is not None:
-            try:
-                threshold_list = reward_threshold_scalar.detach().cpu().tolist()
-            except Exception:
-                threshold_list = None
-            if isinstance(threshold_list, list) and len(threshold_list) == len(reward_list):
-                reward_threshold_list = threshold_list
 
-        base_scores_list = None
-        extracted_list = None
-        leak_hits_list = None
-        if isinstance(reward_extra_infos, dict):
-            base_scores_list = reward_extra_infos.get("acr_base_score")
-            extracted_list = reward_extra_infos.get("acr_extracted")
-            leak_hits_list = reward_extra_infos.get("acr_leak_hit")
-        if isinstance(base_scores_list, np.ndarray):
-            base_scores_list = base_scores_list.tolist()
-        if not isinstance(base_scores_list, list) or len(base_scores_list) != len(reward_list):
-            base_scores_list = None
-        if isinstance(extracted_list, np.ndarray):
-            extracted_list = extracted_list.tolist()
-        if not isinstance(extracted_list, list) or len(extracted_list) != len(reward_list):
-            extracted_list = None
-        if isinstance(leak_hits_list, np.ndarray):
-            leak_hits_list = leak_hits_list.tolist()
-        if not isinstance(leak_hits_list, list) or len(leak_hits_list) != len(reward_list):
-            leak_hits_list = None
-
-        rubric_scores_list = None
-        if isinstance(reward_extra_infos, dict):
-            rubric_scores_list = reward_extra_infos.get("acr_rubric_score")
-            if rubric_scores_list is None:
-                rubric_scores_list = reward_extra_infos.get("acr_rubric")
-        if isinstance(rubric_scores_list, np.ndarray):
-            rubric_scores_list = rubric_scores_list.tolist()
-        if not isinstance(rubric_scores_list, list) or len(rubric_scores_list) != len(reward_list):
-            rubric_scores_list = None
-
-        responses = batch.batch.get("responses")
-        if responses is None:
+        if uid_max_rewards is None:
+            uid_max_rewards, _ = self._compute_uid_max_rewards(rollout_batch, rollout_reward_scalar)
+        if not uid_max_rewards:
             return {}
-        responses = responses.detach().cpu()
 
-        response_mask = batch.batch.get("response_mask")
-        if response_mask is not None:
-            response_mask = response_mask.detach().cpu()
+        eps = 1e-6
+        threshold = float(cfg.get("reward_threshold", 1.0))
+        perfect_uids = {uid for uid, score in uid_max_rewards.items() if score >= 1.0 - eps}
 
-        threshold = float(cfg.get("reward_threshold", 0.5))
+        dpo_cfg = cfg.get("dpo", {})
+        if not isinstance(dpo_cfg, dict):
+            dpo_cfg = {}
+        require_rejected_parses = bool(dpo_cfg.get("require_rejected_parses", True))
+
+        rollout_n = int(getattr(self, "_acr_rollout_n", 1) or 1)
+
+        def tiebreak(uid: str, idx: int, tag: str) -> int:
+            token = f"{uid}-{tag}-{idx}".encode("utf-8")
+            return int.from_bytes(hashlib.md5(token).digest()[:8], "big")
+
+        def listify(value: Any, length: int) -> Optional[list]:
+            if isinstance(value, np.ndarray):
+                value = value.tolist()
+            if isinstance(value, list) and len(value) == length:
+                return value
+            return None
+
+        def resolve_prompt_nohint(extra_info: Any, raw_prompt: Any) -> Optional[list[dict]]:
+            if isinstance(extra_info, dict):
+                for key in ("acr_orig_prompt", "orig_prompt", "slhc_prompt_nohint", "tarba_prompt_no_tool"):
+                    val = extra_info.get(key)
+                    if isinstance(val, list):
+                        return val
+            if isinstance(raw_prompt, list):
+                return raw_prompt
+            return None
+
         pad_id = self.tokenizer.pad_token_id
         if pad_id is None:
             pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
 
-        def extract_response_ids(idx: int) -> Optional[list[int]]:
+        def extract_response_ids(
+            responses: torch.Tensor, response_mask: Optional[torch.Tensor], idx: int
+        ) -> Optional[list[int]]:
             if response_mask is not None:
                 valid_len = int(response_mask[idx].sum().item())
                 response_ids = responses[idx][:valid_len].tolist()
@@ -2424,116 +2506,210 @@ class RayPPOTrainer:
                     response_ids.pop()
             return response_ids or None
 
-        def is_eligible(base_score: Optional[float], extracted: bool, leak_hit: bool) -> bool:
-            if base_score is None or base_score < threshold:
-                return False
-            if not extracted:
-                return False
-            if leak_hit:
-                return False
-            return True
-
-        dpo_cfg = cfg.get("dpo", {})
-        if not isinstance(dpo_cfg, dict):
-            dpo_cfg = {}
-        require_rejected_parses = bool(dpo_cfg.get("require_rejected_parses", True))
-
         grouped: dict[str, list[int]] = {}
         for idx, uid in enumerate(uid_list):
             grouped.setdefault(str(uid), []).append(idx)
 
-        total_groups = len(grouped)
+        selected_rollout_idxs: list[int] = []
+        for uid, idxs in grouped.items():
+            if uid not in perfect_uids:
+                continue
+            idxs_sorted = sorted(
+                idxs,
+                key=lambda i: (-float(rollout_reward_list[i]), tiebreak(uid, i, "rollout")),
+            )
+            selected_rollout_idxs.extend(idxs_sorted[: min(rollout_n, len(idxs_sorted))])
+
+        rollout_rubric_list: Optional[list] = None
+        rollout_extracted_list: Optional[list] = None
+        if selected_rollout_idxs:
+            rollout_subset = rollout_batch.select_idxs(selected_rollout_idxs)
+            extra_infos = rollout_subset.non_tensor_batch.get("extra_info")
+            if extra_infos is None:
+                extra_list_subset = [{} for _ in range(len(rollout_subset))]
+            else:
+                extra_list_subset = [
+                    dict(info) if isinstance(info, dict) else {} for info in np.asarray(extra_infos, dtype=object)
+                ]
+            raw_prompt_arr = rollout_subset.non_tensor_batch.get("raw_prompt")
+            raw_prompt_list = (
+                np.asarray(raw_prompt_arr, dtype=object).tolist() if raw_prompt_arr is not None else None
+            )
+            prompt_texts = None
+            prompts = rollout_subset.batch.get("prompts") if rollout_subset.batch is not None else None
+            if raw_prompt_list is None and prompts is not None:
+                prompt_texts = self.tokenizer.batch_decode(prompts.detach().cpu(), skip_special_tokens=True)
+            for i, info in enumerate(extra_list_subset):
+                if not isinstance(info.get("acr_orig_prompt"), list):
+                    msg = None
+                    if raw_prompt_list is not None and isinstance(raw_prompt_list[i], list):
+                        msg = raw_prompt_list[i]
+                    elif prompt_texts is not None:
+                        msg = [{"role": "user", "content": str(prompt_texts[i])}]
+                    if msg is not None:
+                        info["acr_orig_prompt"] = msg
+                extra_list_subset[i] = info
+            rollout_subset.non_tensor_batch["extra_info"] = np.array(extra_list_subset, dtype=object)
+
+            _, rollout_reward_extra = compute_reward(rollout_subset, self._acr_reward_fn)
+            rollout_rubric_list = rollout_reward_extra.get("acr_rubric_score")
+            if rollout_rubric_list is None:
+                rollout_rubric_list = rollout_reward_extra.get("acr_rubric")
+            rollout_extracted_list = rollout_reward_extra.get("acr_extracted")
+            rollout_rubric_list = listify(rollout_rubric_list, len(selected_rollout_idxs))
+            rollout_extracted_list = listify(rollout_extracted_list, len(selected_rollout_idxs))
+
+        rollout_responses = rollout_batch.batch.get("responses")
+        if rollout_responses is None:
+            return {}
+        rollout_responses = rollout_responses.detach().cpu()
+        rollout_response_mask = rollout_batch.batch.get("response_mask")
+        if rollout_response_mask is not None:
+            rollout_response_mask = rollout_response_mask.detach().cpu()
+        raw_prompt_arr = rollout_batch.non_tensor_batch.get("raw_prompt")
+        raw_prompt_list = np.asarray(raw_prompt_arr, dtype=object).tolist() if raw_prompt_arr is not None else None
+
+        candidates_by_uid: dict[str, list[dict]] = {}
+
+        def add_candidate(uid: str, candidate: dict) -> None:
+            candidates_by_uid.setdefault(uid, []).append(candidate)
+
+        for pos, idx in enumerate(selected_rollout_idxs):
+            uid = str(uid_list[idx])
+            if uid not in perfect_uids:
+                continue
+            response_ids = extract_response_ids(rollout_responses, rollout_response_mask, idx)
+            if not response_ids:
+                continue
+            extra_info = extra_list[idx]
+            raw_prompt = raw_prompt_list[idx] if raw_prompt_list is not None else None
+            prompt_nohint = resolve_prompt_nohint(extra_info, raw_prompt)
+            if not isinstance(prompt_nohint, list):
+                continue
+            rubric = float(rollout_rubric_list[pos]) if rollout_rubric_list is not None else 0.0
+            extracted = bool(rollout_extracted_list[pos]) if rollout_extracted_list is not None else False
+            reward_val = float(rollout_reward_list[idx])
+            task_key = task_list[idx]
+            add_candidate(
+                uid,
+                {
+                    "idx": idx,
+                    "source": "rollout",
+                    "response_ids": response_ids,
+                    "reward": reward_val,
+                    "base_score": reward_val,
+                    "extracted": extracted,
+                    "rubric": rubric,
+                    "response_len": len(response_ids),
+                    "prompt_nohint": prompt_nohint,
+                    "task_key": str(task_key) if task_key is not None else "unknown",
+                },
+            )
+
+        if batch is not None and len(batch) > 0 and isinstance(reward_extra_infos, dict):
+            acr_uid_arr = batch.non_tensor_batch.get("uid")
+            acr_extra_arr = batch.non_tensor_batch.get("extra_info")
+            if acr_uid_arr is not None and acr_extra_arr is not None:
+                acr_uid_list = np.asarray(acr_uid_arr, dtype=object).tolist()
+                acr_extra_list = np.asarray(acr_extra_arr, dtype=object).tolist()
+                acr_task_arr = batch.non_tensor_batch.get("data_source")
+                if acr_task_arr is not None:
+                    acr_task_list = np.asarray(acr_task_arr, dtype=object).tolist()
+                else:
+                    acr_task_list = [None] * len(acr_uid_list)
+
+                base_scores_list = listify(reward_extra_infos.get("acr_base_score"), len(acr_uid_list))
+                rubric_scores_list = listify(reward_extra_infos.get("acr_rubric_score"), len(acr_uid_list))
+                if rubric_scores_list is None:
+                    rubric_scores_list = listify(reward_extra_infos.get("acr_rubric"), len(acr_uid_list))
+                extracted_list = listify(reward_extra_infos.get("acr_extracted"), len(acr_uid_list))
+
+                acr_responses = batch.batch.get("responses")
+                if acr_responses is not None:
+                    acr_responses = acr_responses.detach().cpu()
+                    acr_response_mask = batch.batch.get("response_mask")
+                    if acr_response_mask is not None:
+                        acr_response_mask = acr_response_mask.detach().cpu()
+                else:
+                    acr_response_mask = None
+
+                if acr_responses is not None and base_scores_list is not None:
+                    for i, uid_raw in enumerate(acr_uid_list):
+                        uid = str(uid_raw)
+                        uid_max = uid_max_rewards.get(uid)
+                        if uid_max is None or uid_max >= 1.0 - eps:
+                            continue
+                        response_ids = extract_response_ids(acr_responses, acr_response_mask, i)
+                        if not response_ids:
+                            continue
+                        base_score = base_scores_list[i]
+                        if base_score is None:
+                            continue
+                        extra_info = acr_extra_list[i]
+                        prompt_nohint = resolve_prompt_nohint(extra_info, None)
+                        if not isinstance(prompt_nohint, list):
+                            continue
+                        rubric = float(rubric_scores_list[i]) if rubric_scores_list is not None else 0.0
+                        extracted = bool(extracted_list[i]) if extracted_list is not None else False
+                        reward_val = float(base_score)
+                        task_key = acr_task_list[i]
+                        add_candidate(
+                            uid,
+                            {
+                                "idx": i,
+                                "source": "acr",
+                                "response_ids": response_ids,
+                                "reward": reward_val,
+                                "base_score": reward_val,
+                                "extracted": extracted,
+                                "rubric": rubric,
+                                "response_len": len(response_ids),
+                                "prompt_nohint": prompt_nohint,
+                                "task_key": str(task_key) if task_key is not None else "unknown",
+                            },
+                        )
+
+        total_groups = len(candidates_by_uid)
         selected_groups = 0
         selected_rewards: list[float] = []
         total_pairs = 0
         skipped_pairs = 0
         records = []
 
-        for uid, idxs in grouped.items():
-            extra_info = extra_list[idxs[0]]
-            prompt_nohint = None
-            if isinstance(extra_info, dict):
-                prompt_nohint = extra_info.get("acr_orig_prompt")
-                if not isinstance(prompt_nohint, list):
-                    prompt_nohint = extra_info.get("orig_prompt")
-            if not isinstance(prompt_nohint, list):
+        for uid, candidates in candidates_by_uid.items():
+            chosen_pool = [c for c in candidates if c["reward"] >= threshold - eps]
+            if not chosen_pool:
+                skipped_pairs += 1
                 continue
-
-            candidates = []
-            for i in idxs:
-                response_ids = extract_response_ids(i)
-                if not response_ids:
-                    continue
-                base_score = None
-                if base_scores_list is not None:
-                    base_score = base_scores_list[i]
-                elif reward_threshold_list is not None:
-                    base_score = reward_threshold_list[i]
-                extracted = bool(extracted_list[i]) if extracted_list is not None else True
-                leak_hit = bool(leak_hits_list[i]) if leak_hits_list is not None else False
-                rubric_score = float(rubric_scores_list[i]) if rubric_scores_list is not None else 0.0
-                response_len = len(response_ids)
-                clean_correct = is_eligible(base_score, extracted, leak_hit)
-                candidates.append(
-                    {
-                        "idx": i,
-                        "response_ids": response_ids,
-                        "reward": float(reward_list[i]),
-                        "base_score": base_score,
-                        "extracted": extracted,
-                        "leak_hit": leak_hit,
-                        "rubric": rubric_score,
-                        "response_len": response_len,
-                        "is_clean_correct": clean_correct,
-                    }
-                )
-
-            if not candidates:
-                continue
-
-            eligible_candidates = [c for c in candidates if c["is_clean_correct"]]
-            if not eligible_candidates:
-                continue
-
-            def base_score_val(item: dict) -> float:
-                val = item.get("base_score")
-                return float(val) if val is not None else 0.0
-
-            def tiebreak_rand(item: dict) -> int:
-                token = f"{uid}-{item['idx']}".encode("utf-8")
-                return int.from_bytes(hashlib.md5(token).digest()[:8], "big")
-
-            def best_candidate(pool: list[dict]) -> dict:
-                return max(
-                    pool,
-                    key=lambda c: (c["rubric"], base_score_val(c), -c["response_len"], tiebreak_rand(c)),
-                )
-
-            def worst_candidate(pool: list[dict]) -> dict:
-                return min(
-                    pool,
-                    key=lambda c: (c["rubric"], base_score_val(c), c["response_len"], tiebreak_rand(c)),
-                )
-
-            chosen = best_candidate(eligible_candidates)
-
-            noneligible = [c for c in candidates if not c["is_clean_correct"] and c["idx"] != chosen["idx"]]
+            rejected_pool = [c for c in candidates if c["reward"] < threshold - eps]
             if require_rejected_parses:
-                noneligible = [c for c in noneligible if c["extracted"]]
+                rejected_pool = [c for c in rejected_pool if c.get("extracted", False)]
 
-            if noneligible:
-                rejected = best_candidate(noneligible)
+            def pick_tiebreak(item: dict, tag: str) -> int:
+                return tiebreak(uid, item["idx"], f"{tag}-{item['source']}")
+
+            if rejected_pool:
+                chosen = max(chosen_pool, key=lambda c: (c["rubric"], pick_tiebreak(c, "chosen")))
+                rejected = max(
+                    rejected_pool, key=lambda c: (c["rubric"], c["reward"], pick_tiebreak(c, "rejected"))
+                )
             else:
-                fallback = [c for c in eligible_candidates if c["idx"] != chosen["idx"]]
-                if not fallback:
+                fallback_pool = chosen_pool
+                if require_rejected_parses:
+                    fallback_pool = [c for c in fallback_pool if c.get("extracted", False)]
+                if len(fallback_pool) < 2:
                     skipped_pairs += 1
                     continue
-                rejected = worst_candidate(fallback)
+                chosen = max(fallback_pool, key=lambda c: (c["rubric"], pick_tiebreak(c, "chosen")))
+                rejected = min(fallback_pool, key=lambda c: (c["rubric"], pick_tiebreak(c, "rejected")))
+                if rejected["idx"] == chosen["idx"]:
+                    skipped_pairs += 1
+                    continue
 
             record = {
                 "uid": uid,
-                "task_key": str(task_list[chosen["idx"]]) if task_list[chosen["idx"]] is not None else "unknown",
-                "prompt_nohint": deepcopy(prompt_nohint),
+                "task_key": chosen["task_key"],
+                "prompt_nohint": deepcopy(chosen["prompt_nohint"]),
                 "chosen_ids": chosen["response_ids"],
                 "rejected_ids": rejected["response_ids"],
                 "chosen_meta": {
@@ -3185,9 +3361,38 @@ class RayPPOTrainer:
             return self.actor_rollout_wg
         return self.ref_policy_wg
 
-    def _run_acr_phase(self, acr_batch: Optional[DataProto], timing_raw: dict) -> dict[str, float]:
-        if not self._acr_enabled or acr_batch is None or len(acr_batch) == 0:
+    def _run_acr_phase(
+        self,
+        acr_batch: Optional[DataProto],
+        timing_raw: dict,
+        *,
+        rollout_batch: Optional[DataProto] = None,
+        rollout_reward_scalar: Optional[torch.Tensor] = None,
+        rollout_uid_max_rewards: Optional[dict[str, float]] = None,
+    ) -> dict[str, float]:
+        if not self._acr_enabled:
             return {}
+
+        distill_method = str(self._distill_cfg.get("method", "sft")).lower().strip()
+        if acr_batch is None or len(acr_batch) == 0:
+            metrics: dict[str, float] = {}
+            if self._distill_source == "acr" and distill_method == "dpo":
+                distill_metrics = self._collect_distill_candidates(
+                    batch=acr_batch,
+                    reward_scalar=None,
+                    reward_threshold_scalar=None,
+                    reward_extra_infos=None,
+                    rollout_batch=rollout_batch,
+                    rollout_reward_scalar=rollout_reward_scalar,
+                    uid_max_rewards=rollout_uid_max_rewards,
+                )
+                if distill_metrics:
+                    metrics.update({f"acr_{k}": float(v) for k, v in distill_metrics.items()})
+
+                distill_metrics = self._maybe_run_distill_dpo(self.global_steps)
+                if distill_metrics:
+                    metrics.update({f"acr_{k}": float(v) for k, v in distill_metrics.items()})
+            return metrics
 
         metrics: dict[str, float] = {}
 
@@ -3348,18 +3553,30 @@ class RayPPOTrainer:
         else:
             metrics["acr/ppo_update_skipped"] = 1.0
 
-        if reward_scalar_raw is not None and self._distill_source == "acr":
-            distill_metrics = self._collect_distill_candidates(
-                batch=acr_batch,
-                reward_scalar=reward_scalar_raw,
-                reward_threshold_scalar=reward_threshold_scalar,
-                reward_extra_infos=reward_extra_infos_dict,
-            )
+        if self._distill_source == "acr":
+            distill_metrics = None
+            if distill_method == "dpo":
+                distill_metrics = self._collect_distill_candidates(
+                    batch=acr_batch,
+                    reward_scalar=reward_scalar_raw,
+                    reward_threshold_scalar=reward_threshold_scalar,
+                    reward_extra_infos=reward_extra_infos_dict,
+                    rollout_batch=rollout_batch,
+                    rollout_reward_scalar=rollout_reward_scalar,
+                    uid_max_rewards=rollout_uid_max_rewards,
+                )
+            elif reward_scalar_raw is not None:
+                distill_metrics = self._collect_distill_candidates(
+                    batch=acr_batch,
+                    reward_scalar=reward_scalar_raw,
+                    reward_threshold_scalar=reward_threshold_scalar,
+                    reward_extra_infos=reward_extra_infos_dict,
+                )
             if distill_metrics:
                 metrics.update({f"acr_{k}": float(v) for k, v in distill_metrics.items()})
 
         if self._distill_source == "acr":
-            if str(self._distill_cfg.get("method", "sft")).lower().strip() == "dpo":
+            if distill_method == "dpo":
                 distill_metrics = self._maybe_run_distill_dpo(self.global_steps)
             else:
                 distill_metrics = self._maybe_run_distill_sft(self.global_steps)
@@ -3437,6 +3654,7 @@ class RayPPOTrainer:
                     )
 
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
+                distill_method = str(self._distill_cfg.get("method", "sft")).lower().strip()
 
                 # add uid to batch
                 batch.non_tensor_batch["uid"] = np.array(
@@ -3448,6 +3666,7 @@ class RayPPOTrainer:
                     if acr_build_metrics:
                         metrics.update(acr_build_metrics)
                 acr_hard_uids = None
+                acr_uid_max_rewards = None
 
                 gen_batch = self._get_gen_batch(batch)
 
@@ -3578,11 +3797,18 @@ class RayPPOTrainer:
                             reward_scalar = reward_tensor
 
                         if self._acr_enabled:
-                            acr_hard_uids, acr_hard_metrics = self._compute_acr_hard_uids(
-                                batch=batch, reward_scalar=reward_scalar
-                            )
-                            if acr_hard_metrics:
-                                metrics.update(acr_hard_metrics)
+                            if self._distill_source == "acr" and distill_method == "dpo":
+                                acr_uid_max_rewards, acr_uid_metrics = self._compute_uid_max_rewards(
+                                    batch=batch, reward_scalar=reward_scalar
+                                )
+                                if acr_uid_metrics:
+                                    metrics.update(acr_uid_metrics)
+                            else:
+                                acr_hard_uids, acr_hard_metrics = self._compute_acr_hard_uids(
+                                    batch=batch, reward_scalar=reward_scalar
+                                )
+                                if acr_hard_metrics:
+                                    metrics.update(acr_hard_metrics)
 
                         # Optional: update adaptive label-hint curriculum on the training dataset.
                         if hasattr(self.train_dataset, "update_option_curriculum_from_rollout"):
@@ -3781,13 +4007,27 @@ class RayPPOTrainer:
                                 metrics.update(distill_metrics)
 
                         if self._acr_enabled:
-                            if acr_hard_uids is not None:
-                                acr_batch, acr_hard_filter_metrics = self._filter_acr_batch_by_uids(
-                                    acr_batch, acr_hard_uids
-                                )
-                                if acr_hard_filter_metrics:
-                                    metrics.update(acr_hard_filter_metrics)
-                            acr_metrics = self._run_acr_phase(acr_batch, timing_raw)
+                            if self._distill_source == "acr" and distill_method == "dpo":
+                                if acr_uid_max_rewards is not None:
+                                    acr_batch, acr_dpo_filter_metrics = self._filter_acr_batch_by_uid_max_reward(
+                                        acr_batch, acr_uid_max_rewards
+                                    )
+                                    if acr_dpo_filter_metrics:
+                                        metrics.update(acr_dpo_filter_metrics)
+                            else:
+                                if acr_hard_uids is not None:
+                                    acr_batch, acr_hard_filter_metrics = self._filter_acr_batch_by_uids(
+                                        acr_batch, acr_hard_uids
+                                    )
+                                    if acr_hard_filter_metrics:
+                                        metrics.update(acr_hard_filter_metrics)
+                            acr_metrics = self._run_acr_phase(
+                                acr_batch,
+                                timing_raw,
+                                rollout_batch=batch,
+                                rollout_reward_scalar=reward_scalar,
+                                rollout_uid_max_rewards=acr_uid_max_rewards,
+                            )
                             if acr_metrics:
                                 metrics.update(acr_metrics)
 
