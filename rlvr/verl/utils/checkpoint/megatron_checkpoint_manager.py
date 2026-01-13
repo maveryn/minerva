@@ -361,9 +361,11 @@ class MegatronCheckpointManager(BaseCheckpointManager):
     def save_checkpoint(self, local_path: str, hdfs_path: str = None, global_step: int = 0, max_ckpt_to_keep=None):
         # record the previous global step
         self.previous_global_step = global_step
+        track_path = self.should_track_ckpt_path(local_path)
 
         # remove previous local_path
         if (
+            track_path
             max_ckpt_to_keep
             and isinstance(max_ckpt_to_keep, int)
             and max_ckpt_to_keep > 0
@@ -545,4 +547,5 @@ class MegatronCheckpointManager(BaseCheckpointManager):
         else:
             finalize_save_fn()
 
-        self.previous_saved_paths.append(local_path)
+        if track_path:
+            self.previous_saved_paths.append(local_path)

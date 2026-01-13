@@ -967,7 +967,14 @@ class RayPPOTrainer:
                 worker_group=self.actor_rollout_wg,
             )
 
-    def _save_checkpoint(self, *, folder_name: Optional[str] = None, update_tracker: bool = True, purge_dir: bool = False):
+    def _save_checkpoint(
+        self,
+        *,
+        folder_name: Optional[str] = None,
+        update_tracker: bool = True,
+        purge_dir: bool = False,
+        skip_ckpt_rotation: bool = False,
+    ):
         from verl.utils.fs import local_mkdir_safe
 
         # path: given_path + `/global_step_{global_steps}` + `/actor`
@@ -995,6 +1002,9 @@ class RayPPOTrainer:
         max_critic_ckpt_to_keep = (
             self.config.trainer.get("max_critic_ckpt_to_keep", None) if not remove_previous_ckpt_in_save else 1
         )
+        if skip_ckpt_rotation:
+            max_actor_ckpt_to_keep = None
+            max_critic_ckpt_to_keep = None
 
         if purge_dir and local_global_step_folder:
             shutil.rmtree(local_global_step_folder, ignore_errors=True)
@@ -3842,47 +3852,56 @@ class RayPPOTrainer:
                 if save_due:
                     save_best_only = bool(self.config.trainer.get("save_best_only", False))
                     if save_best_only:
-                        if val_metrics is None:
-                            continue
-
-                        metric_key = str(
-                            self.config.trainer.get("save_best_metric", "val-core/global-val/reward/mean")
-                        )
-                        metric_mode = str(self.config.trainer.get("save_best_mode", "max")).lower()
-                        metric_val = None
-                        if isinstance(val_metrics, dict):
-                            metric_val = val_metrics.get(metric_key)
-                        if metric_val is None:
-                            metric_val = metrics.get(metric_key)
-                        if metric_val is None:
-                            print(f"Skip save_best_only: metric {metric_key} not found.")
-                        else:
-                            try:
-                                metric_val = float(metric_val)
-                            except (TypeError, ValueError):
-                                metric_val = None
+                        if val_metrics is not None:
+                            metric_key = str(
+                                self.config.trainer.get("save_best_metric", "val-core/global-val/reward/mean")
+                            )
+                            metric_mode = str(self.config.trainer.get("save_best_mode", "max")).lower()
+                            metric_val = None
+                            if isinstance(val_metrics, dict):
+                                metric_val = val_metrics.get(metric_key)
                             if metric_val is None:
-                                print(f"Skip save_best_only: metric {metric_key} is not numeric.")
+                                metric_val = metrics.get(metric_key)
+                            if metric_val is None:
+                                print(f"Skip save_best_only: metric {metric_key} not found.")
                             else:
-                                improved = False
-                                if self._best_val_metric is None:
-                                    improved = True
-                                elif metric_mode in {"min", "lower"}:
-                                    improved = metric_val < (self._best_val_metric - 1e-12)
+                                try:
+                                    metric_val = float(metric_val)
+                                except (TypeError, ValueError):
+                                    metric_val = None
+                                if metric_val is None:
+                                    print(f"Skip save_best_only: metric {metric_key} is not numeric.")
                                 else:
-                                    improved = metric_val > (self._best_val_metric + 1e-12)
-                                if improved:
-                                    self._best_val_metric = metric_val
-                                    self._best_val_step = self.global_steps
-                                    best_dir = str(self.config.trainer.get("save_best_dir", "best"))
-                                    if esi_close_to_expiration:
-                                        print("Force saving checkpoint: ESI instance expiration approaching.")
-                                    with marked_timer("save_checkpoint", timing_raw, color="green"):
-                                        self._save_checkpoint(
-                                            folder_name=best_dir,
-                                            update_tracker=True,
-                                            purge_dir=True,
-                                        )
+                                    improved = False
+                                    if self._best_val_metric is None:
+                                        improved = True
+                                    elif metric_mode in {"min", "lower"}:
+                                        improved = metric_val < (self._best_val_metric - 1e-12)
+                                    else:
+                                        improved = metric_val > (self._best_val_metric + 1e-12)
+                                    if improved:
+                                        self._best_val_metric = metric_val
+                                        self._best_val_step = self.global_steps
+                                        best_dir = str(self.config.trainer.get("save_best_dir", "best"))
+                                        if esi_close_to_expiration:
+                                            print("Force saving checkpoint: ESI instance expiration approaching.")
+                                        with marked_timer("save_checkpoint", timing_raw, color="green"):
+                                            self._save_checkpoint(
+                                                folder_name=best_dir,
+                                                update_tracker=False,
+                                                purge_dir=True,
+                                                skip_ckpt_rotation=True,
+                                            )
+                        if esi_close_to_expiration:
+                            print("Force saving checkpoint: ESI instance expiration approaching.")
+                        with marked_timer("save_checkpoint", timing_raw, color="green"):
+                            last_dir = str(self.config.trainer.get("save_last_dir", "last"))
+                            self._save_checkpoint(
+                                folder_name=last_dir,
+                                update_tracker=True,
+                                purge_dir=True,
+                                skip_ckpt_rotation=True,
+                            )
                     else:
                         if esi_close_to_expiration:
                             print("Force saving checkpoint: ESI instance expiration approaching.")

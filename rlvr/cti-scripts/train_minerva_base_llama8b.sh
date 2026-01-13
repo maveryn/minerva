@@ -74,7 +74,7 @@ python3 -m verl.trainer.main_ppo \
     +trainer.save_best_metric="$save_best_metric" \
     +trainer.save_best_mode="$save_best_mode" \
     +trainer.save_best_dir="$save_best_dir" \
-    trainer.total_training_steps=500 \
+    trainer.total_training_steps=1000 \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
     trainer.default_local_dir="$default_local_dir" \
