@@ -6,7 +6,7 @@ unchanged; only the distill phase becomes pluggable.
 
 ## Overview
 
-ACRD currently performs periodic **SFT** distillation from accepted ACR traces.
+ACRD currently performs periodic distillation (SFT by default) from accepted ACR traces.
 We want Step 3 to support:
 
 - `method: sft` (default, current behavior)
@@ -62,6 +62,7 @@ Add new fields under `data.acr.distill`:
 data:
   acr:
     distill:
+      enabled: true  # required for SFT/DPO
       method: sft  # sft | dpo
       interval: 10
 
@@ -74,6 +75,8 @@ data:
         beta: 0.1
         require_rejected_parses: true
 ```
+
+Note: DPO is still gated by `data.acr.distill.enabled=true`; method selection only applies when distill is enabled.
 
 ### Script env overrides (train_minerva_acrd.sh)
 
@@ -158,9 +161,11 @@ Step A — pick CHOSEN:
 
 Step B — pick REJECTED:
 
-- If there is any non-clean rollout with a **parseable final answer** (`acr_extracted==true`),
-  choose the best such rollout by the same rank key (hard negative).
+- Candidate pool is non-clean rollouts (not clean+correct). If `require_rejected_parses=true`,
+  restrict to `acr_extracted==true`; if false, allow any non-clean rollout (including non-extracted).
+- If there is a valid rejected candidate, choose the best such rollout by the same rank key (hard negative).
 - Otherwise, pick the **worst** clean+correct rollout (style-only negative).
+- If no valid rejected exists distinct from chosen, skip the UID.
 
 Notes:
 
@@ -188,7 +193,7 @@ Use **assistant tokens only**:
 
 - build `input_ids = prompt + response`
 - compute logprobs for **response tokens**
-- sum (or mean) over response tokens consistently
+- compute sequence log probability by summing token log-probs over assistant tokens in the completion only
 
 This must match the assistant-token definition used in ACRD selection.
 

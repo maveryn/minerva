@@ -3,7 +3,7 @@
 This spec replaces LHC-style candidate hints and TARBA retrieval with a per-batch loop:
 1) regular RLVR on the original prompt,
 2) answer-conditioned reasoning trace generation on hard examples (no PPO update by default),
-3) periodic SFT distillation from accepted ACR traces.
+3) periodic distillation (SFT or DPO; default SFT) from accepted ACR traces.
 
 ACRD uses the same RLVR trainer, with a per-batch ACR + distill phase inserted into
 `rlvr/verl/trainer/ppo/ray_trainer.py`.
@@ -50,9 +50,11 @@ Reward (`reward_acr`) uses the RLVR parsing logic (`reward_minerva`) and returns
 - `acr_leak_hit` from banned phrase detection (fuzzy by default)
 - `acr_id_leak_hit` if the reasoning section contains any gold IDs (logged only)
 
-### Step 3: Distillation SFT
+### Step 3: Distillation (SFT or DPO)
 Per-batch distillation is handled by the PPO trainer and uses the same batch.
-SFT input is the original RLVR prompt (`acr_orig_prompt`), while the target is the ACR trace.
+Set `data.acr.distill.method = sft | dpo` (default: `sft`).
+
+For `method=sft`, input is the original RLVR prompt (`acr_orig_prompt`), while the target is the ACR trace.
 The ACR prompt (with answer hints) is kept only for debugging and selection analysis.
 Selection is per-UID (one record per original prompt):
 
@@ -61,16 +63,20 @@ Selection is per-UID (one record per original prompt):
 - Among eligible rollouts, pick the response with the highest weighted ACR reward
   (`score` includes leak penalty). Then sample from the top-rewarded candidates
   with probability proportional to `exp(beta * mean_nll)` (stochastic entropy tie-break);
-  mean NLL is computed over assistant tokens only.
+  mean NLL is computed over assistant tokens only (SFT only).
 
-Accepted records are stored as:
+Accepted SFT records (`method=sft`) are stored as:
 - `prompt_nohint`: `extra_info["acr_orig_prompt"]` (original RLVR prompt; no answer hints)
 - `response_ids`: selected response token IDs
 - `reward`: weighted ACR score
 - `entropy_proxy`: mean NLL of the selected response (assistant tokens only)
 
-SFT runs every `data.acr.distill.interval` steps (default 10).
-The buffer is cleared after each SFT run.
+For `method=dpo`, per-UID we build a preference pair from ACR rollouts.
+DPO stores `(prompt_nohint, chosen_ids, rejected_ids)` (plus metadata), not `response_ids`,
+and does not use the entropy tie-break logic (SFT-only).
+
+Distillation runs every `data.acr.distill.interval` steps (default 10).
+The buffer is cleared after each distill run.
 
 ---
 
@@ -156,7 +162,7 @@ Per-batch ACRD does not use this class; it builds the ACR batch directly in the 
 Key points:
 - Inherit from `RLHFDataset`.
 - Set `data.dataloader_num_workers=0` in configs.
-- Store the original prompt for SFT in `extra_info["acr_orig_prompt"]` (deep copy).
+- Store the original prompt for distillation in `extra_info["acr_orig_prompt"]` (deep copy).
 - Store ACR metadata:
   - `extra_info["acr_entity_type"]`
   - `extra_info["acr_gold_labels"]`
@@ -234,14 +240,14 @@ The score is used for filtering/ranking traces, not for PPO updates by default.
 
 ---
 
-### 4) Accepted-trace collection for SFT
+### 4) Accepted-trace collection for distillation
 Per-batch ACRD uses the trainer's in-memory distill buffer. Offline collection is optional.
 
 #### 4.1 Buffer
 Per-batch ACRD uses the trainer's in-memory distill buffer (configured under `data.acr.distill.*`).
-The JSONL buffer is only needed for the optional offline pipeline.
+The JSONL buffer is only needed for the optional offline SFT pipeline.
 
-Each per-batch record includes:
+For `method=sft`, each per-batch record includes:
 - `uid` (original prompt ID)
 - `task_key` (data_source)
 - `prompt_nohint` (historical name; contains the original RLVR prompt)
@@ -249,17 +255,26 @@ Each per-batch record includes:
 - `reward` (weighted ACR score)
 - `entropy_proxy` (mean NLL of the selected response)
 
+For `method=dpo`, each per-batch record includes:
+- `uid` (original prompt ID)
+- `task_key` (data_source)
+- `prompt_nohint` (historical name; contains the original RLVR prompt)
+- `chosen_ids`, `rejected_ids`
+- `chosen_meta`, `rejected_meta` (ACR scores)
+
 #### 4.2 Acceptance criteria (per-batch)
-- Eligibility: `acr_base_score >= reward_threshold` (default 1.0),
+- Eligibility (SFT/DPO): `acr_base_score >= reward_threshold` (default 1.0),
   `acr_extracted == true`, and `acr_leak_hit == false`.
-- Selection: max weighted `score` among eligible rollouts, then stochastic entropy tie-break
-  using mean NLL over assistant tokens only.
+- SFT selection: max weighted `score` among eligible rollouts, then stochastic entropy tie-break
+  using mean NLL over assistant tokens only (SFT only).
+- DPO selection: build a chosen/rejected pair from ACR rollouts (no entropy tie-break);
+  skip if no valid rejected exists distinct from chosen (see `docs/arcd-dpo.md`).
 
 #### 4.3 Collection mode
 Option A (preferred): per-batch collection via `data.acr.distill.enabled=true` and
-`data.return_raw_chat=true`.
+`data.return_raw_chat=true` (SFT/DPO).
 
-Option B (offline): collect traces from a checkpoint.
+Option B (offline, SFT only): collect traces from a checkpoint.
 
 ```bash
 python scripts/collect_acr_traces.py \
@@ -272,7 +287,8 @@ The offline pipeline is optional and mainly useful for debugging or analysis.
 
 ---
 
-### 5) Optional SFT dataset build (offline pipeline)
+### 5) Optional SFT dataset build (offline pipeline, SFT only)
+Applies when `data.acr.distill.method=sft`.
 Use `scripts/build_sft_from_acr.py` to transform the JSONL buffer into an SFT dataset.
 
 Output format (recommended for MultiTurnSFTDataset):
@@ -282,7 +298,7 @@ Uses `orig_prompt` only (ACR prompt is not used for SFT).
 ---
 
 ### 6) Per-batch training script (cti-scripts)
-Use the single entrypoint `rlvr/cti-scripts/train_minerva_acrd.sh` to run RLVR -> ACR -> SFT
+Use the single entrypoint `rlvr/cti-scripts/train_minerva_acrd.sh` to run RLVR -> ACR -> distill (SFT or DPO)
 in a single PPO job (same batch per iteration). Model-specific wrappers are provided:
 
 - `rlvr/cti-scripts/train_minerva_acrd_llama3b.sh`
@@ -299,11 +315,14 @@ rlvr/cti-scripts/train_minerva_acrd.sh
 Key env overrides:
 - `ACRD_ACR_RL_WEIGHT` (scales the ACR PPO update; only used if `data.acr.update_actor=true`)
 - `ACRD_ACR_ROLLOUT_N` (number of ACR samples per prompt; default 4)
-- `ACRD_ACR_DISTILL_INTERVAL` (SFT interval in steps; default 10)
-- `ACRD_ACR_DISTILL_LR_SCALE` (SFT LR scale vs RLVR; default 0.1)
+- `ACRD_ACR_DISTILL_METHOD` (`sft` or `dpo`; default `sft`)
+- `ACRD_ACR_DISTILL_INTERVAL` (distill interval in steps; default 10)
+- `ACRD_ACR_DISTILL_LR_SCALE` (distill LR scale vs RLVR; default 0.1)
 - `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 1.0)
-- `ACRD_ACR_DISTILL_ENTROPY_BETA` (softmax beta for entropy sampling; default 1.0)
-- `ACRD_ACR_DISTILL_ENTROPY_SAMPLING` (enable stochastic entropy tie-break; default true)
+- `ACRD_ACR_DISTILL_ENTROPY_BETA` (SFT only; softmax beta for entropy sampling; default 1.0)
+- `ACRD_ACR_DISTILL_ENTROPY_SAMPLING` (SFT only; enable stochastic entropy tie-break; default true)
+- `ACRD_DPO_BETA` (DPO only; default 0.1)
+- `ACRD_DPO_REQUIRE_REJECTED_PARSES` (DPO only; default true)
 - `ACRD_ACR_HARD_REWARD_THRESHOLD` (only ACR prompts with mean RLVR reward < threshold; default 0.5)
 - `ACRD_DEBUG_SAMPLES` (prints original prompt -> ACR prompt -> rollouts -> selected response; default 2)
 - `ACRD_DETAILS_DEBUG_SAMPLES` (prints details-missing/omitted locations; default 2)
@@ -314,7 +333,7 @@ Key env overrides:
 ---
 
 ### 7) Optional offline pipeline
-The earlier offline ACR->SFT pipeline (collect traces -> build SFT parquet) is still available
+The earlier offline ACR->SFT pipeline (collect traces -> build SFT parquet, SFT only) is still available
 via `scripts/collect_acr_traces.py` and `scripts/build_sft_from_acr.py`, but the per-batch
 trainer flow is the preferred path for ACRD.
 
@@ -350,7 +369,7 @@ custom_reward_function:
 Defaults:
 - `banned_phrases` is defined in `rlvr/verl/utils/reward_score/reward_acr.py` (answer/label variants).
 - `use_fuzzy_leak_check` is enabled by default.
-- Distill selection uses `entropy_tiebreak=mean_nll`, `entropy_sampling=true`, `entropy_beta=1.0` by default for ACR.
+- SFT distill selection uses `entropy_tiebreak=mean_nll`, `entropy_sampling=true`, `entropy_beta=1.0` by default for ACR (SFT only).
 
 Per-batch ACRD needs:
 - `data.return_raw_chat=true`
@@ -370,9 +389,11 @@ Supports `--multilabel-match` and `--enforce-no-id`.
 - Keep ACR reward small. It is a format/compliance shaper, not a second task objective.
 - Keep the final answer on the last line, using the same format as the original task.
 - Keep label details short. Do not blow up prompt length.
-- Periodic SFT (`interval=10`) stabilizes training by replaying from the buffer.
-- Distill eligibility uses `acr_base_score` (pre-scaling); selection uses weighted reward and
-  stochastic mean-NLL tie-break.
+- Periodic distillation (`interval=10`) stabilizes training; for SFT this replays from the buffer.
+- Distill eligibility uses `acr_base_score` (pre-scaling); SFT selection uses weighted reward and
+  stochastic mean-NLL tie-break (SFT only).
+- When `data.acr.distill.method=dpo`, ensure a reference policy is instantiated even if KL is disabled;
+  DPO always needs logp_ref.
 - Hard-example gating uses mean RLVR reward per UID (acc@G); only harder cases flow into ACR.
 - `ACRD_DEBUG_SAMPLES` prints original prompt -> ACR prompt -> rollouts -> selected response for quick inspection.
 - `acr/details_missing`, `acr/details_omitted`, `acr/details_truncated` metrics track label-detail coverage.
@@ -383,4 +404,4 @@ Supports `--multilabel-match` and `--enforce-no-id`.
 ## Practical recommendations
 - Treat Step 2 as a trace generator + filter, not a direct accuracy booster.
 - Tighten the output contract (final answer line only).
-- Run SFT frequently enough to internalize traces, but not so frequently that RLVR stops exploring.
+- Run distillation frequently enough to internalize traces, but not so frequently that RLVR stops exploring.
