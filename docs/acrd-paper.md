@@ -1,7 +1,7 @@
 # ACRD-DPO Process Summary (Defaults from Docs)
 
 This is the end-to-end per-batch loop when you run ACRD with Step 3 = DPO,
-using the defaults documented in `docs/acrd.md` and `docs/arcd-dpo.md`.
+using the defaults documented in `docs/acrd.md` and `docs/acrd-dpo.md`.
 
 ## Key knobs (DPO-relevant defaults)
 
@@ -10,8 +10,8 @@ using the defaults documented in `docs/acrd.md` and `docs/arcd-dpo.md`.
 - `data.acr.distill.enabled = true` (required for distillation, SFT/DPO)
 - `data.acr.distill.method = dpo` (default is `sft`, so you must set to `dpo`)
 - `data.acr.distill.interval = 10`
-- `data.acr.distill.reward_threshold = 1.0` (clean+correct only)
-- `data.acr.distill.lr_scale = 0.1` (distill step uses a smaller LR than RLVR)
+- `data.acr.distill.reward_threshold = 0.5` (chosen/rejected split; default matches SFT/DPO)
+- `data.acr.distill.lr_scale = 1.0` (distill step uses the same LR as RLVR)
 - `data.acr.distill.dpo.beta = 0.1`
 - `data.acr.distill.dpo.require_rejected_parses = true`
 
@@ -21,12 +21,12 @@ For each training batch, run the existing RLVR training loop on the original
 prompts (no ground truth revealed). This is the normal GRPO/PPO-style RL with
 verifiable rewards. Nothing in DPO changes this step.
 
-## Step 2: Per-batch ACR trace generation on hard examples (unchanged)
+## Step 2: Per-batch ACR trace generation (method-aware)
 
 Still within the same training batch, ACRD does an answer-conditioned "teacher
 trace" generation pass, but only for hard prompts.
 
-### 2.1 Hard-example gating (default = 0.5)
+### 2.1 Hard-example gating (SFT only)
 
 For each prompt UID in the batch:
 
@@ -35,6 +35,7 @@ For each prompt UID in the batch:
   you generate ACR traces.
 
 This concentrates Step 2/3 compute on prompts the model is not reliably solving.
+For DPO, we skip hard-example gating and reuse RLVR rollouts when max reward is 1.0.
 
 ### 2.2 Build the answer-conditioned ACR prompt
 
@@ -59,22 +60,32 @@ Prompt-length control (`try_build_acr_messages`):
 
 ### 2.3 Generate ACR rollouts (default `n=4`)
 
-Using the same actor as RLVR, you sample `data.acr.rollout_n` ACR responses per
-hard UID (default 4). These are answer-conditioned traces and do not do PPO
-update by default (ACR reward is used for filtering/ranking only).
+Using the same actor as RLVR, you sample `data.acr.rollout_n` responses per UID.
+DPO does not filter by success rate or hard threshold.
 
-### 2.4 Score ACR rollouts with verifiers + leak checks
+- If max RLVR reward == 1.0, **do not** generate ACR responses. Reuse the top-N
+  RLVR rollouts (sorted by RLVR reward, random tie-break).
+- Otherwise, generate `data.acr.rollout_n` ACR responses with answer hints.
 
-Each ACR rollout is scored via `reward_acr`, which reuses RLVR parsing logic
-(`reward_minerva`) and returns:
+ACR rollouts are answer-conditioned traces and do not do PPO update by default
+(ACR reward is used for filtering/ranking only).
+
+### 2.4 Score candidate rollouts with verifiers + leak checks
+
+Each candidate rollout (ACR or reused RLVR) is scored via `reward_acr`
+(or `reward_acr_batch` when judge batching is enabled), which reuses RLVR
+parsing logic (`reward_minerva`) and returns:
 
 - `acr_base_score` in `[0, 1]` (verifier score)
 - `acr_extracted` (parse success)
 - `acr_leak_hit` (banned-phrase + fuzzy check for "given the answer",
   "ground truth", etc.)
 - `acr_id_leak_hit` (gold ID appears in reasoning; logged only, not penalized)
-- Weighted score = `r_correct * acr_base_score - leak_penalty` (used for
-  ranking/filtering)
+- Weighted score = `r_correct * acr_base_score - leak_penalty` (used for ACR
+  filtering; DPO selection uses base reward with rubric tie-breaks)
+- Optional `acr_rubric_score` when a judge is enabled (used for DPO ranking);
+  weighted sum of Q1-Q4 from the rubric JSON prompt, normalized via
+  `(S_1to4 - 1.0) / 3.0`.
 
 This produces the pool of candidate traces that Step 3 will distill from.
 
@@ -96,44 +107,25 @@ Instead of storing one accepted trace per UID, DPO stores (per UID):
 
 For each UID, you build exactly one preference pair.
 
-Eligibility for "chosen" (unchanged gate):
+Candidate pool:
 
-- `acr_base_score >= reward_threshold` (default 1.0)
-- `acr_extracted == true`
-- `acr_leak_hit == false`
-
-If no rollout meets this, you skip the UID (no DPO pair).
-
-Ranking rule (lexicographic):
-
-Define:
-
-- `is_clean_correct_i := (acr_extracted && acr_base_score >= tau && !acr_leak_hit)`
-  with `tau=1.0` by default.
-
-Rank key (highest wins):
-
-1. `is_clean_correct` (True > False)
-2. `rubric_i` (currently 0 everywhere; hook for later judge)
-3. `acr_base_score` (optional use for partial-credit tasks)
-4. Shorter response length
-5. Deterministic random (seeded)
+- If max RLVR reward == 1.0, use the top `data.acr.rollout_n` RLVR rollouts.
+- Otherwise, use the `data.acr.rollout_n` ACR rollouts.
 
 Choose CHOSEN:
 
-- Choose the best rollout among `is_clean_correct=True` by the rank key.
+- Among responses with reward >= `data.acr.distill.reward_threshold`, pick the highest rubric score
+  (if present). If no reward>=threshold response exists, skip the UID.
 
 Choose REJECTED (default `require_rejected_parses=true`):
 
-- Candidate pool = rollouts that are not clean+correct.
-- If `require_rejected_parses=true`, restrict that pool to rollouts with
-  `acr_extracted==true`.
-- If there is at least one valid rejected candidate, pick the best rejected
-  candidate by the same rank key (hard negative).
-- Else, fallback: pick the worst clean+correct rollout (style-only negative).
-- If you still cannot get a rejected distinct from chosen, skip the UID.
+- Among responses with reward < `data.acr.distill.reward_threshold`, pick the highest rubric (tie-break by higher reward).
+- If `require_rejected_parses=true`, restrict rejected to `acr_extracted==true`.
+- If no reward<threshold response (all reward>=threshold), pick the lowest rubric among reward>=threshold candidates
+  (distinct from chosen). Skip if you cannot form a pair.
 
-No entropy/mean-NLL tie-break is used in DPO.
+No entropy/mean-NLL tie-break is used in DPO. The reward here is the base verifier
+reward (RLVR: `reward_minerva`; ACR: `acr_base_score`).
 
 ### 3.3 DPO update runs every 10 steps (default)
 
