@@ -146,6 +146,25 @@ class ResourcePoolManager:
                 )
 
 
+class _RefJudgeRunner:
+    def __init__(self, ref_worker_group: RayWorkerGroup):
+        self._ref_worker_group = ref_worker_group
+
+    def generate(self, prompts: list[str], *, max_new_tokens: int, temperature: float, top_p: float, batch_size: int):
+        outputs = self._ref_worker_group.generate_judge_outputs(
+            prompts=prompts,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            batch_size=batch_size,
+        )
+        if isinstance(outputs, list) and outputs and isinstance(outputs[0], list):
+            return outputs[0]
+        if isinstance(outputs, list):
+            return outputs
+        return []
+
+
 def apply_kl_penalty(data: DataProto, kl_ctrl: core_algos.AdaptiveKLController, kl_penalty="kl"):
     """Apply KL penalty to the token-level rewards.
 
@@ -901,6 +920,33 @@ class RayPPOTrainer:
             )
             self.resource_pool_to_cls[resource_pool]["ref"] = ref_policy_cls
 
+        # create judge worker if requested (separate GPU-backed model)
+        if self._acr_judge_backend_requested == "worker":
+            judge_model = self._acr_judge_model
+            if not judge_model:
+                print("ACR judge backend 'worker' requested but judge_model is missing; using HF judge.")
+                self._acr_judge_backend_requested = None
+            else:
+                judge_cfg = OmegaConf.create(OmegaConf.to_container(self.config.actor_rollout_ref, resolve=True))
+                with open_dict(judge_cfg):
+                    ref_cfg = judge_cfg.get("ref")
+                    if ref_cfg is None:
+                        judge_cfg["ref"] = {}
+                    ref_cfg = judge_cfg["ref"]
+                    if ref_cfg.get("model") is None:
+                        ref_cfg["model"] = {}
+                    ref_cfg["model"]["path"] = judge_model
+                judge_worker_cls = self.role_worker_mapping.get(Role.RefPolicy) or self.role_worker_mapping.get(
+                    Role.ActorRollout
+                )
+                if judge_worker_cls is None:
+                    print("ACR judge backend 'worker' unavailable; using HF judge.")
+                    self._acr_judge_backend_requested = None
+                else:
+                    resource_pool = self.resource_pool_manager.get_resource_pool(Role.ActorRollout)
+                    judge_cls = RayClassWithInitArgs(judge_worker_cls, config=judge_cfg, role="ref")
+                    self.resource_pool_to_cls[resource_pool]["judge"] = judge_cls
+
         # create a reward model if reward_fn is None
         if self.use_rm:
             # we create a RM here
@@ -956,6 +1002,12 @@ class RayPPOTrainer:
         self.actor_rollout_wg = all_wg["actor_rollout"]
         self.actor_rollout_wg.init_model()
 
+        if "judge" in all_wg:
+            self.judge_wg = all_wg["judge"]
+            self.judge_wg.init_model()
+
+        self._maybe_init_acr_judge_runner()
+
         # create async rollout manager and request scheduler
         self.async_rollout_mode = False
         if self.config.actor_rollout_ref.rollout.mode == "async":
@@ -966,6 +1018,44 @@ class RayPPOTrainer:
                 config=self.config,
                 worker_group=self.actor_rollout_wg,
             )
+
+    def _maybe_init_acr_judge_runner(self) -> None:
+        if not self._acr_enabled or not self._acr_judge_backend_requested:
+            return
+        if self._acr_judge_backend_requested not in {"ref", "worker"}:
+            return
+        judge_backend = self._acr_judge_backend_requested
+        if judge_backend == "ref":
+            if not self.use_reference_policy:
+                print("ACR judge backend 'ref' requested but reference policy is disabled; using HF judge.")
+                return
+            if not hasattr(self, "ref_policy_wg") or self.ref_policy_wg is None:
+                print("ACR judge backend 'ref' requested but ref worker is unavailable; using HF judge.")
+                return
+            if not hasattr(self.ref_policy_wg, "generate_judge_outputs"):
+                print("ACR judge backend 'ref' not supported by ref worker; using HF judge.")
+                return
+            judge_wg = self.ref_policy_wg
+        else:
+            if self.judge_wg is None:
+                print("ACR judge backend 'worker' requested but judge worker is unavailable; using HF judge.")
+                return
+            if not hasattr(self.judge_wg, "generate_judge_outputs"):
+                print("ACR judge backend 'worker' not supported by judge worker; using HF judge.")
+                return
+            judge_wg = self.judge_wg
+        try:
+            from verl.utils.reward_score.reward_acr_batch import reward_acr_batch
+        except Exception as exc:
+            print(f"ACR judge backend '{judge_backend}' unavailable: {exc}")
+            return
+
+        self._acr_judge_runner = _RefJudgeRunner(judge_wg)
+        reward_kwargs = dict(self._acr_reward_kwargs)
+        reward_kwargs["judge_backend"] = judge_backend
+        reward_kwargs["judge_runner"] = self._acr_judge_runner
+        self._acr_reward_fn.compute_score = partial(reward_acr_batch, **reward_kwargs)
+        self._acr_judge_backend_requested = None
 
     def _save_checkpoint(
         self,
@@ -1289,6 +1379,11 @@ class RayPPOTrainer:
             "batch_size": None,
             "max_seq_len": None,
             "entropy_tiebreak": "mean_nll",
+            "selection_mode": "top_reward",
+            "degenerate_filter": False,
+            "degenerate_min_tokens": 40,
+            "degenerate_rep_3_max": 0.85,
+            "degenerate_rep_4_max": 0.9,
             "entropy_sampling": False,
             "entropy_beta": 1.0,
             "lr_scale": 1.0,
@@ -1297,8 +1392,10 @@ class RayPPOTrainer:
         }
         if distill_source == "acr":
             defaults["interval"] = 10
-            defaults["reward_threshold"] = 0.5
+            defaults["reward_threshold"] = 0.99
             defaults["entropy_tiebreak"] = "mean_nll"
+            defaults["selection_mode"] = "random"
+            defaults["degenerate_filter"] = True
             defaults["entropy_sampling"] = True
         for key, value in defaults.items():
             distill_cfg.setdefault(key, value)
@@ -1341,6 +1438,11 @@ class RayPPOTrainer:
         self._acr_extract_labels_from_truth = None
         self._acr_task_spec_cls = None
         self._acr_update_actor = False
+        self._acr_judge_runner = None
+        self._acr_judge_backend_requested = None
+        self._acr_reward_kwargs = {}
+        self._acr_judge_model = None
+        self.judge_wg = None
         self._acr_reward_fn_key = self.config.data.get("reward_fn_key", "data_source")
         self._acr_apply_chat_template_kwargs = self.config.data.get("apply_chat_template_kwargs", {})
         self._acr_truncation = self.config.data.get("truncation", "error")
@@ -1373,6 +1475,14 @@ class RayPPOTrainer:
         reward_kwargs.setdefault("enforce_no_id_in_reasoning", bool(acr_cfg.get("enforce_no_id_in_reasoning", True)))
         if reward_manager_name != "batch":
             reward_kwargs = {k: v for k, v in reward_kwargs.items() if not str(k).startswith("judge_")}
+        else:
+            judge_backend = str(reward_kwargs.get("judge_backend", "hf")).strip().lower()
+            if judge_backend in {"ref", "worker"}:
+                self._acr_judge_backend_requested = judge_backend
+                reward_kwargs["judge_backend"] = "hf"
+                reward_kwargs.pop("judge_runner", None)
+                self._acr_judge_model = reward_kwargs.get("judge_model")
+        self._acr_reward_kwargs = dict(reward_kwargs)
         try:
             if reward_manager_name == "batch":
                 from verl.utils.reward_score.reward_acr_batch import reward_acr_batch
@@ -1403,6 +1513,14 @@ class RayPPOTrainer:
         self._acr_weight = float(acr_cfg.get("rl_weight", 0.3))
         self._acr_update_actor = bool(acr_cfg.get("update_actor", False))
         self._acr_hard_reward_threshold = float(acr_cfg.get("hard_reward_threshold", 0.5))
+        hard_reward_mode = str(acr_cfg.get("hard_reward_mode", "no_perfect")).lower().strip()
+        if hard_reward_mode in {"mean", "avg", "average", "mean_reward"}:
+            hard_reward_mode = "mean"
+        elif hard_reward_mode in {"max", "max_reward", "no_perfect", "no_perfect_reward", "no_perfect_rollout"}:
+            hard_reward_mode = "no_perfect"
+        else:
+            hard_reward_mode = "no_perfect"
+        self._acr_hard_reward_mode = hard_reward_mode
         if reward_manager_name == "batch":
             from verl.workers.reward_manager.batch import BatchRewardManager
 
@@ -1490,6 +1608,22 @@ class RayPPOTrainer:
         if pad_id is None:
             pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
 
+        response_ids_cache: dict[int, list[int]] = {}
+
+        def extract_response_ids(idx: int) -> list[int]:
+            cached = response_ids_cache.get(idx)
+            if cached is not None:
+                return cached
+            if response_mask is not None:
+                valid_len = int(response_mask[idx].sum().item())
+                response_ids = responses[idx][:valid_len].tolist()
+            else:
+                response_ids = responses[idx].tolist()
+                while response_ids and response_ids[-1] == pad_id:
+                    response_ids.pop()
+            response_ids_cache[idx] = response_ids
+            return response_ids
+
         def render_messages(messages: Optional[list]) -> str:
             if not isinstance(messages, list):
                 return ""
@@ -1542,11 +1676,45 @@ class RayPPOTrainer:
                 return 0
             return int(non_pad[-1].item() + 1)
 
+        degenerate_filter = bool(self._distill_cfg.get("degenerate_filter", False))
+        degenerate_min_tokens = int(self._distill_cfg.get("degenerate_min_tokens", 0) or 0)
+        try:
+            degenerate_rep_3_max = float(self._distill_cfg.get("degenerate_rep_3_max", 1.0))
+        except (TypeError, ValueError):
+            degenerate_rep_3_max = 1.0
+        try:
+            degenerate_rep_4_max = float(self._distill_cfg.get("degenerate_rep_4_max", 1.0))
+        except (TypeError, ValueError):
+            degenerate_rep_4_max = 1.0
+        degenerate_rep_3_max = min(max(degenerate_rep_3_max, 0.0), 1.0)
+        degenerate_rep_4_max = min(max(degenerate_rep_4_max, 0.0), 1.0)
+
+        def distinct_ngram_ratio(tokens: list[int], n: int) -> float:
+            total = len(tokens) - n + 1
+            if total <= 0:
+                return 1.0
+            ngrams = {tuple(tokens[i : i + n]) for i in range(total)}
+            return len(ngrams) / total
+
+        def is_degenerate(tokens: list[int]) -> bool:
+            if not degenerate_filter or len(tokens) < degenerate_min_tokens:
+                return False
+            rep_3 = 1.0 - distinct_ngram_ratio(tokens, 3)
+            rep_4 = 1.0 - distinct_ngram_ratio(tokens, 4)
+            return rep_3 >= degenerate_rep_3_max or rep_4 >= degenerate_rep_4_max
+
         grouped: dict[str, list[int]] = {}
         for idx, uid in enumerate(uid_list):
             grouped.setdefault(str(uid), []).append(idx)
 
         tiebreak_mode = str(self._distill_cfg.get("entropy_tiebreak", "mean_nll"))
+        selection_mode = str(self._distill_cfg.get("selection_mode", "random")).lower().strip()
+        if selection_mode in {"max_reward", "top_reward", "best", "reward"}:
+            selection_mode = "top_reward"
+        elif selection_mode in {"random", "rand", "uniform"}:
+            selection_mode = "random"
+        else:
+            selection_mode = "random"
         entropy_sampling = bool(self._distill_cfg.get("entropy_sampling", False))
         entropy_beta = self._distill_cfg.get("entropy_beta", 1.0)
         try:
@@ -1576,57 +1744,66 @@ class RayPPOTrainer:
                         base_val = base_scores[i]
                     if base_val is None or base_val < threshold:
                         continue
-                    if extracted[i] is not None and not bool(extracted[i]):
-                        continue
                     if leak_hits[i] is not None and bool(leak_hits[i]):
                         continue
+                    if degenerate_filter:
+                        response_ids = extract_response_ids(i)
+                        if not response_ids or is_degenerate(response_ids):
+                            continue
                     eligible.append(i)
             else:
                 eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
             chosen_idx = None
             tiebreak_proxy = None
             if eligible:
-                max_reward = max(reward_list[i] for i in eligible)
-                top = [i for i in eligible if reward_list[i] >= (max_reward - 1e-6)]
-                top.sort()
-                chosen_idx = top[0]
-                if len(top) > 1:
-                    if tiebreak_mode in {"response_len", "length"}:
-                        length_map = {i: response_len(i) for i in top}
-                        chosen_idx = max(top, key=lambda i: (length_map.get(i, -1), -i))
-                        tiebreak_proxy = length_map.get(chosen_idx)
-                    else:
-                        entropy_map = {i: mean_nll(i) for i in top}
-                        valid = [(i, val) for i, val in entropy_map.items() if val is not None]
-                        if not valid:
-                            chosen_idx = top[0]
-                            tiebreak_proxy = entropy_map.get(chosen_idx)
-                        elif entropy_sampling:
-                            idxs_only = [item[0] for item in valid]
-                            vals = np.array([item[1] for item in valid], dtype=np.float64)
-                            if not np.isfinite(vals).all():
-                                vals = np.nan_to_num(vals, nan=-1e6, posinf=1e6, neginf=-1e6)
-                            vals = vals * entropy_beta
-                            vals = vals - np.max(vals)
-                            weights = np.exp(vals)
-                            total = float(weights.sum())
-                            if total <= 0 or not np.isfinite(total):
-                                probs = np.ones_like(weights) / max(1, len(weights))
-                            else:
-                                probs = weights / total
-                            chosen_idx = int(rng.choice(idxs_only, p=probs))
-                            tiebreak_proxy = entropy_map.get(chosen_idx)
-                        else:
-                            chosen_idx = max(
-                                [item[0] for item in valid],
-                                key=lambda i: (entropy_map.get(i, float("-inf")), -i),
-                            )
-                            tiebreak_proxy = entropy_map.get(chosen_idx)
-                else:
+                if selection_mode == "random":
+                    chosen_idx = int(rng.choice(eligible))
                     if tiebreak_mode in {"response_len", "length"}:
                         tiebreak_proxy = response_len(chosen_idx)
                     else:
                         tiebreak_proxy = mean_nll(chosen_idx)
+                else:
+                    max_reward = max(reward_list[i] for i in eligible)
+                    top = [i for i in eligible if reward_list[i] >= (max_reward - 1e-6)]
+                    top.sort()
+                    chosen_idx = top[0]
+                    if len(top) > 1:
+                        if tiebreak_mode in {"response_len", "length"}:
+                            length_map = {i: response_len(i) for i in top}
+                            chosen_idx = max(top, key=lambda i: (length_map.get(i, -1), -i))
+                            tiebreak_proxy = length_map.get(chosen_idx)
+                        else:
+                            entropy_map = {i: mean_nll(i) for i in top}
+                            valid = [(i, val) for i, val in entropy_map.items() if val is not None]
+                            if not valid:
+                                chosen_idx = top[0]
+                                tiebreak_proxy = entropy_map.get(chosen_idx)
+                            elif entropy_sampling:
+                                idxs_only = [item[0] for item in valid]
+                                vals = np.array([item[1] for item in valid], dtype=np.float64)
+                                if not np.isfinite(vals).all():
+                                    vals = np.nan_to_num(vals, nan=-1e6, posinf=1e6, neginf=-1e6)
+                                vals = vals * entropy_beta
+                                vals = vals - np.max(vals)
+                                weights = np.exp(vals)
+                                total = float(weights.sum())
+                                if total <= 0 or not np.isfinite(total):
+                                    probs = np.ones_like(weights) / max(1, len(weights))
+                                else:
+                                    probs = weights / total
+                                chosen_idx = int(rng.choice(idxs_only, p=probs))
+                                tiebreak_proxy = entropy_map.get(chosen_idx)
+                            else:
+                                chosen_idx = max(
+                                    [item[0] for item in valid],
+                                    key=lambda i: (entropy_map.get(i, float("-inf")), -i),
+                                )
+                                tiebreak_proxy = entropy_map.get(chosen_idx)
+                    else:
+                        if tiebreak_mode in {"response_len", "length"}:
+                            tiebreak_proxy = response_len(chosen_idx)
+                        else:
+                            tiebreak_proxy = mean_nll(chosen_idx)
 
             print(f"\n[ACRD DEBUG] uid={uid} data_source={data_source} eligible={len(eligible)}/{len(idxs)}")
             if orig_prompt:
@@ -1635,13 +1812,7 @@ class RayPPOTrainer:
                 print("[ACRD DEBUG] modified prompt:\n" + truncate_text(acr_prompt))
 
             for j, idx in enumerate(idxs, start=1):
-                if response_mask is not None:
-                    valid_len = int(response_mask[idx].sum().item())
-                    response_ids = responses[idx][:valid_len].tolist()
-                else:
-                    response_ids = responses[idx].tolist()
-                    while response_ids and response_ids[-1] == pad_id:
-                        response_ids.pop()
+                response_ids = extract_response_ids(idx)
                 response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True) if response_ids else ""
                 reward_val = reward_list[idx]
                 base_score_val = base_scores[idx]
@@ -1653,7 +1824,6 @@ class RayPPOTrainer:
                     is_eligible = (
                         base_val is not None
                         and base_val >= threshold
-                        and (extracted[idx] is None or bool(extracted[idx]))
                         and (leak_hits[idx] is None or not bool(leak_hits[idx]))
                     )
                 else:
@@ -1662,23 +1832,22 @@ class RayPPOTrainer:
                 leak_str = "NA" if leak_hit_val is None else str(bool(leak_hit_val))
                 extracted_val = extracted[idx] if extracted[idx] is not None else None
                 extracted_str = "NA" if extracted_val is None else str(bool(extracted_val))
+                degenerate_str = "NA"
+                if degenerate_filter and response_ids:
+                    degenerate_str = str(is_degenerate(response_ids))
                 print(
                     "[ACRD DEBUG] response "
                     f"{j}/{len(idxs)} reward={reward_val:.3f} base={base_str} eligible={is_eligible} "
-                    f"extracted={extracted_str} leak={leak_str}\n"
+                    f"extracted={extracted_str} leak={leak_str} degenerate={degenerate_str}\n"
                     + truncate_text(response_text)
                 )
 
             if chosen_idx is not None:
-                if response_mask is not None:
-                    valid_len = int(response_mask[chosen_idx].sum().item())
-                    chosen_ids = responses[chosen_idx][:valid_len].tolist()
-                else:
-                    chosen_ids = responses[chosen_idx].tolist()
-                    while chosen_ids and chosen_ids[-1] == pad_id:
-                        chosen_ids.pop()
+                chosen_ids = extract_response_ids(chosen_idx)
                 chosen_text = self.tokenizer.decode(chosen_ids, skip_special_tokens=True) if chosen_ids else ""
-                if tiebreak_mode in {"response_len", "length"}:
+                if selection_mode == "random":
+                    label = "random"
+                elif tiebreak_mode in {"response_len", "length"}:
                     label = "response_len"
                 else:
                     label = "entropy_proxy"
@@ -2023,20 +2192,36 @@ class RayPPOTrainer:
 
         reward_sum_by_uid: dict[str, float] = {}
         reward_count_by_uid: dict[str, int] = {}
+        reward_max_by_uid: dict[str, float] = {}
         for uid, reward in zip(uid_list, reward_list):
             key = str(uid)
             reward_val = float(reward)
             reward_sum_by_uid[key] = reward_sum_by_uid.get(key, 0.0) + reward_val
             reward_count_by_uid[key] = reward_count_by_uid.get(key, 0) + 1
+            prev = reward_max_by_uid.get(key)
+            if prev is None or reward_val > prev:
+                reward_max_by_uid[key] = reward_val
 
-        mean_reward_by_uid = {
-            uid: (reward_sum_by_uid[uid] / max(1, reward_count_by_uid.get(uid, 0)))
-            for uid in reward_sum_by_uid
-        }
+        hard_mode = str(getattr(self, "_acr_hard_reward_mode", "no_perfect")).lower().strip()
+        if hard_mode in {"mean", "avg", "average", "mean_reward"}:
+            hard_mode = "mean"
+        elif hard_mode in {"max", "max_reward", "no_perfect", "no_perfect_reward", "no_perfect_rollout"}:
+            hard_mode = "no_perfect"
+        else:
+            hard_mode = "no_perfect"
 
-        total = len(mean_reward_by_uid)
-        threshold = float(getattr(self, "_acr_hard_reward_threshold", 0.5))
-        hard_uids = {uid for uid, score in mean_reward_by_uid.items() if score < threshold}
+        if hard_mode == "mean":
+            mean_reward_by_uid = {
+                uid: (reward_sum_by_uid[uid] / max(1, reward_count_by_uid.get(uid, 0)))
+                for uid in reward_sum_by_uid
+            }
+            total = len(mean_reward_by_uid)
+            threshold = float(getattr(self, "_acr_hard_reward_threshold", 0.5))
+            hard_uids = {uid for uid, score in mean_reward_by_uid.items() if score < threshold}
+        else:
+            total = len(reward_max_by_uid)
+            perfect_threshold = 1.0 - 1e-6
+            hard_uids = {uid for uid, score in reward_max_by_uid.items() if score < perfect_threshold}
 
         if total > 0:
             metrics["acr/hard_uid_total"] = float(total)
@@ -2247,6 +2432,22 @@ class RayPPOTrainer:
         if pad_id is None:
             pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
 
+        response_ids_cache: dict[int, list[int]] = {}
+
+        def extract_response_ids(idx: int) -> list[int]:
+            cached = response_ids_cache.get(idx)
+            if cached is not None:
+                return cached
+            if response_mask is not None:
+                valid_len = int(response_mask[idx].sum().item())
+                response_ids = responses[idx][:valid_len].tolist()
+            else:
+                response_ids = responses[idx].tolist()
+                while response_ids and response_ids[-1] == pad_id:
+                    response_ids.pop()
+            response_ids_cache[idx] = response_ids
+            return response_ids
+
         def mean_nll(idx: int) -> Optional[float]:
             if log_probs is None or response_mask is None:
                 return None
@@ -2255,6 +2456,46 @@ class RayPPOTrainer:
             if denom.item() <= 0:
                 return None
             return float(-(log_probs[idx] * mask).sum().item() / denom.item())
+
+        def response_len(idx: int) -> int:
+            if response_mask is not None:
+                return int(response_mask[idx].sum().item())
+            resp = responses[idx]
+            if resp.numel() == 0:
+                return 0
+            if pad_id is None:
+                return int(resp.numel())
+            non_pad = (resp != pad_id).nonzero(as_tuple=False)
+            if non_pad.numel() == 0:
+                return 0
+            return int(non_pad[-1].item() + 1)
+
+        degenerate_filter = bool(cfg.get("degenerate_filter", False))
+        degenerate_min_tokens = int(cfg.get("degenerate_min_tokens", 0) or 0)
+        try:
+            degenerate_rep_3_max = float(cfg.get("degenerate_rep_3_max", 1.0))
+        except (TypeError, ValueError):
+            degenerate_rep_3_max = 1.0
+        try:
+            degenerate_rep_4_max = float(cfg.get("degenerate_rep_4_max", 1.0))
+        except (TypeError, ValueError):
+            degenerate_rep_4_max = 1.0
+        degenerate_rep_3_max = min(max(degenerate_rep_3_max, 0.0), 1.0)
+        degenerate_rep_4_max = min(max(degenerate_rep_4_max, 0.0), 1.0)
+
+        def distinct_ngram_ratio(tokens: list[int], n: int) -> float:
+            total = len(tokens) - n + 1
+            if total <= 0:
+                return 1.0
+            ngrams = {tuple(tokens[i : i + n]) for i in range(total)}
+            return len(ngrams) / total
+
+        def is_degenerate(tokens: list[int]) -> bool:
+            if not degenerate_filter or len(tokens) < degenerate_min_tokens:
+                return False
+            rep_3 = 1.0 - distinct_ngram_ratio(tokens, 3)
+            rep_4 = 1.0 - distinct_ngram_ratio(tokens, 4)
+            return rep_3 >= degenerate_rep_3_max or rep_4 >= degenerate_rep_4_max
 
         grouped: dict[str, list[int]] = {}
         for idx, uid in enumerate(uid_list):
@@ -2267,6 +2508,8 @@ class RayPPOTrainer:
         hint_count = 0
         nohint_count = 0
         records = []
+        degenerate_checked = 0
+        degenerate_filtered = 0
         entropy_sampling = bool(cfg.get("entropy_sampling", False))
         entropy_beta = cfg.get("entropy_beta", 1.0)
         try:
@@ -2276,6 +2519,13 @@ class RayPPOTrainer:
         rng = np.random.default_rng()
 
         tiebreak_mode = str(cfg.get("entropy_tiebreak", "mean_nll"))
+        selection_mode = str(cfg.get("selection_mode", "random")).lower().strip()
+        if selection_mode in {"max_reward", "top_reward", "best", "reward"}:
+            selection_mode = "top_reward"
+        elif selection_mode in {"random", "rand", "uniform"}:
+            selection_mode = "random"
+        else:
+            selection_mode = "random"
 
         for uid, idxs in grouped.items():
             if self._distill_source == "acr":
@@ -2288,59 +2538,81 @@ class RayPPOTrainer:
                         continue
                     if base_score < threshold:
                         continue
-                    if extracted_list is not None and not bool(extracted_list[i]):
-                        continue
                     if leak_hits_list is not None and bool(leak_hits_list[i]):
                         continue
+                    if degenerate_filter:
+                        degenerate_checked += 1
+                        response_ids = extract_response_ids(i)
+                        if not response_ids or is_degenerate(response_ids):
+                            degenerate_filtered += 1
+                            continue
                     eligible.append(i)
             else:
                 eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
+                if degenerate_filter:
+                    degenerate_checked += len(eligible)
+                    kept = []
+                    for i in eligible:
+                        response_ids = extract_response_ids(i)
+                        if not response_ids or is_degenerate(response_ids):
+                            degenerate_filtered += 1
+                            continue
+                        kept.append(i)
+                    eligible = kept
             if not eligible:
                 continue
-            max_reward = max(reward_list[i] for i in eligible)
-            top = [i for i in eligible if reward_list[i] >= (max_reward - 1e-6)]
-            top.sort()
-
-            entropy_mode = tiebreak_mode
-            chosen_idx = top[0]
+            chosen_idx = None
             tiebreak_proxy = None
-            if len(top) > 1:
-                if entropy_mode in {"response_len", "length"}:
-                    length_map = {i: response_len(i) for i in top}
-                    chosen_idx = max(top, key=lambda i: (length_map.get(i, -1), -i))
-                    tiebreak_proxy = length_map.get(chosen_idx)
-                else:
-                    entropy_map = {i: mean_nll(i) for i in top}
-                    valid = [(i, val) for i, val in entropy_map.items() if val is not None]
-                    if not valid:
-                        chosen_idx = top[0]
-                        tiebreak_proxy = entropy_map.get(chosen_idx)
-                    elif entropy_sampling:
-                        idxs_only = [item[0] for item in valid]
-                        vals = np.array([item[1] for item in valid], dtype=np.float64)
-                        if not np.isfinite(vals).all():
-                            vals = np.nan_to_num(vals, nan=-1e6, posinf=1e6, neginf=-1e6)
-                        vals = vals * entropy_beta
-                        vals = vals - np.max(vals)
-                        weights = np.exp(vals)
-                        total = float(weights.sum())
-                        if total <= 0 or not np.isfinite(total):
-                            probs = np.ones_like(weights) / max(1, len(weights))
-                        else:
-                            probs = weights / total
-                        chosen_idx = int(rng.choice(idxs_only, p=probs))
-                        tiebreak_proxy = entropy_map.get(chosen_idx)
-                    else:
-                        chosen_idx = max(
-                            [item[0] for item in valid],
-                            key=lambda i: (entropy_map.get(i, float("-inf")), -i),
-                        )
-                        tiebreak_proxy = entropy_map.get(chosen_idx)
-            else:
-                if entropy_mode in {"response_len", "length"}:
+            if selection_mode == "random":
+                chosen_idx = int(rng.choice(eligible))
+                if tiebreak_mode in {"response_len", "length"}:
                     tiebreak_proxy = response_len(chosen_idx)
                 else:
                     tiebreak_proxy = mean_nll(chosen_idx)
+            else:
+                max_reward = max(reward_list[i] for i in eligible)
+                top = [i for i in eligible if reward_list[i] >= (max_reward - 1e-6)]
+                top.sort()
+
+                entropy_mode = tiebreak_mode
+                chosen_idx = top[0]
+                if len(top) > 1:
+                    if entropy_mode in {"response_len", "length"}:
+                        length_map = {i: response_len(i) for i in top}
+                        chosen_idx = max(top, key=lambda i: (length_map.get(i, -1), -i))
+                        tiebreak_proxy = length_map.get(chosen_idx)
+                    else:
+                        entropy_map = {i: mean_nll(i) for i in top}
+                        valid = [(i, val) for i, val in entropy_map.items() if val is not None]
+                        if not valid:
+                            chosen_idx = top[0]
+                            tiebreak_proxy = entropy_map.get(chosen_idx)
+                        elif entropy_sampling:
+                            idxs_only = [item[0] for item in valid]
+                            vals = np.array([item[1] for item in valid], dtype=np.float64)
+                            if not np.isfinite(vals).all():
+                                vals = np.nan_to_num(vals, nan=-1e6, posinf=1e6, neginf=-1e6)
+                            vals = vals * entropy_beta
+                            vals = vals - np.max(vals)
+                            weights = np.exp(vals)
+                            total = float(weights.sum())
+                            if total <= 0 or not np.isfinite(total):
+                                probs = np.ones_like(weights) / max(1, len(weights))
+                            else:
+                                probs = weights / total
+                            chosen_idx = int(rng.choice(idxs_only, p=probs))
+                            tiebreak_proxy = entropy_map.get(chosen_idx)
+                        else:
+                            chosen_idx = max(
+                                [item[0] for item in valid],
+                                key=lambda i: (entropy_map.get(i, float("-inf")), -i),
+                            )
+                            tiebreak_proxy = entropy_map.get(chosen_idx)
+                else:
+                    if entropy_mode in {"response_len", "length"}:
+                        tiebreak_proxy = response_len(chosen_idx)
+                    else:
+                        tiebreak_proxy = mean_nll(chosen_idx)
 
             extra_info = extra_list[chosen_idx]
             prompt_nohint = None
@@ -2363,13 +2635,7 @@ class RayPPOTrainer:
             if not isinstance(prompt_nohint, list):
                 continue
 
-            if response_mask is not None:
-                valid_len = int(response_mask[chosen_idx].sum().item())
-                response_ids = responses[chosen_idx][:valid_len].tolist()
-            else:
-                response_ids = responses[chosen_idx].tolist()
-                while response_ids and response_ids[-1] == pad_id:
-                    response_ids.pop()
+            response_ids = extract_response_ids(chosen_idx)
 
             if not response_ids:
                 continue
@@ -2408,6 +2674,9 @@ class RayPPOTrainer:
             metrics["distill/uid_group_frac"] = float(selected_groups / max(1, total_groups))
             metrics["distill/uid_group_count"] = float(selected_groups)
             metrics["distill/uid_group_total"] = float(total_groups)
+        if degenerate_filter and degenerate_checked > 0:
+            metrics["distill/degenerate_filtered"] = float(degenerate_filtered)
+            metrics["distill/degenerate_filtered_frac"] = float(degenerate_filtered / max(1, degenerate_checked))
         if selected_rewards:
             metrics["distill/selected_reward_mean"] = float(np.mean(selected_rewards))
         if selected_tiebreak:
@@ -2465,7 +2734,6 @@ class RayPPOTrainer:
         dpo_cfg = cfg.get("dpo", {})
         if not isinstance(dpo_cfg, dict):
             dpo_cfg = {}
-        require_rejected_parses = bool(dpo_cfg.get("require_rejected_parses", True))
 
         rollout_n = int(getattr(self, "_acr_rollout_n", 1) or 1)
 
@@ -2682,8 +2950,6 @@ class RayPPOTrainer:
                 skipped_pairs += 1
                 continue
             rejected_pool = [c for c in candidates if c["reward"] < threshold - eps]
-            if require_rejected_parses:
-                rejected_pool = [c for c in rejected_pool if c.get("extracted", False)]
 
             def pick_tiebreak(item: dict, tag: str) -> int:
                 return tiebreak(uid, item["idx"], f"{tag}-{item['source']}")
@@ -2695,8 +2961,6 @@ class RayPPOTrainer:
                 )
             else:
                 fallback_pool = chosen_pool
-                if require_rejected_parses:
-                    fallback_pool = [c for c in fallback_pool if c.get("extracted", False)]
                 if len(fallback_pool) < 2:
                     skipped_pairs += 1
                     continue
@@ -3053,6 +3317,19 @@ class RayPPOTrainer:
         if not local_records:
             return {}
 
+        target_batch_size = cfg.get("batch_size", None)
+        if target_batch_size is None:
+            target_batch_size = self.config.actor_rollout_ref.actor.get("ppo_mini_batch_size", None)
+            if target_batch_size is None:
+                target_batch_size = getattr(self.config.actor_rollout_ref.actor, "ppo_mini_batch_size", None)
+        if target_batch_size is not None:
+            try:
+                target_batch_size = int(target_batch_size)
+            except (TypeError, ValueError):
+                target_batch_size = None
+            if target_batch_size is not None and target_batch_size <= 0:
+                target_batch_size = None
+
         if dist.is_available() and dist.is_initialized():
             gathered = [None for _ in range(dist.get_world_size())]
             dist.all_gather_object(gathered, local_records)
@@ -3064,74 +3341,45 @@ class RayPPOTrainer:
                 records = all_records
                 if cfg.get("dedup_by_uid", True):
                     records = self._dedup_distill_records(records)
-                records.sort(
-                    key=lambda r: (
-                        -float(r.get("reward", 0.0)),
-                        -(
-                            float(r.get("entropy_proxy"))
-                            if r.get("entropy_proxy") is not None
-                            else float("-inf")
-                        ),
-                        str(r.get("uid", "")),
-                    )
-                )
+                pool_size = len(records)
+                rng = np.random.default_rng(int(global_step))
                 max_buffer = int(cfg.get("max_buffer", 0) or 0)
                 if max_buffer > 0:
-                    records = records[:max_buffer]
+                    if len(records) > max_buffer:
+                        idxs = rng.choice(len(records), size=max_buffer, replace=False)
+                        records = [records[i] for i in idxs]
+                if target_batch_size is not None and len(records) > target_batch_size:
+                    idxs = rng.choice(len(records), size=target_batch_size, replace=False)
+                    records = [records[i] for i in idxs]
+                payload = {"records": records, "pool_size": pool_size}
             else:
-                records = None
-            obj_list = [records]
+                payload = None
+            obj_list = [payload]
             dist.broadcast_object_list(obj_list, src=0)
-            records = obj_list[0] or []
+            payload = obj_list[0] or {}
+            records = payload.get("records") or []
+            pool_size = int(payload.get("pool_size") or 0)
         else:
             records = local_records
             if cfg.get("dedup_by_uid", True):
                 records = self._dedup_distill_records(records)
-            records.sort(
-                key=lambda r: (
-                    -float(r.get("reward", 0.0)),
-                    -(
-                        float(r.get("entropy_proxy"))
-                        if r.get("entropy_proxy") is not None
-                        else float("-inf")
-                    ),
-                    str(r.get("uid", "")),
-                )
-            )
+            pool_size = len(records)
+            rng = np.random.default_rng(int(global_step))
             max_buffer = int(cfg.get("max_buffer", 0) or 0)
             if max_buffer > 0:
-                records = records[:max_buffer]
+                if len(records) > max_buffer:
+                    idxs = rng.choice(len(records), size=max_buffer, replace=False)
+                    records = [records[i] for i in idxs]
+            if target_batch_size is not None and len(records) > target_batch_size:
+                idxs = rng.choice(len(records), size=target_batch_size, replace=False)
+                records = [records[i] for i in idxs]
 
         if not records:
             self._distill_buffer_local = []
             return {}
 
         dp_size = self._get_actor_dp_size()
-        drop_last = bool(cfg.get("drop_last", True))
-        sft_batch_size = cfg.get("batch_size", None)
-        if sft_batch_size is None:
-            sft_batch_size = self.config.actor_rollout_ref.actor.get("ppo_mini_batch_size", None)
-            if sft_batch_size is None:
-                sft_batch_size = getattr(self.config.actor_rollout_ref.actor, "ppo_mini_batch_size", None)
-        if sft_batch_size is not None:
-            sft_batch_size = int(sft_batch_size)
-            if sft_batch_size <= 0:
-                sft_batch_size = None
-            elif len(records) < sft_batch_size:
-                sft_batch_size = len(records)
-        if sft_batch_size is None and records:
-            sft_batch_size = len(records)
-
-        divisor = dp_size
-        if sft_batch_size is not None and sft_batch_size > 0:
-            divisor = math.lcm(dp_size, sft_batch_size)
-
-        if drop_last and divisor > 1:
-            usable = (len(records) // divisor) * divisor
-            records = records[:usable]
-            if not records:
-                self._distill_buffer_local = []
-                return {}
+        sampled_count = len(records)
 
         max_seq_len = cfg.get("max_seq_len", None)
         if max_seq_len is None:
@@ -3149,8 +3397,12 @@ class RayPPOTrainer:
             self._distill_buffer_local = []
             return {}
 
-        if sft_batch_size is not None and sft_batch_size > 0:
-            data.meta_info["sft_mini_batch_size"] = int(sft_batch_size)
+        divisor = max(1, dp_size)
+        pad_size = 0
+        if divisor > 1:
+            data, pad_size = pad_dataproto_to_divisor(data, divisor)
+
+        data.meta_info["sft_mini_batch_size"] = int(len(data))
         if max_seq_len is not None:
             data.meta_info["sft_max_token_len"] = int(max_seq_len)
         lr_scale = cfg.get("lr_scale", 1.0)
@@ -3163,16 +3415,13 @@ class RayPPOTrainer:
         data.meta_info["sft_epochs"] = 1
         data.meta_info["sft_shuffle"] = True
 
-        pad_size = 0
-        if not drop_last and divisor > 1:
-            data, pad_size = pad_dataproto_to_divisor(data, divisor)
-
         actor_output = self.actor_rollout_wg.update_actor(data)
         actor_metrics = reduce_metrics(actor_output.meta_info["metrics"])
 
         metrics: dict[str, float] = {
             "distill/ran": 1.0,
-            "distill/buffer_size_global": float(len(records)),
+            "distill/buffer_size_global": float(pool_size),
+            "distill/sft_sampled_count": float(sampled_count),
         }
         for key, val in stats.items():
             metrics[f"distill/{key}"] = float(val)

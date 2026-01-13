@@ -40,9 +40,11 @@ option text and uses that text (or its extracted ID) to fetch label details.
 ACR rollouts use the same actor as RLVR but a separate repeat count:
 `data.acr.rollout_n` (default 4). No PPO update is run by default; the ACR score is
 used only for filtering/ranking traces before distillation.
-Hard-example gating (SFT only): per-batch ACR only runs for prompts whose mean RLVR reward
-across rollouts is below `data.acr.hard_reward_threshold` (default 0.5). This keeps distillation focused
-on unsolved cases and avoids over-teaching already-correct samples.
+Hard-example gating (SFT only): per-batch ACR runs according to `data.acr.hard_reward_mode`:
+- `no_perfect` (default): run ACR only when the UID has no rollout with reward >= 1.0 (max reward < 1.0).
+- `mean_reward`: run ACR only when mean RLVR reward across rollouts is below
+  `data.acr.hard_reward_threshold` (default 0.05).
+This keeps distillation focused on unsolved cases and avoids over-teaching already-correct samples.
 For DPO, we skip the hard-threshold filter; if a UID's **max** RLVR reward is 1.0, we do **not** generate
 ACR responses and instead reuse the top `data.acr.rollout_n` RLVR rollouts (sorted by RLVR reward, random tie-break).
 Otherwise we generate `data.acr.rollout_n` ACR responses with answer hints as usual.
@@ -55,7 +57,8 @@ Reward (`reward_acr`) uses the RLVR parsing logic (`reward_minerva`) and returns
 Optional judge rubric (when enabled) adds:
 - `acr_rubric_score` (float, 0..1) used for DPO ranking (chosen/rejected selection); computed as the
   weighted sum of Q1-Q4 (1-4 scale, weights 0.30/0.30/0.20/0.20) normalized via
-  `(S_1to4 - 1.0) / 3.0` from `rlvr/verl/utils/reward_score/prompts/acr_rubric_prompt.txt`.
+  `(S_1to4 - 1.0) / 3.0` from `rlvr/verl/utils/reward_score/prompts/acr_rubric_prompt.txt`. The
+  prompt expects JSON keys `Q1`, `Q2`, `Q3`, `Q4` and does not mention weights.
 
 ### Step 3: Distillation (SFT or DPO)
 Per-batch distillation is handled by the PPO trainer and uses the same batch.
@@ -67,18 +70,28 @@ For `method=sft`, input is the original RLVR prompt (`acr_orig_prompt`), while t
 The ACR prompt (with answer hints) is kept only for debugging and selection analysis.
 Selection is per-UID (one record per original prompt):
 
-- Eligibility: `acr_base_score >= data.acr.distill.reward_threshold` (default 0.5),
-  `acr_extracted == true`, and `acr_leak_hit == false`.
-- Among eligible rollouts, pick the response with the highest weighted ACR reward
-  (`score` includes leak penalty). Then sample from the top-rewarded candidates
-  with probability proportional to `exp(beta * mean_nll)` (stochastic entropy tie-break);
-  mean NLL is computed over assistant tokens only (SFT only).
+- Eligibility: `acr_base_score >= data.acr.distill.reward_threshold` (default 0.99),
+  and `acr_leak_hit == false`.
+- Leakage includes banned-phrase detection (fuzzy match) plus ID overuse: reject if the gold
+  ID appears more than `max_id_mentions` times in the response (default 3).
+- Degenerate filter (default on): drop eligible responses with high n-gram repetition using
+  `rep_n = 1 - distinct_n` over token IDs (defaults: `rep_3 >= 0.85` or `rep_4 >= 0.90`,
+  applied when `len(response_tokens) >= 40`).
+- Default selection (`selection_mode=random`): sample uniformly from eligible rollouts.
+- Optional selection (`selection_mode=top_reward`): pick the response with the highest weighted ACR reward
+  (`score` includes leak penalty), then tie-break by `entropy_tiebreak` (mean NLL or response length).
+  If `entropy_sampling=true`, sample among top-rewarded candidates with probability proportional to
+  `exp(beta * mean_nll)` (stochastic entropy tie-break). Mean NLL is computed over assistant tokens only (SFT only).
 
 Accepted SFT records (`method=sft`) are stored as:
 - `prompt_nohint`: `extra_info["acr_orig_prompt"]` (original RLVR prompt; no answer hints)
 - `response_ids`: selected response token IDs
 - `reward`: weighted ACR score
 - `entropy_proxy`: mean NLL of the selected response (assistant tokens only)
+
+Per distill run, we sample up to `data.acr.distill.batch_size` records from the buffer
+uniformly at random (no replacement) and run a single SFT update. If fewer records exist,
+we use all available records.
 
 For `method=dpo`, we consider every UID in the batch (no hard-threshold filtering) and build a
 preference pair from a pool of size `data.acr.rollout_n`:
@@ -91,8 +104,7 @@ For DPO selection, the reward is the base verifier reward (`reward_minerva` for 
 Chosen: among responses with reward >= `data.acr.distill.reward_threshold`, pick the highest rubric
 score (if present).
 Rejected: among responses with reward < `data.acr.distill.reward_threshold`, pick the highest rubric
-(tie-break by higher reward, then deterministic); if `data.acr.distill.dpo.require_rejected_parses=true`,
-rejected must satisfy `acr_extracted==true`.
+(tie-break by higher reward, then deterministic).
 If no reward<threshold response (all reward>=threshold), pick the lowest rubric among reward>=threshold
 candidates as rejected (distinct from chosen). Skip if you cannot form a pair.
 
@@ -287,16 +299,19 @@ For `method=dpo`, each per-batch record includes:
 - `chosen_meta`, `rejected_meta` (ACR scores)
 
 #### 4.2 Acceptance criteria (per-batch)
-- Eligibility (SFT): `acr_base_score >= reward_threshold` (default 0.5),
-  `acr_extracted == true`, and `acr_leak_hit == false`.
-- SFT selection: max weighted `score` among eligible rollouts, then stochastic entropy tie-break
-  using mean NLL over assistant tokens only (SFT only).
+- Eligibility (SFT): `acr_base_score >= reward_threshold` (default 0.99),
+  and `acr_leak_hit == false`.
+- Degenerate filter (SFT): drop eligible responses with high n-gram repetition
+  using `rep_n = 1 - distinct_n` over token IDs (defaults: `rep_3 >= 0.85` or `rep_4 >= 0.90`,
+  applied when `len(response_tokens) >= 40`).
+- SFT selection: default random among eligible (`selection_mode=random`). Set `selection_mode=top_reward`
+  to pick max weighted `score` with optional entropy/length tie-break (mean NLL over assistant tokens).
 - DPO pool: `data.acr.rollout_n` responses per UID (RLVR rollouts if max reward == 1.0,
   otherwise ACR rollouts with answer hints).
 - DPO selection: chosen = highest rubric among reward>=threshold responses; rejected = highest
-  rubric among reward<threshold responses (tie-break by higher reward, and `acr_extracted==true` when
-  `require_rejected_parses=true`). If all reward>=threshold, rejected falls back to the lowest rubric
-  among reward>=threshold responses (distinct from chosen). DPO ignores leak penalties.
+  rubric among reward<threshold responses (tie-break by higher reward). If all reward>=threshold,
+  rejected falls back to the lowest rubric among reward>=threshold responses (distinct from chosen).
+  DPO ignores leak penalties.
 
 #### 4.3 Collection mode
 Option A (preferred): per-batch collection via `data.acr.distill.enabled=true` and
@@ -346,17 +361,24 @@ Key env overrides:
 - `ACRD_ACR_DISTILL_METHOD` (`sft` or `dpo`; default `sft`)
 - `ACRD_ACR_DISTILL_INTERVAL` (distill interval in steps; default 10)
 - `ACRD_ACR_DISTILL_LR_SCALE` (distill LR scale vs RLVR; default 1.0)
-- `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 0.5)
-- `ACRD_ACR_DISTILL_ENTROPY_BETA` (SFT only; softmax beta for entropy sampling; default 1.0)
-- `ACRD_ACR_DISTILL_ENTROPY_SAMPLING` (SFT only; enable stochastic entropy tie-break; default true)
+- `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 0.99)
+- `ACRD_ACR_DISTILL_SELECTION_MODE` (SFT only; `random` or `top_reward`; default `random`)
+- `ACRD_ACR_DISTILL_BATCH_SIZE` (SFT only; sample size per distill run; default 512 in `cti-scripts`)
+- `ACRD_ACR_DISTILL_DEGENERATE_FILTER` (SFT only; enable repetition filter; default `true`)
+- `ACRD_ACR_DISTILL_DEGENERATE_MIN_TOKENS` (SFT only; min tokens before repetition filter; default 40)
+- `ACRD_ACR_DISTILL_DEGENERATE_REP3_MAX` (SFT only; reject if `rep_3` >= this; default 0.85)
+- `ACRD_ACR_DISTILL_DEGENERATE_REP4_MAX` (SFT only; reject if `rep_4` >= this; default 0.90)
+- `ACRD_ACR_DISTILL_ENTROPY_BETA` (SFT only; softmax beta for entropy sampling when `selection_mode=top_reward`; default 1.0)
+- `ACRD_ACR_DISTILL_ENTROPY_SAMPLING` (SFT only; enable stochastic entropy tie-break when `selection_mode=top_reward`; default true)
 - `ACRD_DPO_BETA` (DPO only; default 0.1)
-- `ACRD_DPO_REQUIRE_REJECTED_PARSES` (DPO only; default true)
 - `ACRD_ACR_REWARD_MANAGER` (`naive` or `batch`; use `batch` to enable judge batching)
+- `ACRD_ACR_MAX_ID_MENTIONS` (leakage check; reject if gold ID appears more than this; default 3)
 - `ACRD_JUDGE_ENABLED` (true/false; only used with `ACRD_ACR_REWARD_MANAGER=batch`)
 - `ACRD_JUDGE_MODEL` (default `openai/gpt-oss-20b`)
 - `ACRD_JUDGE_BATCH_SIZE`, `ACRD_JUDGE_MAX_NEW_TOKENS`, `ACRD_JUDGE_TEMPERATURE`, `ACRD_JUDGE_TOP_P`
 - `ACRD_JUDGE_DEVICE`, `ACRD_JUDGE_DEVICE_MAP`, `ACRD_JUDGE_DTYPE`, `ACRD_JUDGE_TRUST_REMOTE_CODE`
-- `ACRD_ACR_HARD_REWARD_THRESHOLD` (only ACR prompts with mean RLVR reward < threshold; default 0.5)
+- `ACRD_ACR_HARD_REWARD_MODE` (`no_perfect` or `mean_reward`; default `no_perfect`)
+- `ACRD_ACR_HARD_REWARD_THRESHOLD` (used when `hard_reward_mode=mean_reward`; default 0.05)
 - `ACRD_DEBUG_SAMPLES` (prints original prompt -> ACR prompt -> rollouts -> selected response; default 2)
 - `ACRD_DETAILS_DEBUG_SAMPLES` (prints details-missing/omitted locations; default 2)
 - `ACRD_MAX_DETAILS_CHARS`, `ACRD_ACR_MAX_PROMPT_LEN`
@@ -402,7 +424,13 @@ custom_reward_function:
 Defaults:
 - `banned_phrases` is defined in `rlvr/verl/utils/reward_score/reward_acr.py` (answer/label variants).
 - `use_fuzzy_leak_check` is enabled by default.
-- SFT distill selection uses `entropy_tiebreak=mean_nll`, `entropy_sampling=true`, `entropy_beta=1.0` by default for ACR (SFT only).
+- `max_id_mentions=3`: reject responses that repeat the gold ID more than 3 times.
+- SFT distill selection defaults to `selection_mode=random`. If you set `selection_mode=top_reward`,
+  the default tie-break is `entropy_tiebreak=mean_nll` with `entropy_sampling=true` and `entropy_beta=1.0` (SFT only).
+- SFT degenerate filter defaults to on for ACRD: reject if `rep_3 >= 0.85` or `rep_4 >= 0.90`
+  when `len(response_tokens) >= 40`.
+- The default `cti-scripts` run samples up to 512 SFT records per distill step
+  (`ACRD_ACR_DISTILL_BATCH_SIZE=512`).
 - Judge rubric is disabled by default; enable via `ACRD_ACR_REWARD_MANAGER=batch` and `ACRD_JUDGE_ENABLED=true`.
 
 Per-batch ACRD needs:
@@ -424,12 +452,13 @@ Supports `--multilabel-match` and `--enforce-no-id`.
 - Keep the final answer on the last line, using the same format as the original task.
 - Keep label details short. Do not blow up prompt length.
 - Periodic distillation (`interval=10`) stabilizes training; for SFT this replays from the buffer.
-- SFT eligibility uses `acr_base_score` (pre-scaling); SFT selection uses weighted reward and
-  stochastic mean-NLL tie-break.
+- SFT eligibility uses `acr_base_score` (pre-scaling); SFT selection defaults to random among eligible
+  rollouts. Set `selection_mode=top_reward` to use weighted reward with the optional mean-NLL/length tie-break.
 - When `data.acr.distill.method=dpo`, ensure a reference policy is instantiated even if KL is disabled;
   DPO always needs logp_ref.
-- Hard-example gating uses mean RLVR reward per UID (acc@G); SFT only. DPO skips the hard-threshold
-  filter and uses max reward == 1.0 to decide whether to reuse RLVR rollouts or generate ACR rollouts.
+- Hard-example gating (SFT only) uses `data.acr.hard_reward_mode` (default `no_perfect`: max reward < 1.0);
+  `mean_reward` uses `data.acr.hard_reward_threshold`. DPO skips the hard-threshold filter and uses max
+  reward == 1.0 to decide whether to reuse RLVR rollouts or generate ACR rollouts.
 - `ACRD_DEBUG_SAMPLES` prints original prompt -> ACR prompt -> rollouts -> selected response for quick inspection.
 - `acr/details_missing`, `acr/details_omitted`, `acr/details_truncated` metrics track label-detail coverage.
 - `acr/details_not_applicable` counts samples where no label details are expected (e.g., CVSS).

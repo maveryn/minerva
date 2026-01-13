@@ -886,6 +886,82 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
         return output
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
+    def generate_judge_outputs(
+        self,
+        prompts: list[str],
+        max_new_tokens: int = 8,
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        batch_size: int = 8,
+    ) -> list[str]:
+        if not self._is_ref:
+            raise RuntimeError("generate_judge_outputs is only available on ref workers.")
+        if not prompts:
+            return []
+
+        if self._is_offload_param:
+            load_fsdp_model_to_gpu(self.ref_module_fsdp)
+
+        tokenizer = self.tokenizer
+        pad_side = tokenizer.padding_side
+        tokenizer.padding_side = "left"
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token_id = tokenizer.eos_token_id
+        try:
+            inputs = tokenizer(prompts, return_tensors="pt", padding=True)
+        finally:
+            tokenizer.padding_side = pad_side
+
+        input_ids = inputs["input_ids"].to(get_device_id())
+        attention_mask = inputs["attention_mask"].to(get_device_id())
+        position_ids = compute_position_id_with_mask(attention_mask)
+
+        do_sample = float(temperature) > 0.0
+        generate_kwargs = {
+            "max_new_tokens": int(max_new_tokens),
+            "do_sample": do_sample,
+            "top_p": float(top_p),
+            "pad_token_id": tokenizer.pad_token_id,
+            "eos_token_id": tokenizer.eos_token_id,
+            "return_dict_in_generate": True,
+            "use_cache": True,
+        }
+        if do_sample:
+            generate_kwargs["temperature"] = float(temperature)
+
+        from contextlib import nullcontext
+
+        param_ctx = nullcontext()
+        if isinstance(self.ref_module_fsdp, FSDP):
+            param_ctx = FSDP.summon_full_params(self.ref_module_fsdp, writeback=False, recurse=False)
+
+        with param_ctx, torch.inference_mode(), torch.autocast(device_type=get_device_name(), dtype=torch.bfloat16):
+            generated = self.ref_module_fsdp.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                **generate_kwargs,
+            )
+
+        sequences = generated.sequences
+        input_len = input_ids.shape[-1]
+        outputs: list[str] = []
+        for seq in sequences:
+            gen_ids = seq[int(input_len) :].tolist()
+            outputs.append(tokenizer.decode(gen_ids, skip_special_tokens=True))
+
+        if self.world_size > 1:
+            if fsdp_version(self.ref_module_fsdp) == 1:
+                self.ref_module_fsdp._handle.reshard(True)
+            elif fsdp_version(self.ref_module_fsdp) == 2:
+                self.ref_module_fsdp.reshard()
+
+        if self._is_offload_param:
+            offload_fsdp_model_to_cpu(self.ref_module_fsdp)
+
+        return outputs
+
+    @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def save_checkpoint(self, local_path, hdfs_path=None, global_step=0, max_ckpt_to_keep=None):
         from verl.utils.logger import log_with_rank
 

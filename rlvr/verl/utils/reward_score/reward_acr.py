@@ -156,6 +156,18 @@ def _id_leak_in_reasoning(reasoning: str, gold_labels: Iterable[str]) -> bool:
     return False
 
 
+def _count_id_mentions(text: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    if not text:
+        return counts
+    for match in _ID_REGEX.findall(text):
+        norm = _normalize_label(match)
+        if not norm:
+            continue
+        counts[norm] = counts.get(norm, 0) + 1
+    return counts
+
+
 def reward_acr(
     data_source: str,
     solution_str: str,
@@ -169,6 +181,7 @@ def reward_acr(
     use_fuzzy_leak_check: bool = True,
     fuzzy_threshold: float = 0.85,
     enforce_no_id_in_reasoning: bool = True,
+    max_id_mentions: Optional[int] = 3,
     score_min: Optional[float] = None,
     score_max: Optional[float] = None,
 ) -> dict:
@@ -197,6 +210,22 @@ def reward_acr(
         reasoning = _split_reasoning(solution_str or "")
         id_leak_hit = _id_leak_in_reasoning(reasoning, gold_labels)
 
+    id_overuse_hit = False
+    id_overuse_max = 0
+    if max_id_mentions is not None and max_id_mentions > 0 and gold_labels:
+        counts = _count_id_mentions(solution_str or "")
+        for label in gold_labels:
+            if not _ID_REGEX.match(label):
+                continue
+            count = counts.get(_normalize_label(label), 0)
+            if count > id_overuse_max:
+                id_overuse_max = count
+            if count > max_id_mentions:
+                id_overuse_hit = True
+                break
+    if id_overuse_hit:
+        leak_hit = True
+
     score = 0.0
     if extracted and base_score > 0:
         score += float(r_correct) * float(base_score)
@@ -215,6 +244,8 @@ def reward_acr(
         "acr_is_correct": bool(is_correct),
         "acr_leak_hit": bool(leak_hit),
         "acr_id_leak_hit": bool(id_leak_hit),
+        "acr_id_overuse_hit": bool(id_overuse_hit),
+        "acr_id_overuse_max": int(id_overuse_max),
         "acr_pred_labels": pred_labels,
         "acr_gold_labels": gold_labels,
     }

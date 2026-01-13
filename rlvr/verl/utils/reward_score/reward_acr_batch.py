@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import re
 from typing import Any, Iterable, List, Optional
@@ -23,6 +24,10 @@ _RUBRIC_KEYS = (
 _RUBRIC_WEIGHTS = (0.30, 0.30, 0.20, 0.20)
 _PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "acr_rubric_prompt.txt"
 _PROMPT_TEMPLATE: Optional[str] = None
+try:
+    _JUDGE_DEBUG_REMAINING = max(0, int(os.getenv("ACRD_JUDGE_DEBUG_SAMPLES", "1")))
+except ValueError:
+    _JUDGE_DEBUG_REMAINING = 1
 
 
 @dataclass
@@ -254,6 +259,17 @@ def _score_from_rubric(data: Optional[dict]) -> float:
     return normalized
 
 
+def _rubric_is_valid(data: Optional[dict]) -> bool:
+    if not data:
+        return False
+    normalized = _collect_scores(data)
+    for key in _RUBRIC_KEYS:
+        value = normalized.get(key)
+        if value is None or value < 1 or value > 4:
+            return False
+    return True
+
+
 def reward_acr_batch(
     *,
     data_sources: Iterable[str],
@@ -267,10 +283,12 @@ def reward_acr_batch(
     use_fuzzy_leak_check: bool = True,
     fuzzy_threshold: float = 0.85,
     enforce_no_id_in_reasoning: bool = True,
+    max_id_mentions: Optional[int] = 3,
     score_min: Optional[float] = None,
     score_max: Optional[float] = None,
     judge_enabled: bool | str = False,
     judge_model: str = "openai/gpt-oss-20b",
+    judge_backend: str = "hf",
     judge_batch_size: int = 8,
     judge_max_new_tokens: int = 8,
     judge_temperature: float = 0.0,
@@ -279,6 +297,7 @@ def reward_acr_batch(
     judge_device_map: Optional[str] = "auto",
     judge_dtype: Optional[str] = "auto",
     judge_trust_remote_code: bool = True,
+    judge_runner: Optional[Any] = None,
 ) -> List[dict]:
     data_sources = list(data_sources)
     solution_strs = list(solution_strs)
@@ -304,6 +323,7 @@ def reward_acr_batch(
             use_fuzzy_leak_check=use_fuzzy_leak_check,
             fuzzy_threshold=fuzzy_threshold,
             enforce_no_id_in_reasoning=enforce_no_id_in_reasoning,
+            max_id_mentions=max_id_mentions,
             score_min=score_min,
             score_max=score_max,
         )
@@ -325,21 +345,57 @@ def reward_acr_batch(
             )
         prompts.append(_build_judge_prompt(question_text=question_text, response_text=solution_str))
 
-    judge_outputs = _judge_batch(
-        prompts,
-        model_name=judge_model,
-        max_new_tokens=int(judge_max_new_tokens),
-        temperature=float(judge_temperature),
-        top_p=float(judge_top_p),
-        batch_size=int(judge_batch_size),
-        device=judge_device,
-        device_map=judge_device_map,
-        dtype=judge_dtype,
-        trust_remote_code=bool(judge_trust_remote_code),
-    )
+    backend = str(judge_backend or "hf").strip().lower()
+    judge_outputs: List[str]
+    if backend in {"ref", "worker"} and judge_runner is not None:
+        judge_outputs = []
+        for chunk in _chunked(prompts, int(judge_batch_size)):
+            judge_outputs.extend(
+                judge_runner.generate(
+                    chunk,
+                    max_new_tokens=int(judge_max_new_tokens),
+                    temperature=float(judge_temperature),
+                    top_p=float(judge_top_p),
+                    batch_size=int(judge_batch_size),
+                )
+            )
+    else:
+        judge_outputs = _judge_batch(
+            prompts,
+            model_name=judge_model,
+            max_new_tokens=int(judge_max_new_tokens),
+            temperature=float(judge_temperature),
+            top_p=float(judge_top_p),
+            batch_size=int(judge_batch_size),
+            device=judge_device,
+            device_map=judge_device_map,
+            dtype=judge_dtype,
+            trust_remote_code=bool(judge_trust_remote_code),
+        )
+
+    global _JUDGE_DEBUG_REMAINING
+    if _JUDGE_DEBUG_REMAINING > 0 and judge_outputs:
+        sample_idx = 0
+        judge_text = judge_outputs[sample_idx]
+        parsed = _extract_json(judge_text)
+        valid = _rubric_is_valid(parsed)
+        score = _score_from_rubric(parsed) if valid else None
+        print("ACRD judge debug sample (first in batch):")
+        print("ACRD judge prompt:")
+        print(prompts[sample_idx])
+        print("ACRD judge response:")
+        print(judge_text)
+        if valid:
+            print(f"ACRD judge score: {score:.4f}")
+        else:
+            print("ACRD judge score: invalid response")
+        _JUDGE_DEBUG_REMAINING -= 1
 
     for result, judge_text in zip(results, judge_outputs, strict=False):
-        result["acr_rubric_score"] = _score_from_rubric(_extract_json(judge_text))
+        parsed = _extract_json(judge_text)
+        valid = _rubric_is_valid(parsed)
+        result["acr_rubric_valid"] = 1.0 if valid else 0.0
+        result["acr_rubric_score"] = _score_from_rubric(parsed)
     return results
 
 
