@@ -6,6 +6,12 @@ python -m verl.model_merger merge \
     --private
 
 
+python -m verl.model_merger merge \
+    --backend fsdp \
+    --local_dir checkpoints/minerva/minerva_acrd_grpo_llama_3_1_8b_instruct/best/actor/ \
+    --target_dir checkpoints/minerva/minerva_acrd_grpo_llama_3_1_8b_instruct/best/hf \
+    --hf_upload_path xashru/minerva_acrd_llama8b_1000_best_770 \
+    --private
 
 
 # LIS with RLVR + answer
