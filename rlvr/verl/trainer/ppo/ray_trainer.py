@@ -1512,14 +1512,30 @@ class RayPPOTrainer:
         self._acr_rollout_n = max(1, int(acr_cfg.get("rollout_n", 4)))
         self._acr_weight = float(acr_cfg.get("rl_weight", 0.3))
         self._acr_update_actor = bool(acr_cfg.get("update_actor", False))
-        self._acr_hard_reward_threshold = float(acr_cfg.get("hard_reward_threshold", 0.5))
+        hard_reward_threshold = acr_cfg.get("hard_reward_threshold", None)
+        hard_reward_threshold_set = "hard_reward_threshold" in acr_cfg and hard_reward_threshold is not None
+        if hard_reward_threshold_set:
+            try:
+                self._acr_hard_reward_threshold = float(hard_reward_threshold)
+            except (TypeError, ValueError):
+                self._acr_hard_reward_threshold = None
+                hard_reward_threshold_set = False
+        else:
+            self._acr_hard_reward_threshold = None
+        self._acr_hard_reward_threshold_set = hard_reward_threshold_set
+
+        self._acr_hard_reward_no_perfect = False
         hard_reward_mode = str(acr_cfg.get("hard_reward_mode", "no_perfect")).lower().strip()
         if hard_reward_mode in {"mean", "avg", "average", "mean_reward"}:
             hard_reward_mode = "mean"
-        elif hard_reward_mode in {"max", "max_reward", "no_perfect", "no_perfect_reward", "no_perfect_rollout"}:
-            hard_reward_mode = "no_perfect"
+        elif hard_reward_mode in {"max", "max_reward"}:
+            hard_reward_mode = "max"
+        elif hard_reward_mode in {"no_perfect", "no_perfect_reward", "no_perfect_rollout"}:
+            hard_reward_mode = "max"
+            self._acr_hard_reward_no_perfect = True
         else:
-            hard_reward_mode = "no_perfect"
+            hard_reward_mode = "max"
+            self._acr_hard_reward_no_perfect = True
         self._acr_hard_reward_mode = hard_reward_mode
         if reward_manager_name == "batch":
             from verl.workers.reward_manager.batch import BatchRewardManager
@@ -2202,13 +2218,13 @@ class RayPPOTrainer:
             if prev is None or reward_val > prev:
                 reward_max_by_uid[key] = reward_val
 
-        hard_mode = str(getattr(self, "_acr_hard_reward_mode", "no_perfect")).lower().strip()
+        hard_mode = str(getattr(self, "_acr_hard_reward_mode", "max")).lower().strip()
         if hard_mode in {"mean", "avg", "average", "mean_reward"}:
             hard_mode = "mean"
         elif hard_mode in {"max", "max_reward", "no_perfect", "no_perfect_reward", "no_perfect_rollout"}:
-            hard_mode = "no_perfect"
+            hard_mode = "max"
         else:
-            hard_mode = "no_perfect"
+            hard_mode = "max"
 
         if hard_mode == "mean":
             mean_reward_by_uid = {
@@ -2216,12 +2232,20 @@ class RayPPOTrainer:
                 for uid in reward_sum_by_uid
             }
             total = len(mean_reward_by_uid)
-            threshold = float(getattr(self, "_acr_hard_reward_threshold", 0.5))
+            if getattr(self, "_acr_hard_reward_threshold_set", False):
+                threshold = float(getattr(self, "_acr_hard_reward_threshold", 0.5))
+            else:
+                threshold = 0.5
             hard_uids = {uid for uid, score in mean_reward_by_uid.items() if score < threshold}
         else:
             total = len(reward_max_by_uid)
-            perfect_threshold = 1.0 - 1e-6
-            hard_uids = {uid for uid, score in reward_max_by_uid.items() if score < perfect_threshold}
+            if getattr(self, "_acr_hard_reward_no_perfect", False):
+                threshold = 1.0
+            elif getattr(self, "_acr_hard_reward_threshold_set", False):
+                threshold = float(getattr(self, "_acr_hard_reward_threshold", 1.0))
+            else:
+                threshold = 1.0
+            hard_uids = {uid for uid, score in reward_max_by_uid.items() if score < (threshold - 1e-6)}
 
         if total > 0:
             metrics["acr/hard_uid_total"] = float(total)
