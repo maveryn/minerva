@@ -81,6 +81,26 @@ def test_minerva_cvss_v31():
     assert score == 1.0
 
 
+def test_minerva_cvss_v31_invalid_format():
+    pred = "Not a CVSS vector"
+    truth = {"cvss_v31_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+    score = reward_minerva.reward_minerva("reward_cvss_v31", pred, truth)
+    assert score == 0.0
+
+
+def test_minerva_cvss_v31_score_distance():
+    from cvss import CVSS3
+
+    pred = "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    truth = {"cvss_v31_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+    pred_score = CVSS3(pred).scores()[0]
+    truth_score = CVSS3(truth["cvss_v31_vector"]).scores()[0]
+    expected = 1.0 - abs(truth_score - pred_score) / 4.0
+    expected = max(0.0, min(1.0, expected))
+    score = reward_minerva.reward_minerva("reward_cvss_v31", pred, truth)
+    assert pytest.approx(score, rel=1e-6) == expected
+
+
 def test_minerva_tactics_extract_list():
     pred = "Answer: TA0004, TA0005"
     truth = {"tactic_ids": ["TA0004", "TA0005"]}

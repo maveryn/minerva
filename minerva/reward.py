@@ -1,5 +1,5 @@
 import re
-from typing import Iterable, List, Set
+from typing import Iterable, List, Optional, Set
 
 
 def _normalize_id(val: str) -> str:
@@ -124,6 +124,33 @@ def _parse_cvss(vector: str, metrics: List[str]) -> dict:
     return vals
 
 
+_CVSS_V31_RE = re.compile(r"(CVSS:3\.1/[^\s]+)", re.IGNORECASE)
+
+
+def _extract_cvss_v31(vector: str) -> str:
+    if not vector:
+        return ""
+    match = None
+    for found in _CVSS_V31_RE.finditer(vector):
+        match = found
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
+def _cvss_v31_score(vector: str) -> Optional[float]:
+    if not vector:
+        return None
+    try:
+        from cvss import CVSS3
+    except Exception:
+        return None
+    try:
+        return float(CVSS3(vector).scores()[0])
+    except Exception:
+        return None
+
+
 def _cvss_f1(predicted_vector: str, truth_vector: str, metrics: List[str]) -> float:
     if not truth_vector:
         return 0.0
@@ -145,11 +172,31 @@ def _cvss_f1(predicted_vector: str, truth_vector: str, metrics: List[str]) -> fl
 
 def reward_cvss_v31(predicted_vector: str, truth_vector: str, truth_score: float | None = None) -> float:
     """
-    Reward for CVSS v3.1 base metrics using per-metric F1 across:
-    AV, AC, PR, UI, S, C, I, A.
+    Reward for CVSS v3.1 base vectors using score-distance:
+    1 - |truth_score - pred_score| / 4, clamped to [0, 1].
+    Returns 0 if we cannot extract a valid CVSS v3.1 vector.
     """
-    metrics = ["AV", "AC", "PR", "UI", "S", "C", "I", "A"]
-    return _cvss_f1(predicted_vector, truth_vector, metrics)
+    pred_vector = _extract_cvss_v31(str(predicted_vector or ""))
+    if not pred_vector:
+        return 0.0
+    pred_score = _cvss_v31_score(pred_vector)
+    if pred_score is None:
+        return 0.0
+
+    if truth_score is None:
+        if isinstance(truth_vector, dict):
+            truth_vector = truth_vector.get("cvss_v31_vector") or truth_vector.get("vector") or ""
+        truth_score = _cvss_v31_score(str(truth_vector or ""))
+    if truth_score is None:
+        return 0.0
+
+    diff = abs(float(truth_score) - float(pred_score))
+    reward = 1.0 - (diff / 4.0)
+    if reward < 0.0:
+        return 0.0
+    if reward > 1.0:
+        return 1.0
+    return float(reward)
 
 
 def reward_cvss_v40(predicted_vector: str, truth_vector: str, truth_score: float | None = None) -> float:

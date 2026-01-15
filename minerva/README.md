@@ -3,7 +3,7 @@
 Builds RL-friendly CTI datasets from public sources (NVD CVEs, CAPEC, MITRE ATT&CK procedures, Sigma rules, mappings-explorer).
 
 ## What gets built
-- CVE → CWE, CVE → CVSS v3.1, CVE → CVSS v4.0
+- CVE → CWE, CVE → CVSS v3.1
 - CVE → ATT&CK exploitation/impact (mappings-explorer)
 - Sigma → ATT&CK technique/tactics
 - Procedure scenarios → ATT&CK technique/tactics/mitigations/detections
@@ -44,7 +44,6 @@ Vulnerability description:
 ### CVE (NVD)
 - **CVE → CWE**: `Given the Common Vulnerabilities and Exposures (CVE) description below, list EXACTLY {COUNT} Common Weakness Enumeration (CWE) ID{S_SUFFIX} in CWE-<number> format.`
 - **CVE → CVSS v3.1**: `Given the Common Vulnerabilities and Exposures (CVE) description below, provide the CVSS v3.1 base vector string (format: CVSS:3.1/AV:X/AC:X/PR:X/UI:X/S:X/C:X/I:X/A:X).`
-- **CVE → CVSS v4.0**: `Given the Common Vulnerabilities and Exposures (CVE) description below, provide the CVSS v4.0 base vector string (format: CVSS:4.0/AV:X/AC:X/AT:X/PR:X/UI:X/VC:X/VI:X/VA:X/SC:X/SI:X/SA:X).`
 
 ### Sigma → ATT&CK
 - **Technique**: single ATT&CK technique ID (with requirements block; prefers sub-techniques).

@@ -23,10 +23,11 @@ This document describes the current TARBA implementation and configuration used 
 - Training data: `rlvr/mydata/minerva_base/minerva_base_train.parquet`
 - Validation data:
   - `rlvr/mydata/minerva_base/minerva_base_dev.parquet`
-  - `rlvr/mydata/athena/athena_cti_ate.parquet`
-  - `rlvr/mydata/athena/athena_cti_ckt.parquet`
-  - `rlvr/mydata/athena/athena_cti_rcm.parquet`
-  - `rlvr/mydata/athena/athena_cti_rms.parquet`
+- `rlvr/mydata/athena/athena_cti_ate.parquet`
+- `rlvr/mydata/athena/athena_cti_ckt.parquet`
+- `rlvr/mydata/athena/athena_cti_rcm.parquet`
+- `rlvr/mydata/athena/athena_cti_rms.parquet`
+- `rlvr/mydata/athena/athena_cti_vsp.parquet`
 
 ## Retrieval tool
 - Tool: `cti_retrieve` implemented by `rlvr/verl/tools/cti_retrieval_tool.py`.

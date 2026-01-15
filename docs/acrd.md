@@ -26,8 +26,8 @@ The ACR block is produced by `minerva/acr_prompt.build_acr_block(...)` and inclu
 - GROUND_TRUTH_LABELS (one per line)
 - CANONICAL_LABEL_DETAILS (from `LabelDetailsStore`, joined with `\n\n---\n\n` for multi-label)
 - Instructions to produce reasoning + final answer in the original task format
-- Optional "Do not include the exact label(s) in the reasoning section" when
-  `data.acr.enforce_no_id_in_reasoning=true`
+- Task-specific reasoning instruction from `data.acr.task_reasoning_hints`
+  (fallback to `data.acr.entity_reasoning_hints` by label type)
 
 Prompt-length handling (`try_build_acr_messages`):
 - First try full details (up to `data.acr.max_details_chars`).
@@ -220,12 +220,9 @@ CANONICAL_LABEL_DETAILS:
 
 Instructions:
 - Write a short reasoning that would justify selecting the correct label(s) from the input.
+- <TASK_SPECIFIC_REASONING_HINT>
 - Do NOT say or imply that the answer was provided (no phrases like "given the answer", "based on the provided label", "ground truth", etc.).
 - End with the final answer in the same format required by the original task.
-- Put the final answer on its own line at the end.
-
-Optional (only when `enforce_no_id_in_reasoning=true`):
-- "Do not include the exact label(s) in the reasoning section."
 ```
 
 Prompt-length control:
@@ -341,18 +338,18 @@ Uses `orig_prompt` only (ACR prompt is not used for SFT).
 ---
 
 ### 6) Per-batch training script (cti-scripts)
-Use the single entrypoint `rlvr/cti-scripts/train_minerva_acrd.sh` to run RLVR -> ACR -> distill (SFT or DPO)
+Use the single entrypoint `rlvr/cti-scripts/train_minerva_noctua.sh` to run RLVR -> ACR -> distill (SFT or DPO)
 in a single PPO job (same batch per iteration). Model-specific wrappers are provided:
 
-- `rlvr/cti-scripts/train_minerva_acrd_llama3b.sh`
-- `rlvr/cti-scripts/train_minerva_acrd_llama8b.sh`
-- `rlvr/cti-scripts/train_minerva_acrd_qwen4b.sh`
-- `rlvr/cti-scripts/train_minerva_acrd_qwen8b.sh`
+- `rlvr/cti-scripts/train_minerva_noctua_llama3b.sh`
+- `rlvr/cti-scripts/train_minerva_noctua_llama8b.sh`
+- `rlvr/cti-scripts/train_minerva_noctua_qwen4b.sh`
+- `rlvr/cti-scripts/train_minerva_noctua_qwen8b.sh`
 
 Example:
 
 ```bash
-rlvr/cti-scripts/train_minerva_acrd.sh
+rlvr/cti-scripts/train_minerva_noctua.sh
 ```
 
 Key env overrides:
@@ -379,6 +376,7 @@ Key env overrides:
 - `ACRD_JUDGE_DEVICE`, `ACRD_JUDGE_DEVICE_MAP`, `ACRD_JUDGE_DTYPE`, `ACRD_JUDGE_TRUST_REMOTE_CODE`
 - `ACRD_ACR_HARD_REWARD_MODE` (`no_perfect` or `mean_reward`; default `no_perfect`)
 - `ACRD_ACR_HARD_REWARD_THRESHOLD` (used when `hard_reward_mode=mean_reward`; default 0.05)
+- `ACRD_ACR_SKIP_CVSS` (true/false; when true, CVSS v3.1/v4 tasks skip ACR generation + distillation; default true in `train_minerva_noctua.sh`)
 - `ACRD_DEBUG_SAMPLES` (prints original prompt -> ACR prompt -> rollouts -> selected response; default 2)
 - `ACRD_DETAILS_DEBUG_SAMPLES` (prints details-missing/omitted locations; default 2)
 - `ACRD_MAX_DETAILS_CHARS`, `ACRD_ACR_MAX_PROMPT_LEN`
@@ -396,7 +394,7 @@ trainer flow is the preferred path for ACRD.
 
 ### 8) Configs
 Use `configs/acr_rl.yaml` for standalone ACR-only runs, or rely on the per-batch overrides
-from `rlvr/cti-scripts/train_minerva_acrd.sh`.
+from `rlvr/cti-scripts/train_minerva_noctua.sh`.
 
 Standalone ACR example:
 

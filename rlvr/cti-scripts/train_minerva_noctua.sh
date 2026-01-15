@@ -26,7 +26,7 @@ MODEL_SLUG="$(printf "%s" "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a
 if [ -z "$MODEL_SLUG" ]; then
   MODEL_SLUG="model"
 fi
-EXPERIMENT_NAME="${ACRD_EXPERIMENT_NAME:-minerva_acrd_grpo_${MODEL_SLUG}}"
+EXPERIMENT_NAME="${ACRD_EXPERIMENT_NAME:-minerva_noctua_${MODEL_SLUG}}"
 
 TRAIN_PATH="${ACRD_TRAIN_PATH:-$DATA_DIR/minerva_base/minerva_base_train.parquet}"
 VAL_PATHS=(
@@ -35,10 +35,11 @@ VAL_PATHS=(
   "${ACRD_VAL_PATH_3:-$DATA_DIR/athena/athena_cti_ckt.parquet}"
   "${ACRD_VAL_PATH_4:-$DATA_DIR/athena/athena_cti_rcm.parquet}"
   "${ACRD_VAL_PATH_5:-$DATA_DIR/athena/athena_cti_rms.parquet}"
+  "${ACRD_VAL_PATH_6:-$DATA_DIR/athena/athena_cti_vsp.parquet}"
 )
 
 TRAIN_FILES="['$TRAIN_PATH']"
-VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}']"
+VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}','${VAL_PATHS[5]}']"
 
 OUTPUT_ROOT="${ACRD_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 LABEL_DETAILS_DIR="${ACRD_LABEL_DETAILS_DIR:-$REPO_ROOT/dataset/label_details}"
@@ -51,6 +52,7 @@ ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-4}"
 ACR_RL_WEIGHT="${ACRD_ACR_RL_WEIGHT:-0.3}"
 ACR_HARD_REWARD_MODE="${ACRD_ACR_HARD_REWARD_MODE:-max}"
 ACR_HARD_REWARD_THRESHOLD="${ACRD_ACR_HARD_REWARD_THRESHOLD:-1.0}"
+ACR_SKIP_CVSS="${ACRD_ACR_SKIP_CVSS:-true}"
 
 ACR_DISTILL_INTERVAL="${ACRD_ACR_DISTILL_INTERVAL:-10}"
 ACR_DISTILL_THRESHOLD="${ACRD_ACR_DISTILL_THRESHOLD:-0.99}"
@@ -81,7 +83,7 @@ ACR_JUDGE_TRUST_REMOTE_CODE="${ACRD_JUDGE_TRUST_REMOTE_CODE:-true}"
 
 TRAIN_BATCH_SIZE="${ACRD_TRAIN_BATCH_SIZE:-64}"
 ACR_JUDGE_BATCH_SIZE="${ACRD_JUDGE_BATCH_SIZE:-$TRAIN_BATCH_SIZE}"
-TOTAL_STEPS="${ACRD_TOTAL_STEPS:-1000}"
+TOTAL_STEPS="${ACRD_TOTAL_STEPS:-500}"
 SAVE_FREQ="${ACRD_SAVE_FREQ:-10}"
 TEST_FREQ="${ACRD_TEST_FREQ:-10}"
 SAVE_BEST_ONLY="${ACRD_SAVE_BEST_ONLY:-true}"
@@ -111,6 +113,7 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.rl_weight="$ACR_RL_WEIGHT" \
     +data.acr.hard_reward_mode="$ACR_HARD_REWARD_MODE" \
     +data.acr.hard_reward_threshold="$ACR_HARD_REWARD_THRESHOLD" \
+    +data.acr.skip_cvss="$ACR_SKIP_CVSS" \
     +data.acr.update_actor=false \
     +data.acr.enforce_no_id_in_reasoning=true \
     +data.acr.reward_kwargs.r_correct=0.1 \

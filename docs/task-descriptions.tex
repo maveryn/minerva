@@ -299,21 +299,6 @@ CVE description:
 {CVE_DESCRIPTION}
 \end{promptbox}
 
-\tasksection{CVE $\rightarrow$ CVSS v4.0 Base Vector (NVD)}
-\textbf{Goal.} Predict the CVSS v4.0 base vector string directly from a CVE description.
-\begin{taskmeta}
-  \item[Source] Built from NVD CVE records with CVSS v4.0 scoring.
-  \item[Input] CVE description.
-  \item[Output] One CVSS v4.0 base vector string.
-  \item[Reward] \texttt{reward\_cvss\_v40}.
-\end{taskmeta}
-\begin{promptbox}
-Given the Common Vulnerabilities and Exposures (CVE) description below, provide the CVSS v4.0 base vector string (format: CVSS:4.0/AV:X/AC:X/AT:X/PR:X/UI:X/VC:X/VI:X/VA:X/SC:X/SI:X/SA:X).
-
-CVE description:
-{CVE_DESCRIPTION}
-\end{promptbox}
-
 % ============================================================
 % 13--15: CAPEC example tasks
 % ============================================================
@@ -420,12 +405,11 @@ Table~\ref{tab:dataset-splits} summarizes the split sizes for each task.
 7  & \datasetfile{scenario_to_tactics}             & ATT\&CK procedure scenario       & ATT\&CK tactic IDs       & \texttt{reward\_tactic\_ids}   & 950 / 50 \\
 8  & \datasetfile{scenario_to_mitigations}         & ATT\&CK procedure scenario       & ATT\&CK mitigation IDs   & \texttt{reward\_mitigation\_ids} & 7340 / 160 \\
 9  & \datasetfile{cve_to_cwe}                      & CVE description                  & CWE IDs                  & \texttt{reward\_cwe\_ids}      & 7800 / 200 \\
-10 & \datasetfile{cve_to_cvss_v31}                 & CVE description                  & CVSS v3.1 vector         & \texttt{reward\_cvss\_v31}     & 1900 / 100 \\
-11 & \datasetfile{cve_to_cvss_v40}                 & CVE description                  & CVSS v4.0 vector         & \texttt{reward\_cvss\_v40}     & 480 / 20 \\
-12 & \datasetfile{capec_example_to_capec}          & CAPEC example text               & CAPEC ID                 & \texttt{binary\_id}            & 360 / 20 \\
-13 & \datasetfile{capec_example_to_cwe}            & CAPEC example text               & CWE IDs                  & \texttt{reward\_cwe\_ids}      & 176 / 20 \\
-14 & \datasetfile{capec_example_to_attack}         & CAPEC example text               & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 124 / 20 \\
-15 & \datasetfile{threat_actor_mcq}                & Procedures list                  & Threat actor option (A--E) & \texttt{binary\_id}          & 3111 / 100 \\
+10 & \datasetfile{cve_to_cvss_v31}                 & CVE description                  & CVSS v3.1 vector         & \texttt{reward\_cvss\_v31}     & 2380 / 120 \\
+11 & \datasetfile{capec_example_to_capec}          & CAPEC example text               & CAPEC ID                 & \texttt{binary\_id}            & 360 / 20 \\
+12 & \datasetfile{capec_example_to_cwe}            & CAPEC example text               & CWE IDs                  & \texttt{reward\_cwe\_ids}      & 176 / 20 \\
+13 & \datasetfile{capec_example_to_attack}         & CAPEC example text               & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 124 / 20 \\
+14 & \datasetfile{threat_actor_mcq}                & Procedures list                  & Threat actor option (A--E) & \texttt{binary\_id}          & 3111 / 100 \\
 \midrule
 \multicolumn{5}{@{}r}{\textbf{Total}} & \textbf{32000 / 1000} \\
 \bottomrule
@@ -448,8 +432,7 @@ Table~\ref{tab:dataset-splits} summarizes the split sizes for each task.
   \item[\texttt{reward\_technique\_id}] Score is 1.0 if technique and sub-technique match exactly; 0.5 if the parent technique matches but the sub-technique differs or is omitted; otherwise 0.
   \item[\texttt{reward\_tactic\_ids}] F1 score over the predicted vs.\ ground-truth sets of tactic IDs.
   \item[\texttt{reward\_cwe\_ids}] F1 score over the predicted vs.\ ground-truth sets of CWE IDs.
-  \item[\texttt{reward\_cvss\_v31}] Parse base metrics from the vector (AV, AC, PR, UI, S, C, I, A) and compute per-metric F1.
-  \item[\texttt{reward\_cvss\_v40}] Parse base metrics from the vector (AV, AC, AT, PR, UI, VC, VI, VA, SC, SI, SA) and compute per-metric F1.
+  \item[\texttt{reward\_cvss\_v31}] Compute CVSS v3.1 score distance (1 - \lvert truth - pred \rvert / 4); invalid vectors score 0.
   \item[\texttt{reward\_mitigation\_ids}] F1 score over the predicted vs.\ ground-truth sets of mitigation IDs.
   \item[\texttt{binary\_id}] Score is 1.0 if the predicted ID matches the ground truth; otherwise 0.
 \end{description}

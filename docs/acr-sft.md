@@ -4,7 +4,7 @@ This document describes the SFT-only ACRD training path as currently
 implemented in the Minerva RLVR trainer. It focuses on the per-batch ACR
 (Answer-Conditioned Reasoning) generation + SFT distillation loop and
 records the exact hyperparameters used by
-`rlvr/cti-scripts/train_minerva_acrd_llama8b_lr0.1.sh`.
+`rlvr/cti-scripts/train_minerva_noctua_llama8b_lr0.1.sh`.
 
 ## Algorithm (SFT only)
 
@@ -24,7 +24,8 @@ For each prompt in the batch:
    - `GROUND_TRUTH_LABELS` (one per line)
    - Optional `CANONICAL_LABEL_DETAILS` (from `dataset/label_details/`)
    - Instructions to produce reasoning + final answer
-   - "Do not include the exact label(s) in the reasoning section."
+   - Task-specific reasoning instruction (from `data.acr.task_reasoning_hints`,
+     fallback to `data.acr.entity_reasoning_hints`)
 2. If the ACR prompt is too long, progressively truncate or omit details; if it
    still exceeds the max length, skip ACR for that sample.
 
@@ -64,14 +65,14 @@ Every `distill.interval` steps:
 ## Parameters used (Llama-8B, LR scale = 0.1)
 
 The following values are the effective defaults when running
-`rlvr/cti-scripts/train_minerva_acrd_llama8b_lr0.1.sh`.
+`rlvr/cti-scripts/train_minerva_noctua_llama8b_lr0.1.sh`.
 The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 
 ### Model + data
 - `actor_rollout_ref.model.path`: `meta-llama/Llama-3.1-8B-Instruct`
 - Train data: `rlvr/mydata/minerva_base/minerva_base_train.parquet`
 - Val data: Minerva dev + Athena CTI parquets
-  (`athena_cti_ate`, `athena_cti_ckt`, `athena_cti_rcm`, `athena_cti_rms`)
+  (`athena_cti_ate`, `athena_cti_ckt`, `athena_cti_rcm`, `athena_cti_rms`, `athena_cti_vsp`)
 
 ### RLVR rollout
 - `algorithm.adv_estimator`: `grpo`
@@ -95,6 +96,7 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.enforce_no_id_in_reasoning`: `true`
 - `data.acr.hard_reward_mode`: `no_perfect`
 - `data.acr.hard_reward_threshold`: `0.05` (unused under `no_perfect`)
+- `data.acr.skip_cvss`: `true` (skip ACR generation + distillation for CVSS v3.1/v4 tasks)
 - `data.acr.rl_weight`: `0.3` (only relevant if `update_actor=true`)
 
 ### ACR reward
