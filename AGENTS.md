@@ -49,10 +49,11 @@
 
 ## RLVR GRPO training (cti-scripts)
 - Base GRPO runs (no TARBA):
-  - `rlvr/cti-scripts/train_minerva_base_llama3b.sh`
-  - `rlvr/cti-scripts/train_minerva_base_llama8b.sh`
-  - `rlvr/cti-scripts/train_minerva_base_qwen4b.sh`
-  - `rlvr/cti-scripts/train_minerva_base_qwen8b.sh`
+  - `rlvr/cti-scripts/train_minerva_grpo.sh` (entrypoint)
+  - `rlvr/cti-scripts/train_minerva_base_llama3b.sh` (wrapper)
+  - `rlvr/cti-scripts/train_minerva_base_llama8b.sh` (wrapper)
+  - `rlvr/cti-scripts/train_minerva_base_qwen4b.sh` (wrapper)
+  - `rlvr/cti-scripts/train_minerva_base_qwen8b.sh` (wrapper)
   - These call `python -m verl.trainer.main_ppo` with `algorithm.adv_estimator=grpo` and `custom_reward_function.path=rlvr/verl/utils/reward_score/reward_minerva.py`.
   - Training data: `rlvr/mydata/minerva_base/minerva_base_train.parquet`; validation data: `minerva_base_dev.parquet` plus Athena CTI parquets from `rlvr/mydata/athena/`.
 - Legacy scripts and variants now live under `rlvr/old-cti-scripts/` (e.g., `v0.1.sh`, `v0.2.sh`, and single-task runs).
