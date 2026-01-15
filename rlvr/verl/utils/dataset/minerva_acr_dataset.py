@@ -16,6 +16,62 @@ from minerva.retrieval.task_specs import TaskSpec as RetrievalTaskSpec
 from minerva.retrieval.task_specs import extract_labels_from_truth, normalize_label
 from verl.utils.dataset.rl_dataset import RLHFDataset
 
+DEFAULT_TASK_REASONING_HINTS = {
+    "cve_to_attack_exploitation": (
+        "Be specific about how the CVE description indicates the exploitation behavior and why that technique ID fits."
+    ),
+    "cve_to_attack_primary_impact": (
+        "Be specific about how the CVE description indicates the primary impact behavior and why that technique ID fits."
+    ),
+    "cve_to_attack_secondary_impact": (
+        "Be specific about how the CVE description indicates the secondary impact behavior and why that technique ID fits."
+    ),
+    "sigma_to_attack_technique": "Tie the Sigma rule signals to the technique behavior and justify the technique ID.",
+    "scenario_to_technique": "Tie the scenario actions to the technique behavior and justify the technique ID.",
+    "capec_example_to_attack": "Use the CAPEC example to justify the ATT&CK technique ID.",
+    "sigma_to_attack_tactics": "Tie the Sigma rule signals to the tactic intent and justify the tactic ID(s).",
+    "scenario_to_tactics": "Explain the adversary intent in the scenario and why it matches the tactic ID(s).",
+    "scenario_to_detections": "Point to the observable signals in the scenario that this detection ID covers.",
+    "scenario_to_mitigations": "Explain how each mitigation directly reduces or blocks the scenario behavior.",
+    "cve_to_cwe": "Explain the weakness pattern in the CVE description and why it matches the CWE ID(s).",
+    "capec_example_to_cwe": "Explain the weakness pattern in the CAPEC example and why it matches the CWE ID(s).",
+    "capec_example_to_capec": "Explain how the example matches the CAPEC pattern for that ID.",
+    "threat_actor_mcq": "Cite procedures or TTPs in the input that uniquely indicate the threat actor.",
+}
+
+DEFAULT_ENTITY_REASONING_HINTS = {
+    "attack_technique_id": (
+        "Be specific about which behaviors or artifacts in the input match the technique definition and why that ID fits."
+    ),
+    "attack_tactic_id": "Explain the adversary intent in the input and why it matches the tactic ID(s).",
+    "mitigation_id": "Explain how each mitigation addresses the described behavior.",
+    "detection_id": "Point to the observable signals that this detection would fire on.",
+    "cwe_id": "Explain the weakness pattern and why it matches the CWE ID(s).",
+    "capec_id": "Explain the attack pattern characteristics that match the CAPEC ID.",
+    "threat_actor_name": "Cite TTPs, targets, or aliases that uniquely indicate the threat actor.",
+}
+
+
+def _apply_reasoning_hints(defaults: dict[str, str], override: Any) -> dict[str, str]:
+    if not isinstance(defaults, dict):
+        defaults = {}
+    merged = dict(defaults)
+    if not isinstance(override, dict):
+        return merged
+    for key, value in override.items():
+        hint_key = str(key or "").strip()
+        if not hint_key:
+            continue
+        if value is None:
+            merged.pop(hint_key, None)
+            continue
+        hint_text = str(value).strip()
+        if not hint_text:
+            merged.pop(hint_key, None)
+            continue
+        merged[hint_key] = hint_text
+    return merged
+
 
 class ACRRLHFDataset(RLHFDataset):
     """RLHFDataset that injects answer-conditioned reasoning prompts."""
@@ -35,6 +91,12 @@ class ACRRLHFDataset(RLHFDataset):
         self.enforce_no_id = bool(acr_cfg.get("enforce_no_id_in_reasoning", True))
         self.label_details_dir = acr_cfg.get("label_details_dir")
         self.details_store = LabelDetailsStore(self.label_details_dir)
+        self.task_reasoning_hints = _apply_reasoning_hints(
+            DEFAULT_TASK_REASONING_HINTS, acr_cfg.get("task_reasoning_hints")
+        )
+        self.entity_reasoning_hints = _apply_reasoning_hints(
+            DEFAULT_ENTITY_REASONING_HINTS, acr_cfg.get("entity_reasoning_hints")
+        )
 
     def _prompt_too_long(self, messages: List[Dict[str, Any]]) -> bool:
         try:
@@ -72,6 +134,11 @@ class ACRRLHFDataset(RLHFDataset):
         ground_truth = example.get("reward_model", {}).get("ground_truth")
         spec = get_task_spec(data_source, ground_truth, extra_info)
         entity_type = spec.entity_type
+        reasoning_hint = None
+        if spec.task_key:
+            reasoning_hint = self.task_reasoning_hints.get(spec.task_key)
+        if not reasoning_hint and entity_type:
+            reasoning_hint = self.entity_reasoning_hints.get(entity_type)
 
         gold_norm: List[str] = []
         try:
@@ -147,6 +214,7 @@ class ACRRLHFDataset(RLHFDataset):
             max_details_chars=self.max_details_chars,
             prompt_too_long=self._prompt_too_long,
             enforce_no_id=self.enforce_no_id,
+            reasoning_hint=reasoning_hint,
         )
         if skipped:
             extra_info["acr_skipped"] = True

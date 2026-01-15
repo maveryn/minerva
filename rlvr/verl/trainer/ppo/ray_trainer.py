@@ -748,7 +748,7 @@ class RayPPOTrainer:
                         break
             if minerva_file is not None:
                 minerva_mean = file_means.get(minerva_file)
-                athena_means = [val for sf, val in file_means.items() if sf != minerva_file]
+                athena_means = [val for sf, val in file_means.items() if sf.startswith("athena-cti-")]
                 if athena_means:
                     athena_mean = float(np.mean(athena_means))
                     metric_dict["val-core/athena-bench/reward/mean"] = athena_mean
@@ -1442,6 +1442,7 @@ class RayPPOTrainer:
         self._acr_judge_backend_requested = None
         self._acr_reward_kwargs = {}
         self._acr_judge_model = None
+        self._acr_skip_task_keys: set[str] = set()
         self.judge_wg = None
         self._acr_reward_fn_key = self.config.data.get("reward_fn_key", "data_source")
         self._acr_apply_chat_template_kwargs = self.config.data.get("apply_chat_template_kwargs", {})
@@ -1504,6 +1505,19 @@ class RayPPOTrainer:
 
         self._acr_cfg = acr_cfg
         self._acr_enabled = True
+        skip_task_keys = acr_cfg.get("skip_task_keys")
+        if skip_task_keys is None:
+            skip_task_keys = acr_cfg.get("skip_data_sources")
+        if isinstance(skip_task_keys, (list, tuple, set, ListConfig)):
+            skip_task_keys = list(skip_task_keys)
+        elif isinstance(skip_task_keys, str):
+            skip_task_keys = [item.strip() for item in skip_task_keys.split(",") if item.strip()]
+        else:
+            skip_task_keys = []
+        skip_set = {str(item).strip().lower() for item in skip_task_keys if str(item).strip()}
+        if bool(acr_cfg.get("skip_cvss", False)):
+            skip_set.update({"reward_cvss_v31", "reward_cvss_v40", "cve_to_cvss_v31", "cve_to_cvss_v40"})
+        self._acr_skip_task_keys = skip_set
         self._acr_max_details_chars = int(acr_cfg.get("max_details_chars", 4048))
         self._acr_enforce_no_id = bool(acr_cfg.get("enforce_no_id_in_reasoning", True))
         self._acr_max_prompt_length = int(
@@ -1555,6 +1569,31 @@ class RayPPOTrainer:
                 compute_score=compute_score,
                 reward_fn_key=self._acr_reward_fn_key,
             )
+
+    def _acr_should_skip_task(self, data_source: Any, extra_info: Any = None) -> bool:
+        skip_keys = getattr(self, "_acr_skip_task_keys", None)
+        if not skip_keys:
+            return False
+
+        def _match(value: Any) -> bool:
+            if value is None:
+                return False
+            text = str(value).strip().lower()
+            return bool(text) and text in skip_keys
+
+        if _match(data_source):
+            return True
+        if isinstance(extra_info, dict):
+            if _match(extra_info.get("task")):
+                return True
+            if _match(extra_info.get("acr_task_key")):
+                return True
+            source_file = extra_info.get("source_file")
+            if source_file:
+                stem = os.path.splitext(os.path.basename(str(source_file)))[0]
+                if _match(stem):
+                    return True
+        return False
 
     def _debug_log_acr_samples(
         self,
@@ -1720,7 +1759,11 @@ class RayPPOTrainer:
             return rep_3 >= degenerate_rep_3_max or rep_4 >= degenerate_rep_4_max
 
         grouped: dict[str, list[int]] = {}
+        skipped_task = 0
         for idx, uid in enumerate(uid_list):
+            if self._acr_should_skip_task(data_source_list[idx], extra_list[idx]):
+                skipped_task += 1
+                continue
             grouped.setdefault(str(uid), []).append(idx)
 
         tiebreak_mode = str(self._distill_cfg.get("entropy_tiebreak", "mean_nll"))
@@ -1970,6 +2013,7 @@ class RayPPOTrainer:
         skipped_missing_labels = 0
         skipped_prompt_too_long = 0
         skipped_tokenize_error = 0
+        skipped_task = 0
         details_missing = 0
         details_omitted = 0
         details_truncated = 0
@@ -2032,6 +2076,10 @@ class RayPPOTrainer:
             reward_model = rewards[idx] if isinstance(rewards[idx], dict) else {}
             ground_truth = reward_model.get("ground_truth")
             data_source = data_sources[idx]
+
+            if self._acr_should_skip_task(data_source, extra_info):
+                skipped_task += 1
+                continue
 
             spec = self._acr_get_task_spec(data_source, ground_truth, extra_info)
             entity_type = spec.entity_type
@@ -2166,6 +2214,8 @@ class RayPPOTrainer:
             metrics["acr/skip_prompt_long"] = float(skipped_prompt_too_long)
         if skipped_tokenize_error:
             metrics["acr/skip_tokenize_error"] = float(skipped_tokenize_error)
+        if skipped_task:
+            metrics["acr/skip_task"] = float(skipped_task)
         if details_missing:
             metrics["acr/details_missing"] = float(details_missing)
         if details_omitted:
@@ -2522,8 +2572,15 @@ class RayPPOTrainer:
             return rep_3 >= degenerate_rep_3_max or rep_4 >= degenerate_rep_4_max
 
         grouped: dict[str, list[int]] = {}
+        skip_uids: set[str] = set()
+        skipped_task = 0
         for idx, uid in enumerate(uid_list):
-            grouped.setdefault(str(uid), []).append(idx)
+            uid_str = str(uid)
+            if self._acr_should_skip_task(task_list[idx], extra_list[idx]):
+                skip_uids.add(uid_str)
+                skipped_task += 1
+                continue
+            grouped.setdefault(uid_str, []).append(idx)
 
         total_groups = len(grouped)
         selected_groups = 0
@@ -2713,6 +2770,8 @@ class RayPPOTrainer:
         metrics["distill/selected_hint_count"] = float(hint_count)
         metrics["distill/selected_nohint_count"] = float(nohint_count)
         metrics["distill/buffer_size_local"] = float(len(self._distill_buffer_local))
+        if skipped_task:
+            metrics["distill/skip_task"] = float(skipped_task)
         return metrics
 
     def _collect_distill_candidates_dpo(
@@ -2754,6 +2813,8 @@ class RayPPOTrainer:
         eps = 1e-6
         threshold = float(cfg.get("reward_threshold", 1.0))
         perfect_uids = {uid for uid, score in uid_max_rewards.items() if score >= 1.0 - eps}
+        if skip_uids:
+            perfect_uids = {uid for uid in perfect_uids if uid not in skip_uids}
 
         dpo_cfg = cfg.get("dpo", {})
         if not isinstance(dpo_cfg, dict):
@@ -2928,6 +2989,8 @@ class RayPPOTrainer:
                 if acr_responses is not None and base_scores_list is not None:
                     for i, uid_raw in enumerate(acr_uid_list):
                         uid = str(uid_raw)
+                        if uid in skip_uids or self._acr_should_skip_task(acr_task_list[i], acr_extra_list[i]):
+                            continue
                         uid_max = uid_max_rewards.get(uid)
                         if uid_max is None or uid_max >= 1.0 - eps:
                             continue
@@ -3036,6 +3099,8 @@ class RayPPOTrainer:
         metrics["distill/dpo_pairs_added"] = float(total_pairs)
         metrics["distill/dpo_pairs_skipped"] = float(skipped_pairs)
         metrics["distill/buffer_size_local"] = float(len(self._distill_buffer_local))
+        if skipped_task:
+            metrics["distill/skip_task"] = float(skipped_task)
         return metrics
 
     def _dedup_distill_records(self, records: list[dict]) -> list[dict]:

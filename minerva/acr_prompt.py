@@ -56,8 +56,15 @@ def _append_block(messages: List[Dict[str, Any]], block: str) -> bool:
     return True
 
 
-def build_acr_block(gold_labels: List[str], details_text: Optional[str], *, enforce_no_id: bool) -> str:
+def build_acr_block(
+    gold_labels: List[str],
+    details_text: Optional[str],
+    *,
+    enforce_no_id: bool,
+    reasoning_hint: Optional[str] = None,
+) -> str:
     labels_block = "\n".join(f"- {label}" for label in gold_labels)
+    reasoning_hint = (reasoning_hint or "").strip()
 
     lines = [
         "You are generating a reasoning trace for training.",
@@ -67,18 +74,21 @@ def build_acr_block(gold_labels: List[str], details_text: Optional[str], *, enfo
         "",
         "Instructions:",
         "- Write a short reasoning that would justify selecting the correct label(s) from the input.",
-        "- Do NOT say or imply that the answer was provided (no phrases like \"given the answer\", \"based on the provided label\", \"ground truth\", etc.).",
-        "- End with the final answer in the same format required by the original task.",
-        "- Put the final answer on its own line at the end.",
     ]
+    if reasoning_hint:
+        lines.append(f"- {reasoning_hint}")
+    lines.extend(
+        [
+            "- Do NOT say or imply that the answer was provided (no phrases like \"given the answer\", \"based on the provided label\", \"ground truth\", etc.).",
+            "- End with the final answer in the same format required by the original task.",
+        ]
+    )
     if details_text is not None:
         if not details_text:
             details_text = "(details omitted)"
         lines.insert(5, "")
         lines.insert(6, "CANONICAL_LABEL_DETAILS:")
         lines.insert(7, details_text)
-    if enforce_no_id:
-        lines.append("- Do not include the exact label(s) in the reasoning section.")
     return "\n".join(lines)
 
 
@@ -90,6 +100,7 @@ def try_build_acr_messages(
     max_details_chars: int,
     prompt_too_long: Callable[[List[Dict[str, Any]]], bool],
     enforce_no_id: bool,
+    reasoning_hint: Optional[str] = None,
 ) -> Tuple[List[Dict[str, Any]], bool, Optional[str]]:
     attempts: List[Optional[int]] = []
     if details_text is None:
@@ -109,7 +120,7 @@ def try_build_acr_messages(
             elif limit == 0:
                 trimmed = ""
         trial_messages = copy.deepcopy(base_messages)
-        block = build_acr_block(gold_labels, trimmed, enforce_no_id=enforce_no_id)
+        block = build_acr_block(gold_labels, trimmed, enforce_no_id=enforce_no_id, reasoning_hint=reasoning_hint)
         if _append_block(trial_messages, block):
             if not prompt_too_long(trial_messages):
                 return trial_messages, False, trimmed

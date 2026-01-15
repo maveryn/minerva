@@ -78,20 +78,9 @@ CVE description:
 **CVE -> CVSS v3.1 base vector**
 - Input: CVE description
 - Output: CVSS v3.1 base vector string
-- Reward: `reward_cvss_v31` (per-metric F1 over base metrics)
+- Reward: `reward_cvss_v31` (1 - |score diff| / 4 using CVSS3; invalid vector -> 0)
 ```
 Given the Common Vulnerabilities and Exposures (CVE) description below, provide the CVSS v3.1 base vector string (format: CVSS:3.1/AV:X/AC:X/PR:X/UI:X/S:X/C:X/I:X/A:X).
-
-CVE description:
-{CVE_DESCRIPTION}
-```
-
-**CVE -> CVSS v4.0 base vector**
-- Input: CVE description
-- Output: CVSS v4.0 base vector string
-- Reward: `reward_cvss_v40` (per-metric F1 over base metrics)
-```
-Given the Common Vulnerabilities and Exposures (CVE) description below, provide the CVSS v4.0 base vector string (format: CVSS:4.0/AV:X/AC:X/AT:X/PR:X/UI:X/VC:X/VI:X/VA:X/SC:X/SI:X/SA:X).
 
 CVE description:
 {CVE_DESCRIPTION}
@@ -268,8 +257,7 @@ scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_techn
 scenario_to_tactics	ATT&CK procedure scenario	ATT&CK Tactic IDs	reward_tactic_ids	1000	950	50
 scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	7500	7340	160
 cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	8000	7800	200
-cve_to_cvss_v31	CVE description	CVSS v3.1 vector string	reward_cvss_v31	2000	1900	100
-cve_to_cvss_v40	CVE description	CVSS v4.0 vector string	reward_cvss_v40	500	480	20
+cve_to_cvss_v31	CVE description	CVSS v3.1 vector string	reward_cvss_v31	2500	2380	120
 capec_example_to_capec	CAPEC example text	CAPEC ID	binary_id	380	360	20
 capec_example_to_cwe	CAPEC example text	CWE IDs	reward_cwe_ids	196	176	20
 capec_example_to_attack	CAPEC example text	ATT&CK Technique ID	reward_technique_id	144	124	20
@@ -281,7 +269,7 @@ threat_actor_mcq	Procedures list	Threat actor option (A-E)	binary_id	3211	3111	1
 - `reward_technique_id`: 1.0 if technique+subtechnique match; 0.5 if parent technique matches but subtech differs/is missing; else 0.
 - `reward_tactic_ids`: F1 over predicted vs. ground-truth tactic ID sets.
 - `reward_cwe_ids`: F1 over predicted vs. ground-truth CWE ID sets.
-- `reward_cvss_v31` / `reward_cvss_v40`: parse base metrics from vectors (v3.1: AV, AC, PR, UI, S, C, I, A; v4.0: AV, AC, AT, PR, UI, VC, VI, VA, SC, SI, SA) and compute per-metric F1.
+- `reward_cvss_v31`: compute CVSS v3.1 score distance (1 - |truth - pred| / 4), invalid vector -> 0.
 - `reward_mitigation_ids`: F1 over predicted vs. ground-truth mitigation ID sets.
 - `binary_id`: 1.0 if IDs match; else 0.
 

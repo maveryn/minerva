@@ -86,7 +86,7 @@ data:
 
 Note: DPO is still gated by `data.acr.distill.enabled=true`; method selection only applies when distill is enabled.
 
-### Script env overrides (train_minerva_acrd.sh)
+### Script env overrides (train_minerva_noctua.sh)
 
 Add:
 
@@ -217,7 +217,7 @@ Example:
 ```bash
 ACRD_ACR_DISTILL_METHOD=dpo \
 ACRD_DPO_BETA=0.1 \
-bash rlvr/cti-scripts/train_minerva_acrd_llama8b.sh
+bash rlvr/cti-scripts/train_minerva_noctua_llama8b.sh
 ```
 
 Switch back to SFT by setting:

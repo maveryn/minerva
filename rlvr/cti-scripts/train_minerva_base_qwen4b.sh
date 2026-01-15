@@ -18,12 +18,13 @@ val_paths=(
   "$DATA_DIR/athena/athena_cti_ckt.parquet"
   "$DATA_DIR/athena/athena_cti_rcm.parquet"
   "$DATA_DIR/athena/athena_cti_rms.parquet"
+  "$DATA_DIR/athena/athena_cti_vsp.parquet"
 )
 
 reward_fn_path="$ROOT_DIR/verl/utils/reward_score/reward_minerva.py"
 
 train_files="['$train_path']"
-val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}','${val_paths[4]}']"
+val_files="['${val_paths[0]}','${val_paths[1]}','${val_paths[2]}','${val_paths[3]}','${val_paths[4]}','${val_paths[5]}']"
 experiment_name="${BASE_EXPERIMENT_NAME:-minerva_base_grpo_qwen4b}"
 default_local_dir="${BASE_DEFAULT_LOCAL_DIR:-$ROOT_DIR/checkpoints/minerva/$experiment_name}"
 save_best_only="${BASE_SAVE_BEST_ONLY:-true}"

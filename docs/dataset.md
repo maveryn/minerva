@@ -27,7 +27,7 @@ The pipeline generates per-task JSONL files with standardized `task`, `input`, `
 - Sigma -> ATT&CK technique / tactics
 - Scenario -> technique / tactics / mitigations
 - CVE -> CWE
-- CVE -> CVSS v3.1 / v4.0
+- CVE -> CVSS v3.1
 - CAPEC example -> CAPEC / CWE / ATT&CK
 - Threat actor MCQ
 
@@ -47,8 +47,7 @@ After task generation, each per-task JSONL is resampled to a fixed target size u
 | scenario_to_tactics | 950 | 50 | 1000 |
 | scenario_to_mitigations | 7340 | 160 | 7500 |
 | cve_to_cwe | 7800 | 200 | 8000 |
-| cve_to_cvss_v31 | 1900 | 100 | 2000 |
-| cve_to_cvss_v40 | 480 | 20 | 500 |
+| cve_to_cvss_v31 | 2380 | 120 | 2500 |
 | capec_example_to_capec | 360 | 20 | 380 |
 | capec_example_to_cwe | 176 | 20 | 196 |
 | capec_example_to_attack | 124 | 20 | 144 |

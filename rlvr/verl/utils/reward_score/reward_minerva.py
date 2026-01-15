@@ -323,7 +323,12 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                 truth_val_norm = truth_candidates[0] if truth_candidates else (truth_val or "")
                 return fn(pred_val, truth_val_norm)
             if data_source == "reward_cvss_v31":
-                return fn(pred, truth_val, None)
+                truth_score = None
+                if isinstance(ground_truth, dict):
+                    score_val = ground_truth.get("score")
+                    if isinstance(score_val, (int, float)):
+                        truth_score = float(score_val)
+                return fn(pred, truth_val, truth_score)
             if data_source == "reward_cvss_v40":
                 return fn(pred, truth_val, None)
             return fn(pred, truth_val)
