@@ -269,9 +269,20 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
             return 0.5
         return 0.0
     if data_source == "athena-cti-vsp":
-        # Fallback simple compare of vectors/base metrics
         truth = _clean_freeform(str(_get_truth(ground_truth)))
-        return 1.0 if pred == truth and truth else 0.0
+        truth_score = None
+        if isinstance(extra_info, dict):
+            score_val = extra_info.get("vector_score")
+            if isinstance(score_val, (int, float)):
+                truth_score = float(score_val)
+            elif isinstance(score_val, str):
+                try:
+                    truth_score = float(score_val.strip())
+                except ValueError:
+                    truth_score = None
+        if not minerva_reward or not hasattr(minerva_reward, "reward_cvss_v31"):
+            raise RuntimeError("athena-cti-vsp requires minerva.reward.reward_cvss_v31 for scoring")
+        return minerva_reward.reward_cvss_v31(pred, truth, truth_score)
     if data_source in {"athena-cti-mcq", "athena-cti-mcq-3k", "athena-cti-ckt"}:
         truth = _clean_freeform(str(_get_truth(ground_truth))).upper()
         return 1.0 if pred.upper() == truth and truth else 0.0
