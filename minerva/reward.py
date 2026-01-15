@@ -125,6 +125,8 @@ def _parse_cvss(vector: str, metrics: List[str]) -> dict:
 
 
 _CVSS_V31_RE = re.compile(r"(CVSS:3\.1/[^\s]+)", re.IGNORECASE)
+_CVSS3_CLASS = None
+_CVSS3_IMPORT_ERROR: Exception | None = None
 
 
 def _extract_cvss_v31(vector: str) -> str:
@@ -138,15 +140,27 @@ def _extract_cvss_v31(vector: str) -> str:
     return ""
 
 
+def _require_cvss_v31() -> type:
+    global _CVSS3_CLASS, _CVSS3_IMPORT_ERROR
+    if _CVSS3_CLASS is not None:
+        return _CVSS3_CLASS
+    if _CVSS3_IMPORT_ERROR is not None:
+        raise RuntimeError("cvss library is required for CVSS v3.1 scoring; install with `pip install cvss`") from _CVSS3_IMPORT_ERROR
+    try:
+        from cvss import CVSS3
+    except Exception as exc:
+        _CVSS3_IMPORT_ERROR = exc
+        raise RuntimeError("cvss library is required for CVSS v3.1 scoring; install with `pip install cvss`") from exc
+    _CVSS3_CLASS = CVSS3
+    return CVSS3
+
+
 def _cvss_v31_score(vector: str) -> Optional[float]:
     if not vector:
         return None
+    cvss_cls = _require_cvss_v31()
     try:
-        from cvss import CVSS3
-    except Exception:
-        return None
-    try:
-        return float(CVSS3(vector).scores()[0])
+        return float(cvss_cls(vector).scores()[0])
     except Exception:
         return None
 
@@ -176,6 +190,7 @@ def reward_cvss_v31(predicted_vector: str, truth_vector: str, truth_score: float
     1 - |truth_score - pred_score| / 4, clamped to [0, 1].
     Returns 0 if we cannot extract a valid CVSS v3.1 vector.
     """
+    _require_cvss_v31()
     pred_vector = _extract_cvss_v31(str(predicted_vector or ""))
     if not pred_vector:
         return 0.0
