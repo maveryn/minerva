@@ -26,11 +26,12 @@ VAL_PATHS=(
   "${GRPO_VAL_PATH_3:-$DATA_DIR/athena/athena_cti_ckt.parquet}"
   "${GRPO_VAL_PATH_4:-$DATA_DIR/athena/athena_cti_rcm.parquet}"
   "${GRPO_VAL_PATH_5:-$DATA_DIR/athena/athena_cti_rms.parquet}"
-  "${GRPO_VAL_PATH_6:-$DATA_DIR/athena/athena_cti_vsp.parquet}"
+  "${GRPO_VAL_PATH_6:-$DATA_DIR/athena/athena_cti_taa.parquet}"
+  "${GRPO_VAL_PATH_7:-$DATA_DIR/athena/athena_cti_vsp.parquet}"
 )
 
 TRAIN_FILES="['$TRAIN_PATH']"
-VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}','${VAL_PATHS[5]}']"
+VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}','${VAL_PATHS[5]}','${VAL_PATHS[6]}']"
 
 OUTPUT_ROOT="${GRPO_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 
