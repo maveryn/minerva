@@ -57,6 +57,9 @@ validation_shuffle: False
 # Whether to filter overlong prompts.
 filter_overlong_prompts: False
 
+# Whether to exclude CVSS tasks from the training set only.
+exclude_cvss_train: false
+
 # Number of workers for filtering overlong prompts.
 # For large-scale datasets, filtering can be time-consuming.
 # Use multiprocessing to speed up. Default is 1.

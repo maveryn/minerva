@@ -71,6 +71,7 @@ ACR_DISTILL_METHOD="${ACRD_ACR_DISTILL_METHOD:-sft}"
 DPO_BETA="${ACRD_DPO_BETA:-0.1}"
 ACR_REWARD_MANAGER="${ACRD_ACR_REWARD_MANAGER:-naive}"
 ACR_MAX_ID_MENTIONS="${ACRD_ACR_MAX_ID_MENTIONS:-3}"
+ACR_EXCLUDE_CVSS_TRAIN="${ACRD_EXCLUDE_CVSS_TRAIN:-false}"
 ACR_JUDGE_ENABLED="${ACRD_JUDGE_ENABLED:-false}"
 ACR_JUDGE_MODEL="${ACRD_JUDGE_MODEL:-openai/gpt-oss-20b}"
 ACR_JUDGE_BACKEND="${ACRD_JUDGE_BACKEND:-hf}"
@@ -149,6 +150,7 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.distill.entropy_sampling="$ACR_DISTILL_ENTROPY_SAMPLING" \
     +data.acr.distill.method="$ACR_DISTILL_METHOD" \
     +data.acr.distill.dpo.beta="$DPO_BETA" \
+    +data.exclude_cvss_train="$ACR_EXCLUDE_CVSS_TRAIN" \
     custom_reward_function.path="$REWARD_FN_PATH" \
     custom_reward_function.name=reward_minerva \
     data.train_batch_size="$TRAIN_BATCH_SIZE" \

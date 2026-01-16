@@ -342,12 +342,15 @@ def create_rl_dataset(data_paths, data_config, tokenizer, processor, is_train=Tr
         dataset_cls = RLHFDataset
     print(f"Using dataset class: {dataset_cls.__name__}")
 
+    data_cfg = OmegaConf.create(OmegaConf.to_container(data_config, resolve=True))
+    data_cfg.is_train = bool(is_train)
+
     # Instantiate the dataset using the determined dataset class
     dataset = dataset_cls(
         data_files=data_paths,
         tokenizer=tokenizer,
         processor=processor,
-        config=data_config,
+        config=data_cfg,
     )
 
     return dataset

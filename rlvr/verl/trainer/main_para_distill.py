@@ -17,12 +17,13 @@
 Note that we don't combine the main with ray_trainer as ray_trainer is used by other main.
 """
 
+import copy
 import os
 import socket
 
 import hydra
 import ray
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from verl.experimental.dataset.sampler import AbstractSampler
 from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
@@ -336,12 +337,18 @@ def create_rl_dataset(data_paths, data_config, tokenizer, processor, is_train=Tr
         dataset_cls = RLHFDataset
     print(f"Using dataset class: {dataset_cls.__name__}")
 
+    data_cfg = copy.deepcopy(data_config)
+    if isinstance(data_cfg, DictConfig):
+        data_cfg.is_train = bool(is_train)
+    elif isinstance(data_cfg, dict):
+        data_cfg["is_train"] = bool(is_train)
+
     # Instantiate the dataset using the determined dataset class
     dataset = dataset_cls(
         data_files=data_paths,
         tokenizer=tokenizer,
         processor=processor,
-        config=data_config,
+        config=data_cfg,
     )
 
     return dataset
