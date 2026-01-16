@@ -139,7 +139,49 @@ class RLHFDataset(Dataset):
 
         print(f"dataset len: {len(self.dataframe)}")
 
+        self.dataframe = self._maybe_exclude_cvss_train(self.dataframe)
         self.dataframe = self.maybe_filter_out_long_prompts(self.dataframe)
+
+    def _should_exclude_cvss_train(self) -> bool:
+        return bool(self.config.get("exclude_cvss_train", False)) and bool(self.config.get("is_train", False))
+
+    def _maybe_exclude_cvss_train(self, dataframe: datasets.Dataset) -> datasets.Dataset:
+        if dataframe is None or not self._should_exclude_cvss_train():
+            return dataframe
+
+        cvss_keys = {
+            "reward_cvss_v31",
+            "reward_cvss_v40",
+            "cve_to_cvss_v31",
+            "cve_to_cvss_v40",
+            "athena-cti-vsp",
+            "athena_cti_vsp",
+        }
+
+        def keep_row(doc) -> bool:
+            data_source = str(doc.get("data_source") or "").strip().lower()
+            if data_source in cvss_keys or ("cvss" in data_source):
+                return False
+            extra = doc.get("extra_info") or {}
+            task = str(extra.get("task") or extra.get("acr_task_key") or "").strip().lower()
+            if task in cvss_keys or ("cvss" in task):
+                return False
+            source_file = str(extra.get("source_file") or "").strip()
+            if source_file:
+                stem = os.path.splitext(os.path.basename(source_file))[0].lower()
+                if stem in cvss_keys or ("cvss" in stem):
+                    return False
+            return True
+
+        before = len(dataframe)
+        dataframe = dataframe.filter(
+            keep_row,
+            num_proc=self.num_workers,
+            desc="Filtering CVSS training rows",
+        )
+        after = len(dataframe)
+        logger.info("Filtered CVSS training rows: %d -> %d", before, after)
+        return dataframe
 
     def maybe_filter_out_long_prompts(self, dataframe: datasets.Dataset = None):
         # filter out too long prompts
@@ -389,11 +431,17 @@ def create_rl_dataset(data_paths, data_config, tokenizer, processor, is_train: b
 
     print(f"Using dataset class: {dataset_cls.__name__}")
 
+    data_cfg = copy.deepcopy(data_config)
+    if isinstance(data_cfg, DictConfig):
+        data_cfg.is_train = bool(is_train)
+    elif isinstance(data_cfg, dict):
+        data_cfg["is_train"] = bool(is_train)
+
     return dataset_cls(
         data_files=data_paths,
         tokenizer=tokenizer,
         processor=processor,
-        config=data_config,
+        config=data_cfg,
     )
 
 
