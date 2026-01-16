@@ -30,18 +30,18 @@ RESAMPLE_COUNTS: Dict[str, int] = {
     "cve_to_attack_exploitation": 265,
     "cve_to_attack_primary_impact": 230,
     "cve_to_attack_secondary_impact": 74,
-    "sigma_to_attack_technique": 1000,
+    "sigma_to_attack_technique": 2000,
     "sigma_to_attack_tactics": 1000,
-    "scenario_to_technique": 7500,
-    "scenario_to_tactics": 1000,
-    "scenario_to_mitigations": 7500,
+    "scenario_to_technique": 8000,
+    "scenario_to_tactics": 1844,
+    "scenario_to_mitigations": 8000,
     "cve_to_cwe": 8000,
-    "cve_to_cvss_v31": 2500,
+    "cve_to_cvss_v31": 2000,
     "cve_to_cvss_v40": 0,
     "capec_example_to_capec": 380,
     "capec_example_to_cwe": 196,
     "capec_example_to_attack": 144,
-    "threat_actor_mcq": 3211,
+    "threat_actor": 867,
 }
 RESAMPLE_SEED = 1337
 
@@ -370,13 +370,19 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
     except Exception as exc:
         logger.error("Failed scenario->mitigation: %s", exc)
 
-    # Threat actor MCQ
+    # Threat actor (open-ended)
     try:
         ta_cfg = tasks_cfg.get("THREAT_ACTOR", {})
-        ta_out = ta_cfg.get("output_path", "dataset/minerva/threat_actor_mcq.jsonl")
+        ta_out = ta_cfg.get("output_path", "dataset/minerva/threat_actor.jsonl")
         ta_seed = int(ta_cfg.get("seed", 1337))
-        ta_tasks = build_threat_actor_tasks(cfg.get("MITRE_ATTACK", {}), output_path=ta_out, seed=ta_seed, logger=logger)
-        summary["threat_actor_mcq"] = len(ta_tasks)
+        ta_tasks = build_threat_actor_tasks(
+            cfg.get("MITRE_ATTACK", {}),
+            output_path=ta_out,
+            seed=ta_seed,
+            task_cfg=ta_cfg,
+            logger=logger,
+        )
+        summary["threat_actor"] = len(ta_tasks)
     except Exception as exc:
         logger.error("Failed threat actor task: %s", exc)
 
@@ -399,7 +405,9 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
         "capec_example_to_capec": Path(cap_cfg.get("CAPEC_EXAMPLE_CAPEC", {}).get("output_path", "dataset/minerva/capec_example_to_capec.jsonl")),
         "capec_example_to_cwe": Path(cap_cfg.get("CAPEC_EXAMPLE_CWE", {}).get("output_path", "dataset/minerva/capec_example_to_cwe.jsonl")),
         "capec_example_to_attack": Path(cap_cfg.get("CAPEC_EXAMPLE_ATTACK", {}).get("output_path", "dataset/minerva/capec_example_to_attack.jsonl")),
-        "threat_actor_mcq": Path(tasks_cfg.get("THREAT_ACTOR", {}).get("output_path", "dataset/minerva/threat_actor_mcq.jsonl")),
+        "threat_actor": Path(
+            tasks_cfg.get("THREAT_ACTOR", {}).get("output_path", "dataset/minerva/threat_actor.jsonl")
+        ),
         "scenario_to_technique": Path(tasks_cfg.get("SCENARIO_TECHNIQUE", {}).get("output_path", "dataset/minerva/scenario_to_technique.jsonl")),
         "scenario_to_tactics": Path(tasks_cfg.get("SCENARIO_TACTIC", {}).get("output_path", "dataset/minerva/scenario_to_tactics.jsonl")),
         "scenario_to_mitigations": Path(tasks_cfg.get("SCENARIO_MITIGATION", {}).get("output_path", "dataset/minerva/scenario_to_mitigations.jsonl")),

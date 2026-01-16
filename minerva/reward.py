@@ -1,4 +1,7 @@
+import json
+import os
 import re
+from pathlib import Path
 from typing import Iterable, List, Optional, Set
 
 
@@ -184,10 +187,16 @@ def _cvss_f1(predicted_vector: str, truth_vector: str, metrics: List[str]) -> fl
     return 2 * precision * recall / (precision + recall)
 
 
-def reward_cvss_v31(predicted_vector: str, truth_vector: str, truth_score: float | None = None) -> float:
+def reward_cvss_v31(
+    predicted_vector: str,
+    truth_vector: str,
+    truth_score: float | None = None,
+    *,
+    delta: float = 10.0,
+) -> float:
     """
     Reward for CVSS v3.1 base vectors using score-distance:
-    1 - |truth_score - pred_score| / 4, clamped to [0, 1].
+    1 - |truth_score - pred_score| / delta, clamped to [0, 1].
     Returns 0 if we cannot extract a valid CVSS v3.1 vector.
     """
     _require_cvss_v31()
@@ -206,7 +215,10 @@ def reward_cvss_v31(predicted_vector: str, truth_vector: str, truth_score: float
         return 0.0
 
     diff = abs(float(truth_score) - float(pred_score))
-    reward = 1.0 - (diff / 4.0)
+    denom = float(delta) if delta else 0.0
+    if denom <= 0.0:
+        return 0.0
+    reward = 1.0 - (diff / denom)
     if reward < 0.0:
         return 0.0
     if reward > 1.0:
@@ -221,3 +233,101 @@ def reward_cvss_v40(predicted_vector: str, truth_vector: str, truth_score: float
     """
     metrics = ["AV", "AC", "AT", "PR", "UI", "VC", "VI", "VA", "SC", "SI", "SA"]
     return _cvss_f1(predicted_vector, truth_vector, metrics)
+
+
+_THREAT_ACTOR_LOOKUP_CACHE: Optional[dict] = None
+_THREAT_ACTOR_LOOKUP_PATH: Optional[Path] = None
+_THREAT_ACTOR_ALIAS_TO_CANONICAL: Optional[dict[str, str]] = None
+
+
+def _normalize_actor_name(value: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+    return " ".join(cleaned.split())
+
+
+def _candidate_lookup_paths() -> List[Path]:
+    root = Path(__file__).resolve().parents[1]
+    return [
+        Path(p) for p in [
+            root / "rlvr" / "mydata" / "minerva_base" / "threat_actor_lookup.json",
+            root / "dataset" / "minerva_base" / "threat_actor_lookup.json",
+            root / "dataset" / "minerva" / "threat_actor_lookup.json",
+            root / "dataset" / "minerva_base_split" / "threat_actor_lookup.json",
+        ]
+    ]
+
+
+def _load_threat_actor_lookup() -> dict:
+    global _THREAT_ACTOR_LOOKUP_CACHE, _THREAT_ACTOR_LOOKUP_PATH, _THREAT_ACTOR_ALIAS_TO_CANONICAL
+    env_value = os.environ.get("MINERVA_THREAT_ACTOR_LOOKUP", "").strip()
+    env_path = Path(env_value) if env_value else None
+    if env_path is not None and env_path.exists():
+        path = env_path
+    else:
+        path = None
+        for candidate in _candidate_lookup_paths():
+            if candidate.exists():
+                path = candidate
+                break
+
+    if path is None:
+        _THREAT_ACTOR_LOOKUP_CACHE = {}
+        _THREAT_ACTOR_ALIAS_TO_CANONICAL = {}
+        _THREAT_ACTOR_LOOKUP_PATH = None
+        return {}
+
+    if _THREAT_ACTOR_LOOKUP_CACHE is not None and _THREAT_ACTOR_LOOKUP_PATH == path:
+        return _THREAT_ACTOR_LOOKUP_CACHE
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        _THREAT_ACTOR_LOOKUP_CACHE = {}
+        _THREAT_ACTOR_ALIAS_TO_CANONICAL = {}
+        _THREAT_ACTOR_LOOKUP_PATH = path
+        return {}
+
+    lookup: dict[str, set[str]] = {}
+    alias_to_canonical: dict[str, str] = {}
+    for row in payload.get("actors", []) if isinstance(payload, dict) else []:
+        name = row.get("name") if isinstance(row, dict) else None
+        if not name:
+            continue
+        canonical = _normalize_actor_name(name)
+        if not canonical:
+            continue
+        names = [name]
+        names.extend(row.get("aliases", []) or [])
+        norm_names = {_normalize_actor_name(n) for n in names if n}
+        norm_names = {n for n in norm_names if n}
+        if not norm_names:
+            continue
+        lookup[canonical] = norm_names
+        for alias in norm_names:
+            alias_to_canonical.setdefault(alias, canonical)
+
+    _THREAT_ACTOR_LOOKUP_CACHE = lookup
+    _THREAT_ACTOR_ALIAS_TO_CANONICAL = alias_to_canonical
+    _THREAT_ACTOR_LOOKUP_PATH = path
+    return lookup
+
+
+def reward_threat_actor_name(predicted: str, truth: str) -> float:
+    """
+    Reward for threat actor names that accepts aliases.
+    """
+    pred_norm = _normalize_actor_name(predicted)
+    truth_norm = _normalize_actor_name(truth)
+    if not pred_norm or not truth_norm:
+        return 0.0
+
+    lookup = _load_threat_actor_lookup()
+    if not lookup:
+        return 1.0 if pred_norm == truth_norm else 0.0
+
+    alias_to_canonical = _THREAT_ACTOR_ALIAS_TO_CANONICAL or {}
+    canonical = alias_to_canonical.get(truth_norm, truth_norm)
+    allowed = lookup.get(canonical)
+    if allowed:
+        return 1.0 if pred_norm in allowed else 0.0
+    return 1.0 if pred_norm == truth_norm else 0.0

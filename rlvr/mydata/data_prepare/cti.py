@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
@@ -26,6 +27,8 @@ import pyarrow.parquet as pq
 from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 
 from prompt import ATHENABENCH_SYSTEM_PROMPT, CTI_SYSTEM_PROMPT
+
+LOOKUP_FILENAME = "threat_actor_lookup.json"
 
 
 @dataclass(frozen=True)
@@ -240,6 +243,11 @@ def main() -> None:
         write_excel(df, excel_path)
 
         print(f"{spec.name}: {len(df)} rows -> {parquet_path.name}, {excel_path.name}")
+
+    lookup_path = data_dir / LOOKUP_FILENAME
+    if lookup_path.exists():
+        shutil.copy2(lookup_path, out_dir / LOOKUP_FILENAME)
+        print(f"Copied {LOOKUP_FILENAME} -> {out_dir / LOOKUP_FILENAME}")
 
 
 if __name__ == "__main__":

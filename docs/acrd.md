@@ -24,7 +24,7 @@ training batch used in Step 1. It appends an ACR block to the last user message 
 
 The ACR block is produced by `minerva/acr_prompt.build_acr_block(...)` and includes:
 - GROUND_TRUTH_LABELS (one per line)
-- CANONICAL_LABEL_DETAILS (from `LabelDetailsStore`, joined with `\n\n---\n\n` for multi-label)
+- LABEL_REFERENCE (from `LabelDetailsStore`, joined with `\n\n---\n\n` for multi-label)
 - Instructions to produce reasoning + final answer in the original task format
 - Task-specific reasoning instruction from `data.acr.task_reasoning_hints`
   (fallback to `data.acr.entity_reasoning_hints` by label type)
@@ -91,7 +91,8 @@ Accepted SFT records (`method=sft`) are stored as:
 
 Per distill run, we sample up to `data.acr.distill.batch_size` records from the buffer
 uniformly at random (no replacement) and run a single SFT update. If fewer records exist,
-we use all available records.
+we use all available records. The buffer is a rolling queue capped at
+`data.acr.distill.max_buffer`; once the cap is exceeded, the oldest records are dropped.
 
 For `method=dpo`, we consider every UID in the batch (no hard-threshold filtering) and build a
 preference pair from a pool of size `data.acr.rollout_n`:
@@ -112,7 +113,7 @@ DPO stores `(prompt_nohint, chosen_ids, rejected_ids)` (plus metadata), not `res
 and does not use the entropy/mean-NLL tie-break logic (SFT only).
 
 Distillation runs every `data.acr.distill.interval` steps (default 10).
-The buffer is cleared after each distill run.
+For SFT, the distill buffer persists across runs (rolling queue behavior).
 
 ---
 
@@ -215,7 +216,7 @@ GROUND_TRUTH_LABELS:
 - <ID1>
 - <ID2>
 
-CANONICAL_LABEL_DETAILS:
+LABEL_REFERENCE:
 <details_text from store>
 
 Instructions:
@@ -360,7 +361,8 @@ Key env overrides:
 - `ACRD_ACR_DISTILL_LR_SCALE` (distill LR scale vs RLVR; default 1.0)
 - `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 0.99)
 - `ACRD_ACR_DISTILL_SELECTION_MODE` (SFT only; `random` or `top_reward`; default `random`)
-- `ACRD_ACR_DISTILL_BATCH_SIZE` (SFT only; sample size per distill run; default 512 in `cti-scripts`)
+- `ACRD_ACR_DISTILL_BATCH_SIZE` (SFT only; sample size per distill run; default 256 in `cti-scripts`)
+- `ACRD_ACR_DISTILL_MAX_BUFFER` (SFT only; rolling buffer cap; default 1024 in `cti-scripts`)
 - `ACRD_ACR_DISTILL_DEGENERATE_FILTER` (SFT only; enable repetition filter; default `true`)
 - `ACRD_ACR_DISTILL_DEGENERATE_MIN_TOKENS` (SFT only; min tokens before repetition filter; default 40)
 - `ACRD_ACR_DISTILL_DEGENERATE_REP3_MAX` (SFT only; reject if `rep_3` >= this; default 0.85)
@@ -427,8 +429,8 @@ Defaults:
   the default tie-break is `entropy_tiebreak=mean_nll` with `entropy_sampling=true` and `entropy_beta=1.0` (SFT only).
 - SFT degenerate filter defaults to on for ACRD: reject if `rep_3 >= 0.85` or `rep_4 >= 0.90`
   when `len(response_tokens) >= 40`.
-- The default `cti-scripts` run samples up to 512 SFT records per distill step
-  (`ACRD_ACR_DISTILL_BATCH_SIZE=512`).
+- The default `cti-scripts` run samples up to 256 SFT records per distill step
+  (`ACRD_ACR_DISTILL_BATCH_SIZE=256`).
 - Judge rubric is disabled by default; enable via `ACRD_ACR_REWARD_MANAGER=batch` and `ACRD_JUDGE_ENABLED=true`.
 
 Per-batch ACRD needs:

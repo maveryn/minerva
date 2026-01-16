@@ -36,7 +36,7 @@ DEFAULT_TASK_REASONING_HINTS = {
     "cve_to_cwe": "Explain the weakness pattern in the CVE description and why it matches the CWE ID(s).",
     "capec_example_to_cwe": "Explain the weakness pattern in the CAPEC example and why it matches the CWE ID(s).",
     "capec_example_to_capec": "Explain how the example matches the CAPEC pattern for that ID.",
-    "threat_actor_mcq": "Cite procedures or TTPs in the input that uniquely indicate the threat actor.",
+    "threat_actor_from_procedures": "Cite procedures or TTPs in the input that uniquely indicate the threat actor.",
 }
 
 DEFAULT_ENTITY_REASONING_HINTS = {

@@ -39,7 +39,8 @@ TASK_ALIASES = {
     "scenario_to_attack_mitigations": "scenario_to_mitigations",
     "scenario_to_attack_detection": "scenario_to_detections",
     "capec_example_to_attack_technique": "capec_example_to_attack",
-    "threat_actor_from_procedures_mcq": "threat_actor_mcq",
+    "threat_actor_from_procedures": "threat_actor",
+    "threat_actor_from_procedures_mcq": "threat_actor",
 }
 
 

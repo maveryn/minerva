@@ -7,8 +7,7 @@ tasks (cve_to_cvss_v31 and cve_to_cvss_v40) since they are not ID retrieval
 problems. For each remaining task, we sample up to 1,000 examples (uniform
 random without replacement, seed 1337) from the JSONL files. Queries are drawn
 from the task inputs (e.g., scenario text, Sigma excerpts, CAPEC examples, CVE
-descriptions). Gold labels come from the task ground_truth fields, except for
-threat_actor_mcq where the correct actor name is read from metadata.
+descriptions). Gold labels come from the task ground_truth fields.
 
 Corpora are constructed from official sources to align with label spaces:
 - ATT&CK techniques, tactics, mitigations, and detection strategies are read

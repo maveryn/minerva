@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -62,16 +63,15 @@ def test_athena_rms_f1(monkeypatch):
     assert pytest.approx(score, rel=1e-6) == 0.5  # precision=recall=0.5 -> f1=0.5
 
 
-def test_athena_taa_alias_and_related(monkeypatch):
-    # Patch alias/related dictionaries for predictable results
+def test_athena_taa_alias_only(monkeypatch):
+    # Patch alias dictionary for predictable results
     monkeypatch.setattr(reward_minerva, "_ALIAS_DICT", {"apt1": ["commentcrew"], "commentcrew": ["apt1"]})
-    monkeypatch.setattr(reward_minerva, "_RELATED_DICT", {"apt2": ["groupx"], "groupx": ["apt2"]})
 
     score_alias = reward_minerva.reward_minerva("athena-cti-taa", "APT1", "CommentCrew")
     assert score_alias == 1.0
 
     score_related = reward_minerva.reward_minerva("athena-cti-taa", "APT2", "GroupX")
-    assert score_related == 0.5
+    assert score_related == 0.0
 
 
 def test_minerva_cvss_v31():
@@ -95,10 +95,29 @@ def test_minerva_cvss_v31_score_distance():
     truth = {"cvss_v31_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
     pred_score = CVSS3(pred).scores()[0]
     truth_score = CVSS3(truth["cvss_v31_vector"]).scores()[0]
-    expected = 1.0 - abs(truth_score - pred_score) / 4.0
+    expected = 1.0 - abs(truth_score - pred_score) / 10.0
     expected = max(0.0, min(1.0, expected))
     score = reward_minerva.reward_minerva("reward_cvss_v31", pred, truth)
     assert pytest.approx(score, rel=1e-6) == expected
+
+
+def test_threat_actor_alias_lookup(tmp_path, monkeypatch):
+    lookup = {
+        "version": 1,
+        "actors": [
+            {
+                "name": "APT1",
+                "aliases": ["Comment Crew"],
+            }
+        ],
+    }
+    lookup_path = tmp_path / "threat_actor_lookup.json"
+    lookup_path.write_text(json.dumps(lookup), encoding="utf-8")
+    monkeypatch.setenv("MINERVA_THREAT_ACTOR_LOOKUP", str(lookup_path))
+
+    truth = {"threat_actor": "APT1"}
+    assert reward_minerva.reward_minerva("reward_threat_actor_name", "Comment Crew", truth) == 1.0
+    assert reward_minerva.reward_minerva("reward_threat_actor_name", "OtherGroup", truth) == 0.0
 
 
 def test_minerva_tactics_extract_list():

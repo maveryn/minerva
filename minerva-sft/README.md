@@ -8,7 +8,7 @@ High‑level flow per sample:
 
 1) Generate with the default prompt (CTI system + user prompt from split JSONL).
 2) If reward < 1, generate a second time using the ACRD prompt block
-   (GROUND_TRUTH_LABELS + optional CANONICAL_LABEL_DETAILS).
+   (GROUND_TRUTH_LABELS + optional LABEL_REFERENCE).
 3) If still incorrect, fall back to the dataset ground‑truth answer.
 
 The output is a single JSONL file with all metadata + the final response.

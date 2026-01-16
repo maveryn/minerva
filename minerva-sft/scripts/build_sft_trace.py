@@ -69,7 +69,7 @@ def main() -> None:
         "--acr-max-details-chars",
         type=int,
         default=4048,
-        help="Max chars for CANONICAL_LABEL_DETAILS before truncation",
+        help="Max chars for LABEL_REFERENCE before truncation",
     )
     parser.add_argument(
         "--acr-max-prompt-chars",

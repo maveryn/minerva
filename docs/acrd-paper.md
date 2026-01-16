@@ -45,7 +45,7 @@ message of `raw_prompt` (so `data.return_raw_chat=true` is required).
 The ACR block includes:
 
 - `GROUND_TRUTH_LABELS` (the gold label(s))
-- Optional `CANONICAL_LABEL_DETAILS` from `LabelDetailsStore` (joined with `---`
+- Optional `LABEL_REFERENCE` from `LabelDetailsStore` (joined with `---`
   for multi-label)
 - Instructions: "write reasoning + final answer in original task format" and
   "do not say/imply answer was provided"

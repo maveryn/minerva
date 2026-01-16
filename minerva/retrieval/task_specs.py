@@ -42,6 +42,7 @@ TASK_SPECS: dict[str, TaskSpec] = {
     "reward_cwe_ids": TaskSpec("cwe_id", True, _RE_CWE),
     "reward_cvss_v31": TaskSpec(None, False, None),
     "reward_cvss_v40": TaskSpec(None, False, None),
+    "reward_threat_actor_name": TaskSpec("threat_actor_name", False, None),
     # AthenaBench CTI tasks
     "athena-cti-ate": TaskSpec("attack_technique_id", False, _RE_TECHNIQUE),
     "athena-cti-rcm": TaskSpec("cwe_id", False, _RE_CWE),

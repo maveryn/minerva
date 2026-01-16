@@ -106,6 +106,7 @@ ATHENA_EXTRACTORS = {
     "athena-cti-mcq": _extract_mcq,
     "athena-cti-mcq-3k": _extract_mcq,
     "athena-cti-ckt": _extract_mcq,
+    "reward_threat_actor_name": _extract_taa,
 }
 
 
@@ -129,17 +130,16 @@ def _load_csv_mapping(path: Path, key_field: str, val_field: str) -> Dict[str, L
 
 
 _ALIAS_DICT = _load_csv_mapping(Path(__file__).parent / "aliases.csv", "ThreatActor", "Alias")
-_RELATED_DICT = _load_csv_mapping(Path(__file__).parent / "related_groups.csv", "ThreatActor", "RelatedGroup")
 
 
-def _is_connected(actor1: str, actor2: str, alias_dict: Dict[str, List[str]], related_dict: Dict[str, List[str]]) -> str:
-    """Return 'C' if aliases, 'P' if related, 'I' otherwise."""
+def _is_connected(actor1: str, actor2: str, alias_dict: Dict[str, List[str]]) -> str:
+    """Return 'C' if aliases, 'I' otherwise."""
     a1 = actor1.strip().lower()
     a2 = actor2.strip().lower()
     if not a1 or not a2:
         return "I"
 
-    def bfs(start: str, target: str, allow_related: bool) -> bool:
+    def bfs(start: str, target: str) -> bool:
         visited = set()
         queue = [start]
         while queue:
@@ -148,17 +148,13 @@ def _is_connected(actor1: str, actor2: str, alias_dict: Dict[str, List[str]], re
                 return True
             visited.add(cur)
             neighbours = alias_dict.get(cur, [])
-            if allow_related:
-                neighbours += related_dict.get(cur, [])
             for nxt in neighbours:
                 if nxt not in visited:
                     queue.append(nxt)
         return False
 
-    if bfs(a1, a2, allow_related=False):
+    if bfs(a1, a2):
         return "C"
-    if bfs(a1, a2, allow_related=True):
-        return "P"
     return "I"
 
 
@@ -258,16 +254,8 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
         return 2 * precision * recall / (precision + recall)
     if data_source == "athena-cti-taa":
         truth = _clean_freeform(str(_get_truth(ground_truth)))
-        relation = _is_connected(pred, truth, _ALIAS_DICT, _RELATED_DICT)
-        if relation == "C":
-            return 1.0
-        if relation == "P":
-            return 0.5
-        if pred and truth:
-            if pred.strip().lower() == truth.strip().lower():
-                return 1.0
-            return 0.5
-        return 0.0
+        relation = _is_connected(pred, truth, _ALIAS_DICT)
+        return 1.0 if relation == "C" else 0.0
     if data_source == "athena-cti-vsp":
         truth = _clean_freeform(str(_get_truth(ground_truth)))
         truth_score = None
@@ -282,7 +270,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                     truth_score = None
         if not minerva_reward or not hasattr(minerva_reward, "reward_cvss_v31"):
             raise RuntimeError("athena-cti-vsp requires minerva.reward.reward_cvss_v31 for scoring")
-        return minerva_reward.reward_cvss_v31(pred, truth, truth_score)
+        return minerva_reward.reward_cvss_v31(pred, truth, truth_score, delta=7.7)
     if data_source in {"athena-cti-mcq", "athena-cti-mcq-3k", "athena-cti-ckt"}:
         truth = _clean_freeform(str(_get_truth(ground_truth))).upper()
         return 1.0 if pred.upper() == truth and truth else 0.0
@@ -302,6 +290,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                 "reward_cwe_ids": "cwe_ids",
                 "reward_cvss_v31": "cvss_v31_vector",
                 "reward_cvss_v40": "cvss_v4_vector",
+                "reward_threat_actor_name": "threat_actor",
                 "binary_id": None,
             }
             truth_key = key_map.get(data_source)
@@ -339,7 +328,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                     score_val = ground_truth.get("score")
                     if isinstance(score_val, (int, float)):
                         truth_score = float(score_val)
-                return fn(pred, truth_val, truth_score)
+                return fn(pred, truth_val, truth_score, delta=10.0)
             if data_source == "reward_cvss_v40":
                 return fn(pred, truth_val, None)
             return fn(pred, truth_val)
