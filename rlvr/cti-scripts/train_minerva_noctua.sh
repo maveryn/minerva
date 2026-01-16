@@ -150,7 +150,7 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.distill.entropy_sampling="$ACR_DISTILL_ENTROPY_SAMPLING" \
     +data.acr.distill.method="$ACR_DISTILL_METHOD" \
     +data.acr.distill.dpo.beta="$DPO_BETA" \
-    +data.exclude_cvss_train="$ACR_EXCLUDE_CVSS_TRAIN" \
+    data.exclude_cvss_train="$ACR_EXCLUDE_CVSS_TRAIN" \
     custom_reward_function.path="$REWARD_FN_PATH" \
     custom_reward_function.name=reward_minerva \
     data.train_batch_size="$TRAIN_BATCH_SIZE" \
