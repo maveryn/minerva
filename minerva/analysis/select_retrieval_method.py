@@ -464,11 +464,15 @@ TASK_SPECS = {
         "query_keys": ["example"],
         "gold_key": "capec_id",
     },
-    "threat_actor_mcq": {
+    "threat_actor": {
         "label_type": "threat_actor_name",
         "query_keys": ["procedures"],
-        "gold_key": "correct_actor",
-        "gold_from_metadata": True,
+        "gold_key": "threat_actor",
+    },
+    "threat_actor_from_procedures": {
+        "label_type": "threat_actor_name",
+        "query_keys": ["procedures"],
+        "gold_key": "threat_actor",
     },
 }
 

@@ -1,6 +1,7 @@
 import json
 import random
 import argparse
+import shutil
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -11,17 +12,17 @@ TARGET_SAMPLES: Dict[str, int] = {
     "cve_to_attack_exploitation": 265,
     "cve_to_attack_primary_impact": 230,
     "cve_to_attack_secondary_impact": 74,
-    "sigma_to_attack_technique": 1000,
+    "sigma_to_attack_technique": 2000,
     "sigma_to_attack_tactics": 1000,
-    "scenario_to_technique": 7500,
-    "scenario_to_tactics": 1000,
-    "scenario_to_mitigations": 7500,
+    "scenario_to_technique": 8000,
+    "scenario_to_tactics": 1844,
+    "scenario_to_mitigations": 8000,
     "cve_to_cwe": 8000,
-    "cve_to_cvss_v31": 2500,
+    "cve_to_cvss_v31": 2000,
     "capec_example_to_capec": 380,
     "capec_example_to_cwe": 196,
     "capec_example_to_attack": 144,
-    "threat_actor_mcq": 3211,
+    "threat_actor": 867,
 }
 
 TARGET_VAL_SAMPLES: Dict[str, int] = {
@@ -30,15 +31,15 @@ TARGET_VAL_SAMPLES: Dict[str, int] = {
     "cve_to_attack_secondary_impact": 20,
     "sigma_to_attack_technique": 50,
     "sigma_to_attack_tactics": 50,
-    "scenario_to_technique": 150,
+    "scenario_to_technique": 200,
     "scenario_to_tactics": 50,
-    "scenario_to_mitigations": 160,
+    "scenario_to_mitigations": 200,
     "cve_to_cwe": 200,
-    "cve_to_cvss_v31": 120,
+    "cve_to_cvss_v31": 80,
     "capec_example_to_capec": 20,
     "capec_example_to_cwe": 20,
     "capec_example_to_attack": 20,
-    "threat_actor_mcq": 100,
+    "threat_actor": 50,
 }
 
 FILE_MAP: Dict[str, str] = {
@@ -55,8 +56,10 @@ FILE_MAP: Dict[str, str] = {
     "capec_example_to_capec": "capec_example_to_capec.jsonl",
     "capec_example_to_cwe": "capec_example_to_cwe.jsonl",
     "capec_example_to_attack": "capec_example_to_attack.jsonl",
-    "threat_actor_mcq": "threat_actor_mcq.jsonl",
+    "threat_actor": "threat_actor.jsonl",
 }
+
+LOOKUP_FILENAME = "threat_actor_lookup.json"
 
 
 def _iter_jsonl(path: Path) -> Iterable[Dict]:
@@ -507,6 +510,11 @@ def build_splits(
         meta["candidate_examples"] = candidate_examples
     (out_dir / "metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Wrote split metadata -> %s", out_dir / "metadata.json")
+
+    lookup_path = in_dir / LOOKUP_FILENAME
+    if lookup_path.exists():
+        shutil.copy2(lookup_path, out_dir / LOOKUP_FILENAME)
+        logger.info("Copied threat actor lookup -> %s", out_dir / LOOKUP_FILENAME)
 
 
 def main() -> None:

@@ -1397,6 +1397,8 @@ class RayPPOTrainer:
             defaults["selection_mode"] = "random"
             defaults["degenerate_filter"] = True
             defaults["entropy_sampling"] = True
+            defaults["max_buffer"] = 1024
+            defaults["batch_size"] = 256
         for key, value in defaults.items():
             distill_cfg.setdefault(key, value)
 
@@ -1437,6 +1439,8 @@ class RayPPOTrainer:
         self._acr_normalize_label = None
         self._acr_extract_labels_from_truth = None
         self._acr_task_spec_cls = None
+        self._acr_task_reasoning_hints = {}
+        self._acr_entity_reasoning_hints = {}
         self._acr_update_actor = False
         self._acr_judge_runner = None
         self._acr_judge_backend_requested = None
@@ -1470,6 +1474,34 @@ class RayPPOTrainer:
         except Exception as exc:
             print(f"ACR per-batch disabled: {exc}")
             return
+        try:
+            from verl.utils.dataset.minerva_acr_dataset import (
+                DEFAULT_ENTITY_REASONING_HINTS,
+                DEFAULT_TASK_REASONING_HINTS,
+            )
+        except Exception:
+            DEFAULT_TASK_REASONING_HINTS = {}
+            DEFAULT_ENTITY_REASONING_HINTS = {}
+
+        def apply_reasoning_hints(defaults, override):
+            if not isinstance(defaults, dict):
+                defaults = {}
+            merged = dict(defaults)
+            if not isinstance(override, dict):
+                return merged
+            for key, value in override.items():
+                hint_key = str(key or "").strip()
+                if not hint_key:
+                    continue
+                if value is None:
+                    merged.pop(hint_key, None)
+                    continue
+                hint_text = str(value).strip()
+                if not hint_text:
+                    merged.pop(hint_key, None)
+                    continue
+                merged[hint_key] = hint_text
+            return merged
 
         reward_manager_name = str(acr_cfg.get("reward_manager", "naive")).strip().lower()
         reward_kwargs = dict(acr_cfg.get("reward_kwargs", {}))
@@ -1502,6 +1534,12 @@ class RayPPOTrainer:
         self._acr_normalize_label = normalize_label
         self._acr_extract_labels_from_truth = extract_labels_from_truth
         self._acr_task_spec_cls = RetrievalTaskSpec
+        self._acr_task_reasoning_hints = apply_reasoning_hints(
+            DEFAULT_TASK_REASONING_HINTS, acr_cfg.get("task_reasoning_hints")
+        )
+        self._acr_entity_reasoning_hints = apply_reasoning_hints(
+            DEFAULT_ENTITY_REASONING_HINTS, acr_cfg.get("entity_reasoning_hints")
+        )
 
         self._acr_cfg = acr_cfg
         self._acr_enabled = True
@@ -2083,6 +2121,14 @@ class RayPPOTrainer:
 
             spec = self._acr_get_task_spec(data_source, ground_truth, extra_info)
             entity_type = spec.entity_type
+            reasoning_hint = None
+            task_hints = getattr(self, "_acr_task_reasoning_hints", None)
+            if spec.task_key and isinstance(task_hints, dict):
+                reasoning_hint = task_hints.get(spec.task_key)
+            if not reasoning_hint:
+                entity_hints = getattr(self, "_acr_entity_reasoning_hints", None)
+                if entity_type and isinstance(entity_hints, dict):
+                    reasoning_hint = entity_hints.get(entity_type)
             gold_norm = []
             if self._acr_extract_labels_from_truth is not None and self._acr_task_spec_cls is not None:
                 try:
@@ -2142,6 +2188,7 @@ class RayPPOTrainer:
                 max_details_chars=self._acr_max_details_chars,
                 prompt_too_long=self._acr_prompt_too_long,
                 enforce_no_id=self._acr_enforce_no_id,
+                reasoning_hint=reasoning_hint,
             )
             if skipped:
                 skipped_prompt_too_long += 1
@@ -3403,6 +3450,7 @@ class RayPPOTrainer:
             return {}
 
         local_records = list(self._distill_buffer_local)
+        keep_buffer = self._distill_source == "acr"
         if not local_records:
             return {}
 
@@ -3432,11 +3480,6 @@ class RayPPOTrainer:
                     records = self._dedup_distill_records(records)
                 pool_size = len(records)
                 rng = np.random.default_rng(int(global_step))
-                max_buffer = int(cfg.get("max_buffer", 0) or 0)
-                if max_buffer > 0:
-                    if len(records) > max_buffer:
-                        idxs = rng.choice(len(records), size=max_buffer, replace=False)
-                        records = [records[i] for i in idxs]
                 if target_batch_size is not None and len(records) > target_batch_size:
                     idxs = rng.choice(len(records), size=target_batch_size, replace=False)
                     records = [records[i] for i in idxs]
@@ -3454,17 +3497,13 @@ class RayPPOTrainer:
                 records = self._dedup_distill_records(records)
             pool_size = len(records)
             rng = np.random.default_rng(int(global_step))
-            max_buffer = int(cfg.get("max_buffer", 0) or 0)
-            if max_buffer > 0:
-                if len(records) > max_buffer:
-                    idxs = rng.choice(len(records), size=max_buffer, replace=False)
-                    records = [records[i] for i in idxs]
             if target_batch_size is not None and len(records) > target_batch_size:
                 idxs = rng.choice(len(records), size=target_batch_size, replace=False)
                 records = [records[i] for i in idxs]
 
         if not records:
-            self._distill_buffer_local = []
+            if not keep_buffer:
+                self._distill_buffer_local = []
             return {}
 
         dp_size = self._get_actor_dp_size()
@@ -3483,7 +3522,8 @@ class RayPPOTrainer:
 
         data, stats = self._build_distill_dataproto(records, max_seq_len)
         if data is None:
-            self._distill_buffer_local = []
+            if not keep_buffer:
+                self._distill_buffer_local = []
             return {}
 
         divisor = max(1, dp_size)
@@ -3518,7 +3558,8 @@ class RayPPOTrainer:
             mapped = key[len("actor/") :] if key.startswith("actor/") else key
             metrics[f"distill_sft/{mapped}"] = float(val)
 
-        self._distill_buffer_local = []
+        if not keep_buffer:
+            self._distill_buffer_local = []
         self._distill_last_run_step = global_step
         return metrics
 

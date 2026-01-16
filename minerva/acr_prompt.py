@@ -87,7 +87,7 @@ def build_acr_block(
         if not details_text:
             details_text = "(details omitted)"
         lines.insert(5, "")
-        lines.insert(6, "CANONICAL_LABEL_DETAILS:")
+        lines.insert(6, "LABEL_REFERENCE:")
         lines.insert(7, details_text)
     return "\n".join(lines)
 

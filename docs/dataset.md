@@ -29,7 +29,8 @@ The pipeline generates per-task JSONL files with standardized `task`, `input`, `
 - CVE -> CWE
 - CVE -> CVSS v3.1
 - CAPEC example -> CAPEC / CWE / ATT&CK
-- Threat actor MCQ
+- Threat actor (procedures, open-ended)
+  - Alias lookup merges MITRE intrusion-set aliases with `rlvr/verl/utils/reward_score/aliases.csv` for reward scoring.
 
 Generation uses deterministic seeds where applicable; prompt text is embedded in each row.
 
@@ -41,17 +42,17 @@ After task generation, each per-task JSONL is resampled to a fixed target size u
 | cve_to_attack_exploitation | 245 | 20 | 265 |
 | cve_to_attack_primary_impact | 210 | 20 | 230 |
 | cve_to_attack_secondary_impact | 54 | 20 | 74 |
-| sigma_to_attack_technique | 950 | 50 | 1000 |
+| sigma_to_attack_technique | 1950 | 50 | 2000 |
 | sigma_to_attack_tactics | 950 | 50 | 1000 |
-| scenario_to_technique | 7350 | 150 | 7500 |
-| scenario_to_tactics | 950 | 50 | 1000 |
-| scenario_to_mitigations | 7340 | 160 | 7500 |
+| scenario_to_technique | 7800 | 200 | 8000 |
+| scenario_to_tactics | 1794 | 50 | 1844 |
+| scenario_to_mitigations | 7800 | 200 | 8000 |
 | cve_to_cwe | 7800 | 200 | 8000 |
-| cve_to_cvss_v31 | 2380 | 120 | 2500 |
+| cve_to_cvss_v31 | 1920 | 80 | 2000 |
 | capec_example_to_capec | 360 | 20 | 380 |
 | capec_example_to_cwe | 176 | 20 | 196 |
 | capec_example_to_attack | 124 | 20 | 144 |
-| threat_actor_mcq | 3111 | 100 | 3211 |
+| threat_actor | 817 | 50 | 867 |
 | **Total** | **32000** | **1000** | **33000** |
 
 ## Train/validation split policy

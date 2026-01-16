@@ -8,9 +8,9 @@ Builds RL-friendly CTI datasets from public sources (NVD CVEs, CAPEC, MITRE ATT&
 - Sigma → ATT&CK technique/tactics
 - Procedure scenarios → ATT&CK technique/tactics/mitigations/detections
 - CAPEC examples → CAPEC ID / CWE IDs / ATT&CK technique
-- Threat actor MCQ from procedure descriptions
+- Threat actor (open-ended) from procedure descriptions
 
-Outputs are JSONL files under `dataset/minerva/` with `dataset/minerva/metadata.json` for counts/examples. Train/dev splits (32k/8k) live under `dataset/minerva_split/` with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`).
+Outputs are JSONL files under `dataset/minerva/` with `dataset/minerva/metadata.json` for counts/examples. Train/dev splits (32k/1k) live under `dataset/minerva_split/` with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`).
 
 ## Run it
 ```
@@ -59,16 +59,14 @@ Vulnerability description:
 - **Example → CWE IDs**: EXACTLY the provided count of CWE-<number> IDs (up to 3).
 - **Example → ATT&CK technique**: single ATT&CK technique ID (requirements block; prefers sub-techniques) when only one technique mapping exists.
 
-### Threat actor MCQ
+### Threat actor (procedures)
 ```
-Given the observed adversary procedures below, choose the most likely threat actor.
+Given the observed adversary procedures below, identify the most likely threat actor.
 
 Observed procedures:
 {PROCEDURE_LIST}
 
-Select the correct option (A-E) and return the option letter.
-
-Options:
-{OPTIONS_TEXT}
+Return only the threat actor name.
 ```
-Multiple variants are generated per actor alias by resampling procedures and shuffling options.
+Multiple variants are generated per actor by sampling 60-90% of techniques (min 3) and assigning a question count based on technique-count bins chosen to balance total questions per bin (~100 each across 8 bins). Each bin assigns 3-10 questions per actor (bin 0 -> 3, bin 7 -> 10); the last bin is open-ended.
+Rewarding uses `threat_actor_lookup.json`, which merges MITRE intrusion-set aliases with supplemental aliases from `rlvr/verl/utils/reward_score/aliases.csv`.

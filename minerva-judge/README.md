@@ -36,7 +36,7 @@ python minerva-judge/scripts/sample_minerva_prompts.py \
 
 The script keeps sampling prompts (with replacement) until it collects
 `--target-correct` verified-correct responses. It uses the same ACRD prompt
-template (GROUND_TRUTH_LABELS + optional CANONICAL_LABEL_DETAILS block) to
+template (GROUND_TRUTH_LABELS + optional LABEL_REFERENCE block) to
 condition the model on the correct answer while instructing it not to mention
 the label in reasoning. For HF models, it renders a system+user chat template
 using the model tokenizer (matching ACRD’s chat-formatting behavior).

@@ -22,7 +22,7 @@ For each prompt in the batch:
 1. Append an ACR block to the last user message using
    `minerva/acr_prompt.py`:
    - `GROUND_TRUTH_LABELS` (one per line)
-   - Optional `CANONICAL_LABEL_DETAILS` (from `dataset/label_details/`)
+   - Optional `LABEL_REFERENCE` (from `dataset/label_details/`)
    - Instructions to produce reasoning + final answer
    - Task-specific reasoning instruction (from `data.acr.task_reasoning_hints`,
      fallback to `data.acr.entity_reasoning_hints`)
@@ -60,7 +60,7 @@ Every `distill.interval` steps:
 2. Run a single-epoch SFT update on the actor using `prompt_nohint` -> response.
 3. Apply a distill LR scale (`lr_scale`), i.e., the SFT update uses
    `actor_lr * lr_scale`.
-4. Clear the distill buffer.
+4. Keep the buffer as a rolling queue capped by `distill.max_buffer` (drop oldest when full).
 
 ## Parameters used (Llama-8B, LR scale = 0.1)
 
@@ -113,8 +113,8 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.distill.interval`: `10` steps
 - `data.acr.distill.reward_threshold`: `0.99`
 - `data.acr.distill.selection_mode`: `random`
-- `data.acr.distill.batch_size`: `512`
-- `data.acr.distill.max_buffer`: `4096`
+- `data.acr.distill.batch_size`: `256`
+- `data.acr.distill.max_buffer`: `1024`
 - `data.acr.distill.lr_scale`: `0.1` (hyperparameter)
 - `data.acr.distill.entropy_sampling`: `true` (not used under random mode)
 - `data.acr.distill.entropy_beta`: `1.0`

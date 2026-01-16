@@ -72,7 +72,14 @@ TASKS:
     output_path: dataset/minerva/capec_example_to_attack.jsonl
     seed: 1337
   THREAT_ACTOR:
-    output_path: dataset/minerva/threat_actor_mcq.jsonl
+    output_path: dataset/minerva/threat_actor.jsonl
     seed: 1337
+    alias_csv_path: rlvr/verl/utils/reward_score/aliases.csv
+    binning:
+      min_techniques: 3
+      bin_count: 8
+      target_questions_per_bin: 100
+      questions_start: 3
+      questions_step: 1
   CWE_CODE:
     output_path: dataset/minerva/cwe_code_to_cwe.jsonl
