@@ -52,7 +52,8 @@ Otherwise we generate `data.acr.rollout_n` ACR responses with answer hints as us
 Reward (`reward_acr`) uses the RLVR parsing logic (`reward_minerva`) and returns:
 - `acr_base_score` = `reward_minerva` score (0..1), before scaling
 - `score` = `r_correct * acr_base_score - leak_penalty` (no ID leak penalty)
-- `acr_leak_hit` from banned phrase detection (fuzzy by default)
+- `acr_leak_hit` from banned phrase detection (fuzzy by default), plus short/ungrounded reasoning checks
+- `acr_banned_phrase_hit` for the phrase/regex match component only
 - `acr_id_leak_hit` if the reasoning section contains any gold IDs (logged only)
 Optional judge rubric (when enabled) adds:
 - `acr_rubric_score` (float, 0..1) used for DPO ranking (chosen/rejected selection); computed as the
@@ -72,8 +73,11 @@ Selection is per-UID (one record per original prompt):
 
 - Eligibility: `acr_base_score >= data.acr.distill.reward_threshold` (default 0.99),
   and `acr_leak_hit == false`.
-- Leakage includes banned-phrase detection (fuzzy match) plus ID overuse: reject if the gold
-  ID appears more than `max_id_mentions` times in the response (default 3).
+- Leakage includes banned-phrase detection (fuzzy match), short reasoning (default: <100 chars),
+  low overlap with the combined task description + label reference (Jaccard <0.05; task description
+  extracted from the original prompt block; overlap computed on the reasoning portion only),
+  verbatim overlap (default: two 12-word spans from `LABEL_REFERENCE`), plus ID overuse:
+  reject if the gold ID appears more than `max_id_mentions` times in the response (default 3).
 - Degenerate filter (default on): drop eligible responses with high n-gram repetition using
   `rep_n = 1 - distinct_n` over token IDs (defaults: `rep_3 >= 0.85` or `rep_4 >= 0.90`,
   applied when `len(response_tokens) >= 40`).
@@ -98,7 +102,7 @@ Buffer behavior is controlled by `data.acr.distill.buffer_mode`:
 - `rolling` (default): run on `interval`, keep buffer between runs.
 - `flush`: run on `interval`, then clear the buffer (default cap 512; use all buffered
   records or a random 512 if more).
-- `buffer`: ignore `interval`, run only when the buffer reaches `data.acr.distill.min_buffer`
+- `buffer`: ignore `interval`, run only when the global buffer reaches `data.acr.distill.min_buffer`
   (default 256); use all buffered records, then clear.
 
 For `method=dpo`, we consider every UID in the batch (no hard-threshold filtering) and build a
@@ -121,7 +125,7 @@ and does not use the entropy/mean-NLL tie-break logic (SFT only).
 
 Distillation runs every `data.acr.distill.interval` steps (default 10) when
 `buffer_mode` is `rolling` or `flush`. For `buffer` mode, SFT triggers only when
-the buffer size reaches `data.acr.distill.min_buffer`, then clears the buffer.
+the global buffer size reaches `data.acr.distill.min_buffer`, then clears the buffer.
 
 ---
 
@@ -260,7 +264,8 @@ Implemented in `rlvr/verl/utils/reward_score/reward_acr.py` (`reward_acr`).
 
 #### 3.4 Verbatim label-detail overlap
 - If `LABEL_REFERENCE` is at least `verbatim_min_details_chars` (default 100 chars) and the reasoning contains
-  an exact `verbatim_ngram_size`-word span from it (default 10), mark `acr_verbatim_hit` and treat as leakage.
+  at least `verbatim_min_matches` exact `verbatim_ngram_size`-word spans (defaults: 2 spans, size 12),
+  mark `acr_verbatim_hit` and treat as leakage.
 
 #### 3.5 "ID in reasoning" detection
 - The reasoning section (everything before the last non-empty line) is checked for gold IDs.
@@ -389,6 +394,8 @@ Key env overrides:
 - `ACRD_DPO_BETA` (DPO only; default 0.1)
 - `ACRD_ACR_REWARD_MANAGER` (`naive` or `batch`; use `batch` to enable judge batching)
 - `ACRD_ACR_MAX_ID_MENTIONS` (leakage check; reject if gold ID appears more than this; default 0)
+- `ACRD_ACR_MIN_REASONING_CHARS` (leakage check; reject if reasoning < this; default 100)
+- `ACRD_ACR_MIN_OVERLAP_JACCARD` (leakage check; reject if overlap < this; default 0.05)
 - `ACRD_JUDGE_ENABLED` (true/false; only used with `ACRD_ACR_REWARD_MANAGER=batch`)
 - `ACRD_JUDGE_MODEL` (default `openai/gpt-oss-20b`)
 - `ACRD_JUDGE_BATCH_SIZE`, `ACRD_JUDGE_MAX_NEW_TOKENS`, `ACRD_JUDGE_TEMPERATURE`, `ACRD_JUDGE_TOP_P`

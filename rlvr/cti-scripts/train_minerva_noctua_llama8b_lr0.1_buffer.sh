@@ -4,7 +4,7 @@ set -euo pipefail
 # ACRD training script for Llama 8B (distill lr_scale=0.1, buffer-triggered SFT).
 
 export ACRD_MODEL_PATH="${ACRD_MODEL_PATH:-meta-llama/Llama-3.1-8B-Instruct}"
-export ACRD_ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-2}"
+export ACRD_ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-4}"
 export ACRD_ACR_DISTILL_LR_SCALE="${ACRD_ACR_DISTILL_LR_SCALE:-0.1}"
 export ACRD_ACR_DISTILL_BUFFER_MODE="${ACRD_ACR_DISTILL_BUFFER_MODE:-buffer}"
 export ACRD_ACR_DISTILL_MIN_BUFFER="${ACRD_ACR_DISTILL_MIN_BUFFER:-256}"

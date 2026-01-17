@@ -3747,7 +3747,16 @@ class RayPPOTrainer:
                 min_buffer = int(cfg.get("batch_size", 0) or 0)
             if min_buffer <= 0:
                 min_buffer = 1
-            if len(local_records) < min_buffer:
+            if dist.is_available() and dist.is_initialized():
+                if torch.cuda.is_available():
+                    device = torch.device("cuda", torch.cuda.current_device())
+                else:
+                    device = torch.device("cpu")
+                total_count = torch.tensor([len(local_records)], device=device, dtype=torch.int64)
+                dist.all_reduce(total_count, op=dist.ReduceOp.SUM)
+                if int(total_count.item()) < min_buffer:
+                    return {}
+            elif len(local_records) < min_buffer:
                 return {}
         keep_buffer = self._distill_source == "acr" and buffer_mode == "rolling"
         if not local_records:

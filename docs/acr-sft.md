@@ -46,7 +46,7 @@ For each UID, select one ACR rollout to distill:
 1. Eligibility filter (ACR batch):
    - `acr_base_score >= reward_threshold`
    - `acr_extracted == true`
-   - `acr_leak_hit == false`
+   - `acr_leak_hit == false` (includes short reasoning <100 chars and low overlap Jaccard <0.05)
    - Optional degenerate filter based on repeated 3- / 4-grams
 2. Selection mode (current run): `random` among eligible rollouts.
    (Entropy tie-break settings are present but not used under random mode.)
@@ -55,7 +55,7 @@ For each UID, select one ACR rollout to distill:
    - `response_ids` = selected ACR rollout tokens
 
 ### Step 6 - Periodic SFT distillation
-Every `distill.interval` steps (rolling/flush), or when the buffer reaches
+Every `distill.interval` steps (rolling/flush), or when the global buffer reaches
 `distill.min_buffer` (buffer mode):
 1. Build an SFT minibatch from the distill buffer.
 2. Run a single-epoch SFT update on the actor using `prompt_nohint` -> response.
@@ -95,7 +95,7 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.per_batch`: `true`
 - `data.acr.label_details_dir`: `dataset/label_details`
 - `data.acr.max_details_chars`: `8096`
-- `data.acr.rollout_n`: `2`
+- `data.acr.rollout_n`: `4`
 - `data.acr.update_actor`: `false`
 - `data.acr.enforce_no_id_in_reasoning`: `false`
 - `data.acr.hard_reward_mode`: `no_perfect`
@@ -110,7 +110,10 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.reward_kwargs.multilabel_match`: `exact`
 - `data.acr.reward_kwargs.max_id_mentions`: `0`
 - `data.acr.reward_kwargs.verbatim_min_details_chars`: `100`
-- `data.acr.reward_kwargs.verbatim_ngram_size`: `10`
+- `data.acr.reward_kwargs.verbatim_ngram_size`: `12`
+- `data.acr.reward_kwargs.verbatim_min_matches`: `2`
+- `data.acr.reward_kwargs.min_reasoning_chars`: `100`
+- `data.acr.reward_kwargs.min_overlap_jaccard`: `0.05` (Jaccard over combined task description + label reference)
 - Judge rubric: disabled (`judge_enabled=false`)
 
 ### SFT distillation (ACRD-SFT)
