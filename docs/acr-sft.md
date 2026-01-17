@@ -39,7 +39,7 @@ RLVR rollouts achieve reward 1.0.
 2. Score each ACR rollout with `reward_acr`:
    - `acr_base_score = reward_minerva(...)` in [0, 1]
    - `score = r_correct * acr_base_score - leak_penalty`
-   - `acr_leak_hit` and `acr_id_leak_hit` are logged
+   - `acr_leak_hit`, `acr_id_leak_hit`, and `acr_verbatim_hit` are logged
 
 ### Step 5 - SFT candidate selection
 For each UID, select one ACR rollout to distill:
@@ -105,6 +105,8 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.reward_kwargs.leak_penalty`: `0.5`
 - `data.acr.reward_kwargs.multilabel_match`: `exact`
 - `data.acr.reward_kwargs.max_id_mentions`: `3`
+- `data.acr.reward_kwargs.verbatim_min_details_chars`: `100`
+- `data.acr.reward_kwargs.verbatim_ngram_size`: `10`
 - Judge rubric: disabled (`judge_enabled=false`)
 
 ### SFT distillation (ACRD-SFT)

@@ -81,8 +81,10 @@ Answer-conditioned reasoning (ACR) runs apply explicit meta-leak filters across 
 (CWE, CVSS, ATT&CK technique/tactic/mitigation). Responses are flagged if they refer to
 label/reference/details text or hint at provided options, candidate pools, or given IDs
 (e.g., “label reference,” “according to the label,” “given mitigation list”). The check
-uses explicit phrase and regex matching (fuzzy similarity is disabled) to focus on
-leakage about provided materials rather than content-level reasoning.
+uses explicit phrase and regex matching (fuzzy similarity is disabled) plus a verbatim
+overlap guard: if `LABEL_REFERENCE` is at least 100 chars and the reasoning contains an
+exact 10-word span from it, the response is flagged. This focuses on leakage about
+provided materials rather than content-level reasoning.
 
 ## Auxiliary validation: IFEval
 Instruction-following validation uses the IFEval prompts from
