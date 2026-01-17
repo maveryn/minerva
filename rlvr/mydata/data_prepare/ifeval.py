@@ -88,12 +88,13 @@ def rows_to_verl(
         instruction_id_list = row.get("instruction_id_list", [])
         kwargs_list = row.get("kwargs", [])
         messages = build_messages(prompt, system_prompt)
-        ground_truth = {
+        ground_truth_payload = {
             "prompt": prompt,
             "instruction_id_list": instruction_id_list,
             "kwargs": kwargs_list,
             "key": row.get("key"),
         }
+        ground_truth = json.dumps(ground_truth_payload, ensure_ascii=True)
         extra_info = {
             "split": split_name,
             "index": int(idx),

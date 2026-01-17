@@ -127,6 +127,16 @@ def reward_instruction_following(predicted: str, truth: object) -> dict | float:
     """
     Instruction-following reward using IFEval checks.
     """
+    if isinstance(truth, bytes):
+        try:
+            truth = truth.decode("utf-8")
+        except Exception:
+            return 0.0
+    if isinstance(truth, str):
+        try:
+            truth = json.loads(truth)
+        except Exception:
+            return 0.0
     if not isinstance(truth, dict):
         return 0.0
     prompt = str(truth.get("prompt") or "")
