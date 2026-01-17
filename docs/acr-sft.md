@@ -83,7 +83,7 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 ### Prompt/response lengths
 - `data.max_prompt_length` (RLVR): `2048`
 - `data.acr.max_prompt_length` (ACR): `4096`
-- `data.max_response_length`: `2048`
+- `data.max_response_length`: `1024`
 - `data.filter_overlong_prompts`: `true`
 - `data.truncation`: `error`
 
@@ -93,7 +93,7 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.max_details_chars`: `8096`
 - `data.acr.rollout_n`: `2`
 - `data.acr.update_actor`: `false`
-- `data.acr.enforce_no_id_in_reasoning`: `true`
+- `data.acr.enforce_no_id_in_reasoning`: `false`
 - `data.acr.hard_reward_mode`: `no_perfect`
 - `data.acr.hard_reward_threshold`: `0.05` (unused under `no_perfect`)
 - `data.acr.skip_cvss`: `true` (skip ACR generation + distillation for CVSS v3.1/v4 tasks)
@@ -104,7 +104,7 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.reward_kwargs.r_correct`: `0.1`
 - `data.acr.reward_kwargs.leak_penalty`: `0.5`
 - `data.acr.reward_kwargs.multilabel_match`: `exact`
-- `data.acr.reward_kwargs.max_id_mentions`: `3`
+- `data.acr.reward_kwargs.max_id_mentions`: `0`
 - `data.acr.reward_kwargs.verbatim_min_details_chars`: `100`
 - `data.acr.reward_kwargs.verbatim_ngram_size`: `10`
 - Judge rubric: disabled (`judge_enabled=false`)
@@ -120,11 +120,10 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.distill.lr_scale`: `0.1` (hyperparameter)
 - `data.acr.distill.entropy_sampling`: `true` (not used under random mode)
 - `data.acr.distill.entropy_beta`: `1.0`
-- Degenerate filter:
-  - `degenerate_filter`: `true`
-  - `degenerate_min_tokens`: `40`
-  - `degenerate_rep_3_max`: `0.85`
-  - `degenerate_rep_4_max`: `0.90`
+- `data.acr.distill.degenerate_filter`: `true`
+- `data.acr.distill.degenerate_min_tokens`: `30`
+- `data.acr.distill.degenerate_rep_3_max`: `0.70`
+- `data.acr.distill.degenerate_rep_4_max`: `0.75`
 
 ### Optimization + runtime
 - `actor_rollout_ref.actor.optim.lr`: `1e-6`
@@ -137,7 +136,7 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 
 ### Trainer
 - `data.train_batch_size`: `64`
-- `trainer.total_training_steps`: `1000`
+- `trainer.total_training_steps`: `500`
 - `trainer.save_freq`: `10`
 - `trainer.test_freq`: `10`
 - `trainer.n_gpus_per_node`: `4`
