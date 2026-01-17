@@ -1745,6 +1745,7 @@ class RayPPOTrainer:
         response_text_cache: dict[int, str] = {}
         response_text_cache: dict[int, str] = {}
         response_text_cache: dict[int, str] = {}
+        response_text_cache: dict[int, str] = {}
 
         def extract_response_ids(idx: int) -> list[int]:
             cached = response_ids_cache.get(idx)
@@ -1759,6 +1760,18 @@ class RayPPOTrainer:
                     response_ids.pop()
             response_ids_cache[idx] = response_ids
             return response_ids
+
+        def extract_response_text(idx: int) -> str:
+            cached = response_text_cache.get(idx)
+            if cached is not None:
+                return cached
+            response_ids = extract_response_ids(idx)
+            if response_ids:
+                text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+            else:
+                text = ""
+            response_text_cache[idx] = text
+            return text
 
         def extract_response_text(idx: int) -> str:
             cached = response_text_cache.get(idx)
