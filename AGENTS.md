@@ -58,6 +58,11 @@
   - Training data: `rlvr/mydata/minerva_base/minerva_base_train.parquet`; validation data: `minerva_base_dev.parquet` plus Athena CTI parquets from `rlvr/mydata/athena/`.
 - Legacy scripts and variants now live under `rlvr/old-cti-scripts/` (e.g., `v0.1.sh`, `v0.2.sh`, and single-task runs).
 
+## ACRD (answer-conditioned reasoning + distillation)
+- Entry point: `rlvr/cti-scripts/train_minerva_noctua.sh` with model wrappers under `rlvr/cti-scripts/`.
+- Per-batch ACR traces are distilled via SFT or DPO; buffer modes include `rolling`, `flush`, and `buffer`.
+- Uses label details from `dataset/label_details/` and reward logic in `rlvr/verl/utils/reward_score/reward_acr.py`.
+
 ## TARBA tool-augmented retrieval (RLVR)
 - Code flow: `minerva/retrieval/` builds canonical label docs + BM25 indexes; `minerva/retrieval/server.py` serves `/retrieve`; `rlvr/verl/tools/cti_retrieval_tool.py` calls the server; `rlvr/verl/utils/dataset/minerva_tarba_retrieval_dataset.py` injects tool instructions + per-task budgets; `rlvr/verl/utils/reward_score/reward_tarba.py` adds retrieval shaping; controller updates in `rlvr/verl/trainer/ppo/ray_trainer.py`.
 - Build label docs + index (generated artifacts):

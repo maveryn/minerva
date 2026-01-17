@@ -653,7 +653,7 @@ def reward_acr(
     max_id_mentions: Optional[int] = 3,
     verbatim_min_details_chars: int = 100,
     verbatim_ngram_size: int = 10,
-    verbatim_min_matches: int = 1,
+    verbatim_min_matches: int = 2,
     min_reasoning_chars: int = 100,
     min_overlap_jaccard: float = 0.05,
     score_min: Optional[float] = None,

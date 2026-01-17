@@ -83,7 +83,7 @@ label/reference/details text or hint at provided options, candidate pools, or gi
 (e.g., “label reference,” “according to the label,” “given mitigation list”). The check
 uses explicit phrase and regex matching (fuzzy similarity is disabled) plus a verbatim
 overlap guard: if `LABEL_REFERENCE` is at least 100 chars and the reasoning contains an
-exact 12-word span from it at least twice, the response is flagged. Additional guards flag reasoning
+exact 10-word span from it at least twice, the response is flagged. Additional guards flag reasoning
 that is too short (<100 chars) or too ungrounded (Jaccard overlap <0.05 between the
 reasoning and the combined task description + `LABEL_REFERENCE`). This focuses on leakage
 about provided materials while still requiring minimal grounding.
