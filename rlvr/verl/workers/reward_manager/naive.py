@@ -44,6 +44,13 @@ class NaiveRewardManager(AbstractRewardManager):
         self.compute_score = compute_score or default_compute_score
         self.reward_fn_key = reward_fn_key  # Store the key for accessing the data source
 
+    @staticmethod
+    def _pad_reward_extra_info(reward_extra_info: dict, target_len: int) -> None:
+        for key, lst in reward_extra_info.items():
+            missing = target_len - len(lst)
+            if missing > 0:
+                lst.extend([None] * missing)
+
     def __call__(self, data: DataProto, return_dict: bool = False) -> torch.Tensor | dict[str, Any]:
         """We will expand this function gradually based on the available datasets"""
 
@@ -111,13 +118,19 @@ class NaiveRewardManager(AbstractRewardManager):
                 extra_info=extra_info,
             )
 
+            num_seen = i + 1
             if isinstance(score, dict):
                 reward = score["score"]
                 # Store the information including original reward
+                self._pad_reward_extra_info(reward_extra_info, num_seen - 1)
                 for key, value in score.items():
+                    if key not in reward_extra_info:
+                        reward_extra_info[key] = [None] * (num_seen - 1)
                     reward_extra_info[key].append(value)
+                self._pad_reward_extra_info(reward_extra_info, num_seen)
             else:
                 reward = score
+                self._pad_reward_extra_info(reward_extra_info, num_seen)
 
             reward_tensor[i, valid_response_length - 1] = reward
 

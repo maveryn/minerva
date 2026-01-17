@@ -51,6 +51,13 @@ class DAPORewardManager(AbstractRewardManager):
                 "max_resp_len must be larger than overlong_buffer.len"
             )
 
+    @staticmethod
+    def _pad_reward_extra_info(reward_extra_info: dict, target_len: int) -> None:
+        for key, lst in reward_extra_info.items():
+            missing = target_len - len(lst)
+            if missing > 0:
+                lst.extend([None] * missing)
+
     def __call__(self, data: DataProto, return_dict: bool = False):
         """We will expand this function gradually based on the available datasets"""
 
@@ -103,14 +110,13 @@ class DAPORewardManager(AbstractRewardManager):
             )
 
             score: float
+            sample_extra = {}
             if isinstance(result, dict):
                 score = result["score"]
-                # Store the information including original reward
-                for key, value in result.items():
-                    reward_extra_info[key].append(value)
+                sample_extra.update(result)
             else:
                 score = result
-                reward_extra_info["acc"].append(score)
+                sample_extra["acc"] = score
 
             reward = score
 
@@ -122,10 +128,21 @@ class DAPORewardManager(AbstractRewardManager):
                 overlong_reward = min(-exceed_len / overlong_buffer_len * overlong_penalty_factor, 0)
                 reward += overlong_reward
                 if self.overlong_buffer_cfg.log:
-                    reward_extra_info["overlong_reward"].append(overlong_reward)
-                    reward_extra_info["overlong"].append(overlong_reward < 0)
+                    sample_extra["overlong_reward"] = overlong_reward
+                    sample_extra["overlong"] = overlong_reward < 0
 
             reward_tensor[i, valid_response_length - 1] = reward
+
+            num_seen = i + 1
+            if sample_extra:
+                self._pad_reward_extra_info(reward_extra_info, num_seen - 1)
+                for key, value in sample_extra.items():
+                    if key not in reward_extra_info:
+                        reward_extra_info[key] = [None] * (num_seen - 1)
+                    reward_extra_info[key].append(value)
+                self._pad_reward_extra_info(reward_extra_info, num_seen)
+            else:
+                self._pad_reward_extra_info(reward_extra_info, num_seen)
 
             if data_source not in already_print_data_sources:
                 already_print_data_sources[data_source] = 0
