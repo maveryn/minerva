@@ -703,7 +703,12 @@ class RayPPOTrainer:
         data_sources = np.concatenate(data_source_lst, axis=0)
         source_files = np.concatenate(source_file_lst, axis=0)
 
-        data_src2var2metric2val = process_validation_metrics(data_sources, sample_inputs, reward_extra_infos_dict)
+        infos_for_metrics = {
+            key: vals
+            for key, vals in reward_extra_infos_dict.items()
+            if key not in {"score", "ifeval_instruction_rate", "ifeval_instruction_count"}
+        }
+        data_src2var2metric2val = process_validation_metrics(data_sources, sample_inputs, infos_for_metrics)
         metric_dict = {}
         for data_source, var2metric2val in data_src2var2metric2val.items():
             core_var = "acc" if "acc" in var2metric2val else "reward"
@@ -720,6 +725,12 @@ class RayPPOTrainer:
                         metric_sec = "val-aux"
                     pfx = f"{metric_sec}/{data_source}/{var_name}/{metric_name}"
                     metric_dict[pfx] = metric_val
+
+        for key in list(metric_dict.keys()):
+            if key.startswith("val-core/reward_instruction_following/") or key.startswith(
+                "val-aux/reward_instruction_following/"
+            ):
+                metric_dict.pop(key, None)
 
         # Aggregate reward per source_file when it spans multiple data sources
         if (
