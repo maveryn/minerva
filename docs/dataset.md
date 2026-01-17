@@ -45,10 +45,10 @@ After task generation, each per-task JSONL is resampled to a fixed target size u
 | cve_to_attack_secondary_impact | 54 | 20 | 74 |
 | sigma_to_attack_technique | 1450 | 50 | 1500 |
 | sigma_to_attack_tactics | 881 | 50 | 931 |
-| scenario_to_technique | 7780 | 220 | 8000 |
+| scenario_to_technique | 8280 | 220 | 8500 |
 | scenario_to_tactics | 1950 | 50 | 2000 |
-| scenario_to_mitigations | 7780 | 220 | 8000 |
-| cve_to_cwe | 9750 | 250 | 10000 |
+| scenario_to_mitigations | 8280 | 220 | 8500 |
+| cve_to_cwe | 8750 | 250 | 9000 |
 | cve_to_cvss_v31 | 1900 | 100 | 2000 |
 | **Total** | **32000** | **1000** | **33000** |
 

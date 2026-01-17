@@ -254,10 +254,10 @@ cve_to_attack_primary_impact	CVE description	ATT&CK Technique ID	reward_techniqu
 cve_to_attack_secondary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	74	54	20
 sigma_to_attack_technique	Sigma detection + logsource	ATT&CK Technique ID	reward_technique_id	1500	1450	50
 sigma_to_attack_tactics	Sigma detection + logsource	ATT&CK Tactic IDs	reward_tactic_ids	931	881	50
-scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_technique_id	8000	7780	220
+scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_technique_id	8500	8280	220
 scenario_to_tactics	ATT&CK procedure scenario	ATT&CK Tactic IDs	reward_tactic_ids	2000	1950	50
-scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	8000	7780	220
-cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	10000	9750	250
+scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	8500	8280	220
+cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	9000	8750	250
 cve_to_cvss_v31	CVE description	CVSS v3.1 vector string	reward_cvss_v31	2000	1900	100
 
 ---
