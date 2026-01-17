@@ -4,7 +4,7 @@ set -euo pipefail
 # ACRD training script for Llama 8B (distill lr_scale=0.1).
 
 export ACRD_MODEL_PATH="${ACRD_MODEL_PATH:-meta-llama/Llama-3.1-8B-Instruct}"
-export ACRD_ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-2}"
+export ACRD_ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-4}"
 export ACRD_ACR_DISTILL_LR_SCALE="${ACRD_ACR_DISTILL_LR_SCALE:-0.1}"
 MODEL_NAME="$(basename "$ACRD_MODEL_PATH")"
 MODEL_SLUG="$(printf "%s" "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_' | sed 's/^_//;s/_$//')"

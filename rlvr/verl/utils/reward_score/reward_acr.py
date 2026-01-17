@@ -424,12 +424,84 @@ def _split_reasoning(output: str) -> str:
 
 
 _WORD_TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+_DESCRIPTION_MARKER_RE = re.compile(
+    r"(adversary procedure|cve description|vulnerability description|sigma rule excerpt)\s*:",
+    re.IGNORECASE,
+)
+_DESCRIPTION_STOP_RE = re.compile(
+    r"^\s*(primary impact|valid mitre|options|answer format|requirements)\b",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def _word_tokens(text: str) -> list[str]:
     if not text:
         return []
     return [tok.lower() for tok in _WORD_TOKEN_RE.findall(text)]
+
+
+def _content_tokens(text: str) -> list[str]:
+    if not text:
+        return []
+    tokens = _word_tokens(text)
+    return [tok for tok in tokens if len(tok) >= 3 and not _ID_REGEX.match(tok.upper())]
+
+
+def _extract_task_description_from_text(text: str) -> str:
+    if not text:
+        return ""
+    matches = list(_DESCRIPTION_MARKER_RE.finditer(text))
+    if not matches:
+        return ""
+    start = matches[-1].end()
+    section = text[start:]
+    stop = _DESCRIPTION_STOP_RE.search(section)
+    if stop:
+        section = section[: stop.start()]
+    return section.strip()
+
+
+def _extract_task_description(extra_info: Optional[dict]) -> str:
+    if not isinstance(extra_info, dict):
+        return ""
+    for key in ("acr_orig_prompt", "orig_prompt", "raw_prompt", "prompt"):
+        payload = extra_info.get(key)
+        if isinstance(payload, list):
+            content = ""
+            for msg in reversed(payload):
+                if not isinstance(msg, dict):
+                    continue
+                msg_content = msg.get("content")
+                if not isinstance(msg_content, str):
+                    continue
+                role = str(msg.get("role") or "").lower()
+                if role == "user":
+                    content = msg_content
+                    break
+                if not content:
+                    content = msg_content
+            if content:
+                desc = _extract_task_description_from_text(content)
+                if desc:
+                    return desc
+        elif isinstance(payload, str):
+            desc = _extract_task_description_from_text(payload)
+            if desc:
+                return desc
+    return ""
+
+
+def _jaccard(tokens_a: list[str], tokens_b: list[str]) -> Optional[float]:
+    if not tokens_a or not tokens_b:
+        return None
+    set_a = set(tokens_a)
+    set_b = set(tokens_b)
+    if not set_a or not set_b:
+        return None
+    denom = len(set_a | set_b)
+    if denom <= 0:
+        return None
+    return len(set_a & set_b) / denom
 
 
 def _extract_label_reference_from_text(text: str) -> str:
@@ -473,6 +545,7 @@ def _verbatim_overlap_hit(
     *,
     min_details_chars: int,
     ngram_size: int,
+    min_matches: int,
 ) -> bool:
     if not details_text or not reasoning_text:
         return False
@@ -487,9 +560,12 @@ def _verbatim_overlap_hit(
     }
     if not detail_ngrams:
         return False
+    matches = 0
     for i in range(len(reasoning_tokens) - ngram_size + 1):
         if tuple(reasoning_tokens[i : i + ngram_size]) in detail_ngrams:
-            return True
+            matches += 1
+            if matches >= max(1, min_matches):
+                return True
     return False
 
 
@@ -577,6 +653,9 @@ def reward_acr(
     max_id_mentions: Optional[int] = 3,
     verbatim_min_details_chars: int = 100,
     verbatim_ngram_size: int = 10,
+    verbatim_min_matches: int = 1,
+    min_reasoning_chars: int = 100,
+    min_overlap_jaccard: float = 0.05,
     score_min: Optional[float] = None,
     score_max: Optional[float] = None,
 ) -> dict:
@@ -599,15 +678,20 @@ def reward_acr(
 
     phrases = banned_phrases if banned_phrases is not None else DEFAULT_BANNED_PHRASES
     regexes = banned_regexes if banned_regexes is not None else DEFAULT_BANNED_REGEXES
-    leak_hit = _contains_banned_phrase(
+    banned_hit = _contains_banned_phrase(
         solution_str or "",
         phrases,
         regexes=regexes,
         fuzzy=use_fuzzy_leak_check,
         threshold=fuzzy_threshold,
     )
+    leak_hit = bool(banned_hit)
 
     reasoning = _split_reasoning(solution_str or "")
+    short_hit = False
+    if min_reasoning_chars and len(reasoning.strip()) < int(min_reasoning_chars):
+        short_hit = True
+        leak_hit = True
 
     id_leak_hit = False
     if enforce_no_id_in_reasoning and gold_labels:
@@ -621,8 +705,19 @@ def reward_acr(
             reasoning,
             min_details_chars=int(verbatim_min_details_chars),
             ngram_size=int(verbatim_ngram_size),
+            min_matches=int(verbatim_min_matches),
         )
         if verbatim_hit:
+            leak_hit = True
+
+    overlap_hit = False
+    overlap_score = None
+    task_description = _extract_task_description(extra_info)
+    combined_text = "\n\n".join([part for part in (task_description, details_text) if part])
+    if combined_text and reasoning:
+        overlap_score = _jaccard(_content_tokens(combined_text), _content_tokens(reasoning))
+        if overlap_score is not None and overlap_score < float(min_overlap_jaccard):
+            overlap_hit = True
             leak_hit = True
 
     id_overuse_hit = False
@@ -652,19 +747,24 @@ def reward_acr(
     if score_max is not None:
         score = min(score, float(score_max))
 
-    return {
+    result = {
         "score": float(score),
         "acr_base_score": float(base_score),
         "acr_extracted": bool(extracted),
         "acr_is_correct": bool(is_correct),
         "acr_leak_hit": bool(leak_hit),
+        "acr_banned_phrase_hit": bool(banned_hit),
         "acr_id_leak_hit": bool(id_leak_hit),
-        "acr_id_overuse_hit": bool(id_overuse_hit),
-        "acr_id_overuse_max": int(id_overuse_max),
         "acr_verbatim_hit": bool(verbatim_hit),
+        "acr_short_hit": bool(short_hit),
+        "acr_overlap_hit": bool(overlap_hit),
         "acr_pred_labels": pred_labels,
         "acr_gold_labels": gold_labels,
     }
+    if max_id_mentions is not None and max_id_mentions > 0:
+        result["acr_id_overuse_hit"] = bool(id_overuse_hit)
+        result["acr_id_overuse_max"] = int(id_overuse_max)
+    return result
 
 
 __all__ = ["reward_acr"]
