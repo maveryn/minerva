@@ -162,8 +162,8 @@ Each JSONL record:
   "name": "Windows Command Shell",
   "aliases": ["cmd.exe", "Command Prompt"],
   "definition": "...",
-  "metadata": {"tactic": ["Execution"], "parent": "attack_technique_id:T1059"},
-  "details_text": "ID: T1059.003\nName: Windows Command Shell\nAliases: ...\nTactic: Execution\nDefinition: ...\nParent: T1059\n"
+  "metadata": {"tactics": ["Execution"], "platforms": ["Windows"]},
+  "details_text": "ID: T1059.003\nName: Windows Command Shell\nAdversaries may...\n"
 }
 ```
 
@@ -171,17 +171,19 @@ Rules:
 - No dataset examples.
 - Store full `details_text` (no build-time cap). Cap at runtime in the ACR dataset if needed.
 - Source MITRE/CAPEC/CWE from cached files in `dataset/`.
-- Prefer the same corpus text used by TARBA label docs so technique/mitigation details include relationships.
+- Details are intentionally compact; relationship lists are omitted from label details text.
 - Preserve newlines in `details_text`; they are passed through into the ACR prompt.
 
 Details formatting (current):
-- `attack_tactic_id`: `ID:` + `Name:` + tactic description, then a blank line and `Techniques:` list (one per line).
-- `attack_technique_id`: name line, optional `Sub-techniques (N)` table (`ID\tName`), blank line, description,
-  blank line, `Mitigations` table (`ID\tMitigation\tDescription`), blank line, `Detection Strategy` table (`ID\tName` only).
-- `mitigation_id`: `ID:` + `Name:` + `Definition:` followed by `Techniques Addressed by Mitigation:` at the end
-  (one `Txxxx - Name` per line).
+- `attack_tactic_id`: `ID:` + `Name:` + tactic description only.
+- `attack_technique_id`: `ID:` + `Name:`; optional `Sub-techniques (N)` table (`ID\tName`); then the technique description
+  (no mitigations/detections lists).
+- `mitigation_id`: `ID:` + `Name:` + full MITRE description in `Definition:` (no techniques list).
 - `cwe_id`: `<CWE-####>: <Name>` header, `Description` section, optional `Extended Description`,
   optional `Background Details` (each section separated by a blank line).
+Notes:
+- ATT&CK tactics/techniques use the full MITRE description (no paragraph truncation).
+- Mitigations use the full MITRE description (no paragraph truncation).
 
 #### 1.2 Runtime loader
 `minerva/label_details_store.py` loads all JSONL files into a dict mapping `key -> details_text`.
@@ -248,14 +250,18 @@ Implemented in `rlvr/verl/utils/reward_score/reward_acr.py` (`reward_acr`).
 - `acr_is_correct` is `acr_base_score == 1.0` (full match).
 
 #### 3.3 Leakage phrase penalties
-- Use a small banned-phrase list (case-insensitive substring).
-- Fuzzy check via `difflib.SequenceMatcher` (no heavy deps, enabled by default).
+- Use a small banned-phrase list (case-insensitive substring + regexes).
+- Fuzzy check via `difflib.SequenceMatcher` is optional (disabled by default).
 
-#### 3.4 "ID in reasoning" detection
+#### 3.4 Verbatim label-detail overlap
+- If `LABEL_REFERENCE` is at least `verbatim_min_details_chars` (default 100 chars) and the reasoning contains
+  an exact `verbatim_ngram_size`-word span from it (default 10), mark `acr_verbatim_hit` and treat as leakage.
+
+#### 3.5 "ID in reasoning" detection
 - The reasoning section (everything before the last non-empty line) is checked for gold IDs.
 - This is logged as `acr_id_leak_hit` but is not penalized in the score.
 
-#### 3.5 Reward scalar
+#### 3.6 Reward scalar
 Example (current defaults):
 
 ```text
@@ -273,6 +279,7 @@ Return a dict with:
 - `acr_extracted`
 - `acr_leak_hit`
 - `acr_id_leak_hit`
+- `acr_verbatim_hit`
 The score is used for filtering/ranking traces, not for PPO updates by default.
 
 ---

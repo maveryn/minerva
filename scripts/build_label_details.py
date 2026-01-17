@@ -529,7 +529,9 @@ def main() -> None:
                 aliases = actor_aliases.get(name, [])
 
             if label_type == "attack_tactic_id":
-                definition = tactic_desc_by_id.get(canonical_id) or str(entry.text or entry.description or "")
+                definition = tactic_desc_by_id.get(canonical_id)
+                if not definition:
+                    definition = str(entry.description or entry.text or "")
                 definition = _strip_leading_name(definition, name)
             elif label_type == "attack_technique_id":
                 definition = technique_info_by_id.get(canonical_id, {}).get("description") or str(
@@ -546,7 +548,7 @@ def main() -> None:
                     entry.text or entry.description or ""
                 )
             else:
-                definition = _strip_leading_name(str(entry.text or entry.description or ""), name)
+                definition = _strip_leading_name(str(entry.description or entry.text or ""), name)
 
             if label_type == "attack_technique_id":
                 meta = mitre_meta.get("techniques", {}).get(canonical_id)
