@@ -1869,7 +1869,7 @@ class RayPPOTrainer:
         except (TypeError, ValueError):
             degenerate_window_jaccard = 0.9
         try:
-            degenerate_sentence_sim = float(self._distill_cfg.get("degenerate_sentence_sim", 0.8))
+            degenerate_sentence_sim = float(self._distill_cfg.get("degenerate_sentence_sim", 0.75))
         except (TypeError, ValueError):
             degenerate_sentence_sim = 0.9
         degenerate_sentence_window = int(self._distill_cfg.get("degenerate_sentence_window", 6) or 0)
@@ -2767,7 +2767,7 @@ class RayPPOTrainer:
         except (TypeError, ValueError):
             degenerate_window_jaccard = 0.9
         try:
-            degenerate_sentence_sim = float(cfg.get("degenerate_sentence_sim", 0.8))
+            degenerate_sentence_sim = float(cfg.get("degenerate_sentence_sim", 0.75))
         except (TypeError, ValueError):
             degenerate_sentence_sim = 0.9
         degenerate_sentence_window = int(cfg.get("degenerate_sentence_window", 6) or 0)

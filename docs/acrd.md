@@ -435,7 +435,7 @@ Defaults:
   - `degenerate_min_tokens=30`
   - `rep_3 >= 0.70` or `rep_4 >= 0.75`
   - repeated-window check (`degenerate_window_size=24`, `degenerate_window_jaccard=0.9`)
-  - near-duplicate sentence check (`degenerate_sentence_sim=0.8`, `degenerate_sentence_window=6`,
+  - near-duplicate sentence check (`degenerate_sentence_sim=0.75`, `degenerate_sentence_window=6`,
     `degenerate_sentence_min_words=6`)
 - The default `cti-scripts` run samples up to 256 SFT records per distill step
   (`ACRD_ACR_DISTILL_BATCH_SIZE=256`).
