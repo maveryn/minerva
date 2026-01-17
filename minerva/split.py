@@ -14,10 +14,10 @@ TARGET_SAMPLES: Dict[str, int] = {
     "cve_to_attack_secondary_impact": 74,
     "sigma_to_attack_technique": 1500,
     "sigma_to_attack_tactics": 931,
-    "scenario_to_technique": 8000,
+    "scenario_to_technique": 8500,
     "scenario_to_tactics": 2000,
-    "scenario_to_mitigations": 8000,
-    "cve_to_cwe": 10000,
+    "scenario_to_mitigations": 8500,
+    "cve_to_cwe": 9000,
     "cve_to_cvss_v31": 2000,
 }
 
