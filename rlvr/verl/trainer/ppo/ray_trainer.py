@@ -30,6 +30,7 @@ import uuid
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from functools import partial
 from pprint import pprint
 from typing import Any, Optional, Tuple
@@ -1754,6 +1755,8 @@ class RayPPOTrainer:
             pad_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 0
 
         response_ids_cache: dict[int, list[int]] = {}
+        response_text_cache: dict[int, str] = {}
+        response_text_cache: dict[int, str] = {}
 
         def extract_response_ids(idx: int) -> list[int]:
             cached = response_ids_cache.get(idx)
@@ -1768,6 +1771,30 @@ class RayPPOTrainer:
                     response_ids.pop()
             response_ids_cache[idx] = response_ids
             return response_ids
+
+        def extract_response_text(idx: int) -> str:
+            cached = response_text_cache.get(idx)
+            if cached is not None:
+                return cached
+            response_ids = extract_response_ids(idx)
+            if response_ids:
+                text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+            else:
+                text = ""
+            response_text_cache[idx] = text
+            return text
+
+        def extract_response_text(idx: int) -> str:
+            cached = response_text_cache.get(idx)
+            if cached is not None:
+                return cached
+            response_ids = extract_response_ids(idx)
+            if response_ids:
+                text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+            else:
+                text = ""
+            response_text_cache[idx] = text
+            return text
 
         def render_messages(messages: Optional[list]) -> str:
             if not isinstance(messages, list):
@@ -1833,6 +1860,22 @@ class RayPPOTrainer:
             degenerate_rep_4_max = 1.0
         degenerate_rep_3_max = min(max(degenerate_rep_3_max, 0.0), 1.0)
         degenerate_rep_4_max = min(max(degenerate_rep_4_max, 0.0), 1.0)
+        degenerate_window_size = int(self._distill_cfg.get("degenerate_window_size", 24) or 0)
+        degenerate_window_stride = int(
+            self._distill_cfg.get("degenerate_window_stride", max(1, degenerate_window_size // 2)) or 1
+        )
+        try:
+            degenerate_window_jaccard = float(self._distill_cfg.get("degenerate_window_jaccard", 0.9))
+        except (TypeError, ValueError):
+            degenerate_window_jaccard = 0.9
+        try:
+            degenerate_sentence_sim = float(self._distill_cfg.get("degenerate_sentence_sim", 0.8))
+        except (TypeError, ValueError):
+            degenerate_sentence_sim = 0.9
+        degenerate_sentence_window = int(self._distill_cfg.get("degenerate_sentence_window", 6) or 0)
+        degenerate_sentence_min_words = int(self._distill_cfg.get("degenerate_sentence_min_words", 6) or 0)
+        degenerate_window_jaccard = min(max(degenerate_window_jaccard, 0.0), 1.0)
+        degenerate_sentence_sim = min(max(degenerate_sentence_sim, 0.0), 1.0)
 
         def distinct_ngram_ratio(tokens: list[int], n: int) -> float:
             total = len(tokens) - n + 1
@@ -1841,12 +1884,74 @@ class RayPPOTrainer:
             ngrams = {tuple(tokens[i : i + n]) for i in range(total)}
             return len(ngrams) / total
 
-        def is_degenerate(tokens: list[int]) -> bool:
+        def has_repeated_window(tokens: list[int]) -> bool:
+            if degenerate_window_size <= 0 or len(tokens) < degenerate_window_size * 2:
+                return False
+            stride = max(1, degenerate_window_stride)
+            windows: list[tuple[int, set[tuple[int, int, int]]]] = []
+            seen_exact: set[tuple[int, ...]] = set()
+            max_start = len(tokens) - degenerate_window_size
+            for start in range(0, max_start + 1, stride):
+                window = tokens[start : start + degenerate_window_size]
+                window_key = tuple(window)
+                if window_key in seen_exact:
+                    return True
+                seen_exact.add(window_key)
+                if len(window) < 3:
+                    continue
+                ngrams = {tuple(window[i : i + 3]) for i in range(len(window) - 2)}
+                windows.append((start, ngrams))
+            for i in range(len(windows)):
+                start_i, grams_i = windows[i]
+                for j in range(i + 1, len(windows)):
+                    start_j, grams_j = windows[j]
+                    if abs(start_i - start_j) < degenerate_window_size:
+                        continue
+                    union = grams_i | grams_j
+                    if not union:
+                        continue
+                    jaccard = len(grams_i & grams_j) / len(union)
+                    if jaccard >= degenerate_window_jaccard:
+                        return True
+            return False
+
+        def sentence_near_duplicate(text: str) -> bool:
+            if not text or degenerate_sentence_sim <= 0.0:
+                return False
+            raw_parts = re.split(r"[.!?]+|\\n+", text)
+            sentences = []
+            for part in raw_parts:
+                cleaned = re.sub(r"[^a-z0-9\\s]", "", part.lower())
+                cleaned = re.sub(r"\\s+", " ", cleaned).strip()
+                if not cleaned:
+                    continue
+                if degenerate_sentence_min_words and len(cleaned.split()) < degenerate_sentence_min_words:
+                    continue
+                sentences.append(cleaned)
+            if len(sentences) < 2:
+                return False
+            window = max(1, degenerate_sentence_window)
+            for i in range(len(sentences)):
+                left = sentences[i]
+                for j in range(i + 1, min(len(sentences), i + 1 + window)):
+                    if SequenceMatcher(None, left, sentences[j]).ratio() >= degenerate_sentence_sim:
+                        return True
+            return False
+
+        def is_degenerate(tokens: list[int], idx: Optional[int] = None) -> bool:
             if not degenerate_filter or len(tokens) < degenerate_min_tokens:
                 return False
             rep_3 = 1.0 - distinct_ngram_ratio(tokens, 3)
             rep_4 = 1.0 - distinct_ngram_ratio(tokens, 4)
-            return rep_3 >= degenerate_rep_3_max or rep_4 >= degenerate_rep_4_max
+            if rep_3 >= degenerate_rep_3_max or rep_4 >= degenerate_rep_4_max:
+                return True
+            if has_repeated_window(tokens):
+                return True
+            if idx is not None:
+                response_text = extract_response_text(idx)
+                if sentence_near_duplicate(response_text):
+                    return True
+            return False
 
         grouped: dict[str, list[int]] = {}
         skipped_task = 0
@@ -1896,9 +2001,9 @@ class RayPPOTrainer:
                     if leak_hits[i] is not None and bool(leak_hits[i]):
                         continue
                     if degenerate_filter:
-                        response_ids = extract_response_ids(i)
-                        if not response_ids or is_degenerate(response_ids):
-                            continue
+                    response_ids = extract_response_ids(i)
+                    if not response_ids or is_degenerate(response_ids, idx=i):
+                        continue
                     eligible.append(i)
             else:
                 eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
@@ -1983,7 +2088,7 @@ class RayPPOTrainer:
                 extracted_str = "NA" if extracted_val is None else str(bool(extracted_val))
                 degenerate_str = "NA"
                 if degenerate_filter and response_ids:
-                    degenerate_str = str(is_degenerate(response_ids))
+                    degenerate_str = str(is_degenerate(response_ids, idx=idx))
                 print(
                     "[ACRD DEBUG] response "
                     f"{j}/{len(idxs)} reward={reward_val:.3f} base={base_str} eligible={is_eligible} "
@@ -2655,6 +2760,20 @@ class RayPPOTrainer:
             degenerate_rep_4_max = 1.0
         degenerate_rep_3_max = min(max(degenerate_rep_3_max, 0.0), 1.0)
         degenerate_rep_4_max = min(max(degenerate_rep_4_max, 0.0), 1.0)
+        degenerate_window_size = int(cfg.get("degenerate_window_size", 24) or 0)
+        degenerate_window_stride = int(cfg.get("degenerate_window_stride", max(1, degenerate_window_size // 2)) or 1)
+        try:
+            degenerate_window_jaccard = float(cfg.get("degenerate_window_jaccard", 0.9))
+        except (TypeError, ValueError):
+            degenerate_window_jaccard = 0.9
+        try:
+            degenerate_sentence_sim = float(cfg.get("degenerate_sentence_sim", 0.8))
+        except (TypeError, ValueError):
+            degenerate_sentence_sim = 0.9
+        degenerate_sentence_window = int(cfg.get("degenerate_sentence_window", 6) or 0)
+        degenerate_sentence_min_words = int(cfg.get("degenerate_sentence_min_words", 6) or 0)
+        degenerate_window_jaccard = min(max(degenerate_window_jaccard, 0.0), 1.0)
+        degenerate_sentence_sim = min(max(degenerate_sentence_sim, 0.0), 1.0)
 
         def distinct_ngram_ratio(tokens: list[int], n: int) -> float:
             total = len(tokens) - n + 1
@@ -2663,12 +2782,74 @@ class RayPPOTrainer:
             ngrams = {tuple(tokens[i : i + n]) for i in range(total)}
             return len(ngrams) / total
 
-        def is_degenerate(tokens: list[int]) -> bool:
+        def has_repeated_window(tokens: list[int]) -> bool:
+            if degenerate_window_size <= 0 or len(tokens) < degenerate_window_size * 2:
+                return False
+            stride = max(1, degenerate_window_stride)
+            windows: list[tuple[int, set[tuple[int, int, int]]]] = []
+            seen_exact: set[tuple[int, ...]] = set()
+            max_start = len(tokens) - degenerate_window_size
+            for start in range(0, max_start + 1, stride):
+                window = tokens[start : start + degenerate_window_size]
+                window_key = tuple(window)
+                if window_key in seen_exact:
+                    return True
+                seen_exact.add(window_key)
+                if len(window) < 3:
+                    continue
+                ngrams = {tuple(window[i : i + 3]) for i in range(len(window) - 2)}
+                windows.append((start, ngrams))
+            for i in range(len(windows)):
+                start_i, grams_i = windows[i]
+                for j in range(i + 1, len(windows)):
+                    start_j, grams_j = windows[j]
+                    if abs(start_i - start_j) < degenerate_window_size:
+                        continue
+                    union = grams_i | grams_j
+                    if not union:
+                        continue
+                    jaccard = len(grams_i & grams_j) / len(union)
+                    if jaccard >= degenerate_window_jaccard:
+                        return True
+            return False
+
+        def sentence_near_duplicate(text: str) -> bool:
+            if not text or degenerate_sentence_sim <= 0.0:
+                return False
+            raw_parts = re.split(r"[.!?]+|\\n+", text)
+            sentences = []
+            for part in raw_parts:
+                cleaned = re.sub(r"[^a-z0-9\\s]", "", part.lower())
+                cleaned = re.sub(r"\\s+", " ", cleaned).strip()
+                if not cleaned:
+                    continue
+                if degenerate_sentence_min_words and len(cleaned.split()) < degenerate_sentence_min_words:
+                    continue
+                sentences.append(cleaned)
+            if len(sentences) < 2:
+                return False
+            window = max(1, degenerate_sentence_window)
+            for i in range(len(sentences)):
+                left = sentences[i]
+                for j in range(i + 1, min(len(sentences), i + 1 + window)):
+                    if SequenceMatcher(None, left, sentences[j]).ratio() >= degenerate_sentence_sim:
+                        return True
+            return False
+
+        def is_degenerate(tokens: list[int], idx: Optional[int] = None) -> bool:
             if not degenerate_filter or len(tokens) < degenerate_min_tokens:
                 return False
             rep_3 = 1.0 - distinct_ngram_ratio(tokens, 3)
             rep_4 = 1.0 - distinct_ngram_ratio(tokens, 4)
-            return rep_3 >= degenerate_rep_3_max or rep_4 >= degenerate_rep_4_max
+            if rep_3 >= degenerate_rep_3_max or rep_4 >= degenerate_rep_4_max:
+                return True
+            if has_repeated_window(tokens):
+                return True
+            if idx is not None:
+                response_text = extract_response_text(idx)
+                if sentence_near_duplicate(response_text):
+                    return True
+            return False
 
         grouped: dict[str, list[int]] = {}
         skip_uids: set[str] = set()
@@ -2723,7 +2904,7 @@ class RayPPOTrainer:
                     if degenerate_filter:
                         degenerate_checked += 1
                         response_ids = extract_response_ids(i)
-                        if not response_ids or is_degenerate(response_ids):
+                        if not response_ids or is_degenerate(response_ids, idx=i):
                             degenerate_filtered += 1
                             continue
                     eligible.append(i)
@@ -2734,7 +2915,7 @@ class RayPPOTrainer:
                     kept = []
                     for i in eligible:
                         response_ids = extract_response_ids(i)
-                        if not response_ids or is_degenerate(response_ids):
+                        if not response_ids or is_degenerate(response_ids, idx=i):
                             degenerate_filtered += 1
                             continue
                         kept.append(i)

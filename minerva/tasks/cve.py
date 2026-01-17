@@ -6,6 +6,16 @@ from minerva.tasks.common import _balanced_cap
 from minerva.utils import word_count, write_jsonl
 
 
+_NOINFO_CWE = {"NVD-CWE-NOINFO"}
+
+
+def _has_noinfo_cwe(cwes: List[str]) -> bool:
+    for val in cwes or []:
+        if (val or "").strip().upper() in _NOINFO_CWE:
+            return True
+    return False
+
+
 def _select_cvss(rec: Dict[str, Any], prefer_nvd: bool = True, version: str = "v31") -> Optional[Tuple[str, Optional[float]]]:
     key = "v31" if version.lower().startswith("v3") else "v4"
     sources = ["nvd", "cna"]
@@ -27,6 +37,8 @@ def build_cve_to_cwe(records: List[Dict[str, Any]], min_words: int, output_path:
     for r in records:
         desc = r.get("description") or ""
         cwes = [c for c in (r.get("cwe_ids") or []) if c]
+        if _has_noinfo_cwe(cwes):
+            continue
         if not cwes:
             continue
         if word_count(desc) < min_words:
@@ -65,6 +77,8 @@ def build_cve_to_cvss_v31(records: List[Dict[str, Any]], min_words: int, output_
     pool: List[Dict[str, Any]] = []
     for r in records:
         desc = r.get("description") or ""
+        if _has_noinfo_cwe(r.get("cwe_ids") or []):
+            continue
         if word_count(desc) < min_words:
             continue
         chosen = _select_cvss(r, prefer_nvd=prefer_nvd, version="v31")
@@ -98,6 +112,8 @@ def build_cve_to_cvss_v40(records: List[Dict[str, Any]], min_words: int, output_
     pool: List[Dict[str, Any]] = []
     for r in records:
         desc = r.get("description") or ""
+        if _has_noinfo_cwe(r.get("cwe_ids") or []):
+            continue
         if word_count(desc) < min_words:
             continue
         chosen = _select_cvss(r, prefer_nvd=prefer_nvd, version="v4")
