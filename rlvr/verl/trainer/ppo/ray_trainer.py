@@ -771,14 +771,7 @@ class RayPPOTrainer:
                     athena_mean = float(np.mean(athena_means))
                     metric_dict["val-core/athena-bench/reward/mean"] = athena_mean
                     if minerva_mean is not None:
-                        if ifeval_mean is not None:
-                            metric_dict["val-core/global-val/reward/mean"] = float(
-                                0.4 * minerva_mean + 0.4 * athena_mean + 0.2 * ifeval_mean
-                            )
-                        else:
-                            metric_dict["val-core/global-val/reward/mean"] = float(
-                                (minerva_mean + athena_mean) / 2.0
-                            )
+                        metric_dict["val-core/global-val/reward/mean"] = float((minerva_mean + athena_mean) / 2.0)
                 if minerva_mean is not None:
                     metric_dict["val-core/minerva-dev/reward/mean"] = float(minerva_mean)
                 if athena_means and minerva_mean is not None:
@@ -801,7 +794,7 @@ class RayPPOTrainer:
                 data_sources_arr = np.array([str(ds) for ds in data_sources])
                 athena_mask = np.array([ds.startswith("athena-cti-") for ds in data_sources_arr])
                 ifeval_mask = data_sources_arr == "reward_instruction_following"
-                minerva_mask = ~athena_mask
+                minerva_mask = (~athena_mask) & (~ifeval_mask)
                 if "val-core/minerva-dev/reward/mean" not in metric_dict and minerva_mask.any():
                     metric_dict["val-core/minerva-dev/reward/mean"] = float(rewards[minerva_mask].mean())
                 if "val-core/athena-bench/reward/mean" not in metric_dict and athena_mask.any():
@@ -811,14 +804,8 @@ class RayPPOTrainer:
             if "val-core/global-val/reward/mean" not in metric_dict:
                 minerva_mean = metric_dict.get("val-core/minerva-dev/reward/mean")
                 athena_mean = metric_dict.get("val-core/athena-bench/reward/mean")
-                ifeval_mean = metric_dict.get("val-core/ifeval/reward/mean")
                 if minerva_mean is not None and athena_mean is not None:
-                    if ifeval_mean is not None:
-                        metric_dict["val-core/global-val/reward/mean"] = float(
-                            0.4 * minerva_mean + 0.4 * athena_mean + 0.2 * ifeval_mean
-                        )
-                    else:
-                        metric_dict["val-core/global-val/reward/mean"] = float((minerva_mean + athena_mean) / 2.0)
+                    metric_dict["val-core/global-val/reward/mean"] = float((minerva_mean + athena_mean) / 2.0)
 
         if len(sample_turns) > 0:
             sample_turns = np.concatenate(sample_turns)
@@ -1757,6 +1744,7 @@ class RayPPOTrainer:
         response_ids_cache: dict[int, list[int]] = {}
         response_text_cache: dict[int, str] = {}
         response_text_cache: dict[int, str] = {}
+        response_text_cache: dict[int, str] = {}
 
         def extract_response_ids(idx: int) -> list[int]:
             cached = response_ids_cache.get(idx)
@@ -1771,6 +1759,18 @@ class RayPPOTrainer:
                     response_ids.pop()
             response_ids_cache[idx] = response_ids
             return response_ids
+
+        def extract_response_text(idx: int) -> str:
+            cached = response_text_cache.get(idx)
+            if cached is not None:
+                return cached
+            response_ids = extract_response_ids(idx)
+            if response_ids:
+                text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+            else:
+                text = ""
+            response_text_cache[idx] = text
+            return text
 
         def extract_response_text(idx: int) -> str:
             cached = response_text_cache.get(idx)
