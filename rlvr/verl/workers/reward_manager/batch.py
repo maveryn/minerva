@@ -45,6 +45,13 @@ class BatchRewardManager(AbstractRewardManager):
         self.reward_fn_key = reward_fn_key
         self.reward_kwargs = reward_kwargs
 
+    @staticmethod
+    def _pad_reward_extra_info(reward_extra_info: dict, target_len: int) -> None:
+        for key, lst in reward_extra_info.items():
+            missing = target_len - len(lst)
+            if missing > 0:
+                lst.extend([None] * missing)
+
     def verify(self, data):
         prompt_ids = data.batch["prompts"]
         response_ids = data.batch["responses"]
@@ -123,12 +130,17 @@ class BatchRewardManager(AbstractRewardManager):
             length = valid_response_lengths[i].item()
             score = scores[i]
 
+            num_seen = i + 1
             if isinstance(score, dict):
                 reward = score["score"]
                 for key, value in score.items():
+                    if key not in reward_extra_info:
+                        reward_extra_info[key] = [None] * (num_seen - 1)
                     reward_extra_info[key].append(value)
+                self._pad_reward_extra_info(reward_extra_info, num_seen)
             else:
                 reward = score
+                self._pad_reward_extra_info(reward_extra_info, num_seen)
 
             rewards.append(reward)
             reward_tensor[i, length - 1] = reward
