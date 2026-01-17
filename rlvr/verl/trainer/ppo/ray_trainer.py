@@ -749,13 +749,24 @@ class RayPPOTrainer:
             if minerva_file is not None:
                 minerva_mean = file_means.get(minerva_file)
                 athena_means = [val for sf, val in file_means.items() if sf.startswith("athena-cti-")]
+                ifeval_mean = None
+                if data_sources is not None:
+                    ifeval_mask = data_sources == "reward_instruction_following"
+                    if ifeval_mask.any():
+                        ifeval_mean = float(rewards[ifeval_mask].mean())
+                        metric_dict["val-core/ifeval/reward/mean"] = ifeval_mean
                 if athena_means:
                     athena_mean = float(np.mean(athena_means))
                     metric_dict["val-core/athena-bench/reward/mean"] = athena_mean
                     if minerva_mean is not None:
-                        metric_dict["val-core/global-val/reward/mean"] = float(
-                            (minerva_mean + athena_mean) / 2.0
-                        )
+                        if ifeval_mean is not None:
+                            metric_dict["val-core/global-val/reward/mean"] = float(
+                                0.4 * minerva_mean + 0.4 * athena_mean + 0.2 * ifeval_mean
+                            )
+                        else:
+                            metric_dict["val-core/global-val/reward/mean"] = float(
+                                (minerva_mean + athena_mean) / 2.0
+                            )
                 if minerva_mean is not None:
                     metric_dict["val-core/minerva-dev/reward/mean"] = float(minerva_mean)
                 if athena_means and minerva_mean is not None:
@@ -777,16 +788,25 @@ class RayPPOTrainer:
             ):
                 data_sources_arr = np.array([str(ds) for ds in data_sources])
                 athena_mask = np.array([ds.startswith("athena-cti-") for ds in data_sources_arr])
+                ifeval_mask = data_sources_arr == "reward_instruction_following"
                 minerva_mask = ~athena_mask
                 if "val-core/minerva-dev/reward/mean" not in metric_dict and minerva_mask.any():
                     metric_dict["val-core/minerva-dev/reward/mean"] = float(rewards[minerva_mask].mean())
                 if "val-core/athena-bench/reward/mean" not in metric_dict and athena_mask.any():
                     metric_dict["val-core/athena-bench/reward/mean"] = float(rewards[athena_mask].mean())
+                if "val-core/ifeval/reward/mean" not in metric_dict and ifeval_mask.any():
+                    metric_dict["val-core/ifeval/reward/mean"] = float(rewards[ifeval_mask].mean())
             if "val-core/global-val/reward/mean" not in metric_dict:
                 minerva_mean = metric_dict.get("val-core/minerva-dev/reward/mean")
                 athena_mean = metric_dict.get("val-core/athena-bench/reward/mean")
+                ifeval_mean = metric_dict.get("val-core/ifeval/reward/mean")
                 if minerva_mean is not None and athena_mean is not None:
-                    metric_dict["val-core/global-val/reward/mean"] = float((minerva_mean + athena_mean) / 2.0)
+                    if ifeval_mean is not None:
+                        metric_dict["val-core/global-val/reward/mean"] = float(
+                            0.4 * minerva_mean + 0.4 * athena_mean + 0.2 * ifeval_mean
+                        )
+                    else:
+                        metric_dict["val-core/global-val/reward/mean"] = float((minerva_mean + athena_mean) / 2.0)
 
         if len(sample_turns) > 0:
             sample_turns = np.concatenate(sample_turns)
@@ -1363,13 +1383,23 @@ class RayPPOTrainer:
         if distill_cfg is None:
             distill_cfg = {}
         dedup_by_uid_present = False
+        user_max_buffer = False
+        user_batch_size = False
+        user_buffer_mode = False
         if isinstance(distill_cfg, DictConfig):
             dedup_by_uid_present = "dedup_by_uid" in distill_cfg
+            user_max_buffer = "max_buffer" in distill_cfg
+            user_batch_size = "batch_size" in distill_cfg
+            user_buffer_mode = "buffer_mode" in distill_cfg
             distill_cfg = OmegaConf.to_container(distill_cfg, resolve=True)
         if not isinstance(distill_cfg, dict):
             distill_cfg = {}
         if isinstance(distill_cfg, dict) and "dedup_by_uid" in distill_cfg:
             dedup_by_uid_present = True
+        if isinstance(distill_cfg, dict):
+            user_max_buffer = user_max_buffer or ("max_buffer" in distill_cfg)
+            user_batch_size = user_batch_size or ("batch_size" in distill_cfg)
+            user_buffer_mode = user_buffer_mode or ("buffer_mode" in distill_cfg)
 
         defaults = {
             "enabled": False,
@@ -1389,6 +1419,7 @@ class RayPPOTrainer:
             "lr_scale": 1.0,
             "drop_last": True,
             "dedup_by_uid": True,
+            "buffer_mode": "rolling",
         }
         if distill_source == "acr":
             defaults["interval"] = 10
@@ -1401,6 +1432,16 @@ class RayPPOTrainer:
             defaults["batch_size"] = 256
         for key, value in defaults.items():
             distill_cfg.setdefault(key, value)
+
+        buffer_mode = str(distill_cfg.get("buffer_mode", "rolling")).lower().strip()
+        if buffer_mode not in {"rolling", "flush"}:
+            buffer_mode = "rolling"
+        distill_cfg["buffer_mode"] = buffer_mode
+        if distill_source == "acr" and buffer_mode == "flush":
+            if not user_max_buffer:
+                distill_cfg["max_buffer"] = 512
+            if not user_batch_size:
+                distill_cfg["batch_size"] = 512
 
         distill_method = str(distill_cfg.get("method", "sft")).lower().strip()
         if distill_method not in {"sft", "dpo"}:
@@ -2795,7 +2836,13 @@ class RayPPOTrainer:
                 world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
                 max_local = max(1, int(math.ceil(max_buffer / world_size)))
                 if len(self._distill_buffer_local) > max_local:
-                    self._distill_buffer_local = self._distill_buffer_local[-max_local:]
+                    buffer_mode = str(cfg.get("buffer_mode", "rolling")).lower().strip()
+                    if buffer_mode == "flush":
+                        rng = np.random.default_rng(int(getattr(self, "global_steps", 0)))
+                        idxs = rng.choice(len(self._distill_buffer_local), size=max_local, replace=False)
+                        self._distill_buffer_local = [self._distill_buffer_local[i] for i in idxs]
+                    else:
+                        self._distill_buffer_local = self._distill_buffer_local[-max_local:]
 
         metrics: dict[str, float] = {}
         if total_groups > 0:
@@ -3134,7 +3181,13 @@ class RayPPOTrainer:
                 world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
                 max_local = max(1, int(math.ceil(max_buffer / world_size)))
                 if len(self._distill_buffer_local) > max_local:
-                    self._distill_buffer_local = self._distill_buffer_local[-max_local:]
+                    buffer_mode = str(cfg.get("buffer_mode", "rolling")).lower().strip()
+                    if buffer_mode == "flush":
+                        rng = np.random.default_rng(int(getattr(self, "global_steps", 0)))
+                        idxs = rng.choice(len(self._distill_buffer_local), size=max_local, replace=False)
+                        self._distill_buffer_local = [self._distill_buffer_local[i] for i in idxs]
+                    else:
+                        self._distill_buffer_local = self._distill_buffer_local[-max_local:]
 
         metrics: dict[str, float] = {}
         if total_groups > 0:
@@ -3450,7 +3503,8 @@ class RayPPOTrainer:
             return {}
 
         local_records = list(self._distill_buffer_local)
-        keep_buffer = self._distill_source == "acr"
+        buffer_mode = str(cfg.get("buffer_mode", "rolling")).lower().strip()
+        keep_buffer = self._distill_source == "acr" and buffer_mode != "flush"
         if not local_records:
             return {}
 

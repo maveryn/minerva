@@ -1,25 +1,24 @@
 # Minerva RLVR Dataset Builder
 
-Minerva builds reinforcement-learning friendly cyber threat intelligence (CTI) datasets with embedded reward functions. Sources include NVD CVEs, MITRE ATT&CK (procedures, intrusion sets), CAPEC, Sigma rules, and mappings-explorer.
+Minerva builds reinforcement-learning friendly cyber threat intelligence (CTI) datasets with embedded reward functions. Sources include NVD CVEs, MITRE ATT&CK procedures, Sigma rules, and mappings-explorer.
 
 ## What it produces
 - CVE → ATT&CK (exploitation/primary/secondary impact) from mappings-explorer
-- CVE → CWE, CVE → CVSS v3.1, CVE → CVSS v4.0
+- CVE → CWE, CVE → CVSS v3.1
 - Sigma → ATT&CK technique / tactics
 - ATT&CK procedure scenarios → technique / tactics / mitigations / detections
-- CAPEC examples → CAPEC ID / CWE IDs / ATT&CK technique
-- Threat actor MCQ from ATT&CK procedures
-- Train/dev splits (32k/8k) with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`)
+- Train/dev splits (32k/1k) with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`)
 
 See `docs/task-descriptions.md` for inputs/outputs/rewards, prompts, and per-task split statistics.
 
 ## Layout
 - `minerva/pipeline.py` – orchestrates full dataset build
-- `minerva/tasks/` – task builders (CVE, Sigma, scenarios, CAPEC, mappings-explorer, threat actors)
-- `minerva/data_sources/` – loaders for NVD, MITRE ATT&CK, CAPEC, mappings-explorer
+- `minerva/tasks/` – task builders (CVE, Sigma, scenarios, mappings-explorer)
+- `minerva/data_sources/` – loaders for NVD, MITRE ATT&CK, mappings-explorer
 - `minerva/reward.py` – reward functions (binary, technique/tactic F1, CVSS parsers, etc.)
 - Outputs: `dataset/minerva_base/*.jsonl` + `dataset/minerva_base/metadata.json` (LHC: `dataset/minerva_lhc/*`)
 - Splits: `dataset/minerva_base_split/minerva-base-{train,dev}.jsonl` (LHC: `dataset/minerva_lhc_split/minerva-lhc-{train,dev}.jsonl`)
+- Optional validation-only Parquet (IFEval): `rlvr/mydata/ifeval/ifeval_dev.parquet`
 
 ## Quickstart
 1) Create/activate venv and install deps:

@@ -162,7 +162,7 @@ def _is_connected(actor1: str, actor2: str, alias_dict: Dict[str, List[str]]) ->
 # Helpers
 
 
-def _extract_predicted(data_source: str, solution_str: str) -> str:
+def _extract_predicted(data_source: str, solution_str: str, *, allow_fallback: bool = True) -> str:
     # 1) try boxed
     boxed = _extract_last_boxed(solution_str or "")
     if boxed:
@@ -173,8 +173,38 @@ def _extract_predicted(data_source: str, solution_str: str) -> str:
         candidate = extractor(solution_str or "")
         if candidate:
             return _clean_freeform(candidate)
-    # 3) generic fallback
-    return _clean_freeform(_fallback_answer(solution_str or ""))
+    # 3) generic fallback (optional)
+    if allow_fallback:
+        return _clean_freeform(_fallback_answer(solution_str or ""))
+    return ""
+
+
+def _is_training_split(extra_info: object) -> bool:
+    if not isinstance(extra_info, dict):
+        return False
+    if extra_info.get("is_train") is True:
+        return True
+    split = str(extra_info.get("split") or extra_info.get("split_name") or extra_info.get("data_split") or "").lower()
+    return split in {"train", "training"}
+
+
+def _extract_answer_line(text: str) -> str:
+    lines = [ln.strip() for ln in (text or "").strip().splitlines() if ln.strip()]
+    for i in range(len(lines) - 1, -1, -1):
+        raw = lines[i]
+        if _PREFIX_RE.match(raw) or re.search(r"\banswer\b", raw, re.IGNORECASE):
+            line = _strip_prefix(raw)
+            if line and line != raw:
+                return line
+            if i + 1 < len(lines):
+                nxt = _strip_prefix(lines[i + 1])
+                if nxt:
+                    return nxt
+            if i > 0:
+                prv = _strip_prefix(lines[i - 1])
+                if prv:
+                    return prv
+    return ""
 
 
 def _normalize_list(pred: str, pattern: str) -> List[str]:
@@ -230,7 +260,11 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
     """
     Route reward computation based on data_source.
     """
-    pred = _extract_predicted(data_source, solution_str)
+    allow_fallback = not _is_training_split(extra_info)
+    if data_source == "reward_instruction_following":
+        pred = solution_str or ""
+    else:
+        pred = _extract_predicted(data_source, solution_str, allow_fallback=allow_fallback)
 
     # AthenaBench tasks
     if data_source == "athena-cti-rcm":
@@ -290,7 +324,9 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                 "reward_cwe_ids": "cwe_ids",
                 "reward_cvss_v31": "cvss_v31_vector",
                 "reward_cvss_v40": "cvss_v4_vector",
+                "reward_capec_id": "capec_id",
                 "reward_threat_actor_name": "threat_actor",
+                "reward_instruction_following": None,
                 "binary_id": None,
             }
             truth_key = key_map.get(data_source)
@@ -298,31 +334,87 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
 
             if data_source in {"reward_tactic_ids", "reward_mitigation_ids"}:
                 if data_source == "reward_tactic_ids":
-                    pred_vals = _truth_ids(pred, r"TA0?\d{4}")
+                    if pred:
+                        pred_vals = _truth_ids(pred, r"TA0?\d{4}")
+                    elif allow_fallback:
+                        pred_vals = _truth_ids(solution_str or "", r"TA0?\d{4}")
+                    else:
+                        pred_vals = _truth_ids(_extract_answer_line(solution_str), r"TA0?\d{4}")
                     if not pred_vals:
-                        pred_vals = [p for p in _split_candidates(pred) if p.startswith("TA")]
+                        source_text = pred or solution_str or ""
+                        pred_vals = [p for p in _split_candidates(source_text) if p.startswith("TA")]
                     truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"TA0?\d{4}")
                 else:
-                    pred_vals = _truth_ids(pred, r"M\d{4}")
+                    if pred:
+                        pred_vals = _truth_ids(pred, r"M\d{4}")
+                    elif allow_fallback:
+                        pred_vals = _truth_ids(solution_str or "", r"M\d{4}")
+                    else:
+                        pred_vals = _truth_ids(_extract_answer_line(solution_str), r"M\d{4}")
                     if not pred_vals:
-                        pred_vals = [p for p in _split_candidates(pred) if p.startswith("M")]
+                        source_text = pred or solution_str or ""
+                        pred_vals = [p for p in _split_candidates(source_text) if p.startswith("M")]
                     truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"M\d{4}")
                 return fn(pred_vals, truth_vals)
             if data_source == "reward_cwe_ids":
-                pred_vals = _truth_ids(pred, r"CWE-\d+")
+                if pred:
+                    pred_vals = _truth_ids(pred, r"CWE-\d+(?:\.\d+)?")
+                elif allow_fallback:
+                    pred_vals = _truth_ids(solution_str or "", r"CWE-\d+(?:\.\d+)?")
+                else:
+                    pred_vals = _truth_ids(_extract_answer_line(solution_str), r"CWE-\d+(?:\.\d+)?")
                 truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"CWE-\d+")
-                return fn(pred_vals, truth_vals)
+                score = fn(pred_vals, truth_vals)
+                if allow_fallback:
+                    expected = len(set(truth_vals or []))
+                    if expected and solution_str:
+                        mention_source = solution_str
+                        mentions = {
+                            m.upper() for m in re.findall(r"CWE-\d+(?:\.\d+)?", mention_source or "", re.IGNORECASE)
+                        }
+                        total_mentions = len(mentions)
+                        if total_mentions > expected:
+                            score *= expected / total_mentions
+                return score
             if data_source in {"reward_technique_id", "reward_technique_id_only", "reward_technique_sub_id"}:
-                match = re.search(r"T\d{4}(?:\.\d{3})?", pred, re.IGNORECASE)
-                pred_val = match.group(0) if match else pred
+                match = re.search(r"T\d{4}(?:\.\d{3})?", pred, re.IGNORECASE) if pred else None
+                if not match and solution_str and allow_fallback:
+                    match = re.search(r"T\d{4}(?:\.\d{3})?", solution_str, re.IGNORECASE)
+                if not match and solution_str and not allow_fallback:
+                    answer_line = _extract_answer_line(solution_str)
+                    ids = re.findall(r"T\d{4}(?:\.\d{3})?", answer_line or "", re.IGNORECASE)
+                    if len(ids) == 1:
+                        match = re.search(r"T\d{4}(?:\.\d{3})?", answer_line, re.IGNORECASE)
+                    else:
+                        match = None
+                if not match and not allow_fallback:
+                    pred_val = ""
+                else:
+                    pred_val = match.group(0) if match else pred
                 return fn(pred_val, truth_val)
             if data_source == "reward_detection_id":
-                det_preds = _extract_detection_ids(pred) or _extract_detection_ids(solution_str)
-                pred_val = det_preds[0] if det_preds else pred
+                det_preds = _extract_detection_ids(pred)
+                if not det_preds and allow_fallback:
+                    det_preds = _extract_detection_ids(solution_str)
+                if not det_preds and not allow_fallback:
+                    det_preds = _extract_detection_ids(_extract_answer_line(solution_str))
+                if len(det_preds) == 1:
+                    pred_val = det_preds[0]
+                else:
+                    pred_val = ""
                 truth_candidates = _extract_detection_ids(truth_val) if truth_val else []
                 truth_val_norm = truth_candidates[0] if truth_candidates else (truth_val or "")
                 return fn(pred_val, truth_val_norm)
             if data_source == "reward_cvss_v31":
+                if not pred and solution_str:
+                    if allow_fallback:
+                        match = re.search(r"(CVSS:3\\.1/[^\\s]+)", solution_str, re.IGNORECASE)
+                        if match:
+                            pred = match.group(1).strip()
+                    else:
+                        answer_line = _extract_answer_line(solution_str)
+                        matches = re.findall(r"(CVSS:3\\.1/[^\\s]+)", answer_line or "", re.IGNORECASE)
+                        pred = matches[0].strip() if len(matches) == 1 else ""
                 truth_score = None
                 if isinstance(ground_truth, dict):
                     score_val = ground_truth.get("score")
@@ -330,7 +422,29 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                         truth_score = float(score_val)
                 return fn(pred, truth_val, truth_score, delta=10.0)
             if data_source == "reward_cvss_v40":
+                if not pred and solution_str:
+                    if allow_fallback:
+                        match = re.search(r"(CVSS:4\\.0/[^\\s]+)", solution_str, re.IGNORECASE)
+                        if match:
+                            pred = match.group(1).strip()
+                    else:
+                        answer_line = _extract_answer_line(solution_str)
+                        matches = re.findall(r"(CVSS:4\\.0/[^\\s]+)", answer_line or "", re.IGNORECASE)
+                        pred = matches[0].strip() if len(matches) == 1 else ""
                 return fn(pred, truth_val, None)
+            if data_source == "reward_capec_id":
+                match = re.search(r"CAPEC-\\d+", pred or "", re.IGNORECASE) if pred else None
+                if not match and solution_str and allow_fallback:
+                    match = re.search(r"CAPEC-\\d+", solution_str, re.IGNORECASE)
+                if not match and solution_str and not allow_fallback:
+                    answer_line = _extract_answer_line(solution_str)
+                    matches = re.findall(r"CAPEC-\\d+", answer_line or "", re.IGNORECASE)
+                    match = re.search(r"CAPEC-\\d+", answer_line, re.IGNORECASE) if len(matches) == 1 else None
+                if not match and not allow_fallback:
+                    pred_val = ""
+                else:
+                    pred_val = match.group(0).upper() if match else pred
+                return fn(pred_val, truth_val)
             return fn(pred, truth_val)
 
     # Fallback: use mathruler if available

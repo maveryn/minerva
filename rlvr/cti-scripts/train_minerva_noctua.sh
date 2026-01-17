@@ -37,10 +37,11 @@ VAL_PATHS=(
   "${ACRD_VAL_PATH_5:-$DATA_DIR/athena/athena_cti_rms.parquet}"
   "${ACRD_VAL_PATH_6:-$DATA_DIR/athena/athena_cti_taa.parquet}"
   "${ACRD_VAL_PATH_7:-$DATA_DIR/athena/athena_cti_vsp.parquet}"
+  "${ACRD_VAL_PATH_8:-$DATA_DIR/ifeval/ifeval_dev.parquet}"
 )
 
 TRAIN_FILES="['$TRAIN_PATH']"
-VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}','${VAL_PATHS[5]}','${VAL_PATHS[6]}']"
+VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}','${VAL_PATHS[5]}','${VAL_PATHS[6]}','${VAL_PATHS[7]}']"
 
 OUTPUT_ROOT="${ACRD_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 LABEL_DETAILS_DIR="${ACRD_LABEL_DETAILS_DIR:-$REPO_ROOT/dataset/label_details}"
@@ -58,19 +59,36 @@ ACR_SKIP_CVSS="${ACRD_ACR_SKIP_CVSS:-true}"
 ACR_DISTILL_INTERVAL="${ACRD_ACR_DISTILL_INTERVAL:-10}"
 ACR_DISTILL_THRESHOLD="${ACRD_ACR_DISTILL_THRESHOLD:-0.99}"
 ACR_DISTILL_SELECTION_MODE="${ACRD_ACR_DISTILL_SELECTION_MODE:-random}"
-ACR_DISTILL_BATCH_SIZE="${ACRD_ACR_DISTILL_BATCH_SIZE:-256}"
+ACR_DISTILL_BUFFER_MODE="${ACRD_ACR_DISTILL_BUFFER_MODE:-rolling}"
+if [ -z "${ACRD_ACR_DISTILL_BATCH_SIZE+x}" ]; then
+  if [ "$ACR_DISTILL_BUFFER_MODE" = "flush" ]; then
+    ACR_DISTILL_BATCH_SIZE=512
+  else
+    ACR_DISTILL_BATCH_SIZE=256
+  fi
+else
+  ACR_DISTILL_BATCH_SIZE="${ACRD_ACR_DISTILL_BATCH_SIZE}"
+fi
+if [ -z "${ACRD_ACR_DISTILL_MAX_BUFFER+x}" ]; then
+  if [ "$ACR_DISTILL_BUFFER_MODE" = "flush" ]; then
+    ACR_DISTILL_MAX_BUFFER=512
+  else
+    ACR_DISTILL_MAX_BUFFER=1024
+  fi
+else
+  ACR_DISTILL_MAX_BUFFER="${ACRD_ACR_DISTILL_MAX_BUFFER}"
+fi
 ACR_DISTILL_DEGENERATE_FILTER="${ACRD_ACR_DISTILL_DEGENERATE_FILTER:-true}"
-ACR_DISTILL_DEGENERATE_MIN_TOKENS="${ACRD_ACR_DISTILL_DEGENERATE_MIN_TOKENS:-40}"
-ACR_DISTILL_DEGENERATE_REP3_MAX="${ACRD_ACR_DISTILL_DEGENERATE_REP3_MAX:-0.85}"
-ACR_DISTILL_DEGENERATE_REP4_MAX="${ACRD_ACR_DISTILL_DEGENERATE_REP4_MAX:-0.9}"
-ACR_DISTILL_MAX_BUFFER="${ACRD_ACR_DISTILL_MAX_BUFFER:-1024}"
+ACR_DISTILL_DEGENERATE_MIN_TOKENS="${ACRD_ACR_DISTILL_DEGENERATE_MIN_TOKENS:-30}"
+ACR_DISTILL_DEGENERATE_REP3_MAX="${ACRD_ACR_DISTILL_DEGENERATE_REP3_MAX:-0.70}"
+ACR_DISTILL_DEGENERATE_REP4_MAX="${ACRD_ACR_DISTILL_DEGENERATE_REP4_MAX:-0.75}"
 ACR_DISTILL_LR_SCALE="${ACRD_ACR_DISTILL_LR_SCALE:-1.0}"
 ACR_DISTILL_ENTROPY_BETA="${ACRD_ACR_DISTILL_ENTROPY_BETA:-1.0}"
 ACR_DISTILL_ENTROPY_SAMPLING="${ACRD_ACR_DISTILL_ENTROPY_SAMPLING:-true}"
 ACR_DISTILL_METHOD="${ACRD_ACR_DISTILL_METHOD:-sft}"
 DPO_BETA="${ACRD_DPO_BETA:-0.1}"
 ACR_REWARD_MANAGER="${ACRD_ACR_REWARD_MANAGER:-naive}"
-ACR_MAX_ID_MENTIONS="${ACRD_ACR_MAX_ID_MENTIONS:-3}"
+ACR_MAX_ID_MENTIONS="${ACRD_ACR_MAX_ID_MENTIONS:-0}"
 ACR_EXCLUDE_CVSS_TRAIN="${ACRD_EXCLUDE_CVSS_TRAIN:-false}"
 ACR_JUDGE_ENABLED="${ACRD_JUDGE_ENABLED:-false}"
 ACR_JUDGE_MODEL="${ACRD_JUDGE_MODEL:-openai/gpt-oss-20b}"
@@ -84,6 +102,7 @@ ACR_JUDGE_DTYPE="${ACRD_JUDGE_DTYPE:-auto}"
 ACR_JUDGE_TRUST_REMOTE_CODE="${ACRD_JUDGE_TRUST_REMOTE_CODE:-true}"
 
 TRAIN_BATCH_SIZE="${ACRD_TRAIN_BATCH_SIZE:-64}"
+VAL_BATCH_SIZE="${ACRD_VAL_BATCH_SIZE:-2250}"
 ACR_JUDGE_BATCH_SIZE="${ACRD_JUDGE_BATCH_SIZE:-$TRAIN_BATCH_SIZE}"
 TOTAL_STEPS="${ACRD_TOTAL_STEPS:-500}"
 SAVE_FREQ="${ACRD_SAVE_FREQ:-10}"
@@ -117,11 +136,11 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.hard_reward_threshold="$ACR_HARD_REWARD_THRESHOLD" \
     +data.acr.skip_cvss="$ACR_SKIP_CVSS" \
     +data.acr.update_actor=false \
-    +data.acr.enforce_no_id_in_reasoning=true \
+    +data.acr.enforce_no_id_in_reasoning=false \
     +data.acr.reward_kwargs.r_correct=0.1 \
     +data.acr.reward_kwargs.leak_penalty=0.5 \
     +data.acr.reward_kwargs.multilabel_match=exact \
-    +data.acr.reward_kwargs.enforce_no_id_in_reasoning=true \
+    +data.acr.reward_kwargs.enforce_no_id_in_reasoning=false \
     +data.acr.reward_kwargs.max_id_mentions="$ACR_MAX_ID_MENTIONS" \
     +data.acr.reward_manager="$ACR_REWARD_MANAGER" \
     +data.acr.reward_kwargs.judge_enabled="$ACR_JUDGE_ENABLED" \
@@ -145,6 +164,7 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.distill.degenerate_rep_3_max="$ACR_DISTILL_DEGENERATE_REP3_MAX" \
     +data.acr.distill.degenerate_rep_4_max="$ACR_DISTILL_DEGENERATE_REP4_MAX" \
     +data.acr.distill.max_buffer="$ACR_DISTILL_MAX_BUFFER" \
+    +data.acr.distill.buffer_mode="$ACR_DISTILL_BUFFER_MODE" \
     +data.acr.distill.lr_scale="$ACR_DISTILL_LR_SCALE" \
     +data.acr.distill.entropy_beta="$ACR_DISTILL_ENTROPY_BETA" \
     +data.acr.distill.entropy_sampling="$ACR_DISTILL_ENTROPY_SAMPLING" \
@@ -154,6 +174,7 @@ python3 -m verl.trainer.main_ppo \
     custom_reward_function.path="$REWARD_FN_PATH" \
     custom_reward_function.name=reward_minerva \
     data.train_batch_size="$TRAIN_BATCH_SIZE" \
+    data.val_batch_size="$VAL_BATCH_SIZE" \
     actor_rollout_ref.model.path="$MODEL_PATH" \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.optim.lr=1e-6 \

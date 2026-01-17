@@ -28,14 +28,16 @@ VAL_PATHS=(
   "${GRPO_VAL_PATH_5:-$DATA_DIR/athena/athena_cti_rms.parquet}"
   "${GRPO_VAL_PATH_6:-$DATA_DIR/athena/athena_cti_taa.parquet}"
   "${GRPO_VAL_PATH_7:-$DATA_DIR/athena/athena_cti_vsp.parquet}"
+  "${GRPO_VAL_PATH_8:-$DATA_DIR/ifeval/ifeval_dev.parquet}"
 )
 
 TRAIN_FILES="['$TRAIN_PATH']"
-VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}','${VAL_PATHS[5]}','${VAL_PATHS[6]}']"
+VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3]}','${VAL_PATHS[4]}','${VAL_PATHS[5]}','${VAL_PATHS[6]}','${VAL_PATHS[7]}']"
 
 OUTPUT_ROOT="${GRPO_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 
 TRAIN_BATCH_SIZE="${GRPO_TRAIN_BATCH_SIZE:-64}"
+VAL_BATCH_SIZE="${GRPO_VAL_BATCH_SIZE:-2250}"
 MAX_PROMPT_LEN="${GRPO_MAX_PROMPT_LEN:-2048}"
 MAX_RESPONSE_LEN="${GRPO_MAX_RESPONSE_LEN:-2048}"
 ROLLOUT_N="${GRPO_ROLLOUT_N:-8}"
@@ -67,6 +69,7 @@ python3 -m verl.trainer.main_ppo \
     custom_reward_function.path="$REWARD_FN_PATH" \
     custom_reward_function.name=reward_minerva \
     data.train_batch_size="$TRAIN_BATCH_SIZE" \
+    data.val_batch_size="$VAL_BATCH_SIZE" \
     data.max_prompt_length="$MAX_PROMPT_LEN" \
     data.max_response_length="$MAX_RESPONSE_LEN" \
     data.filter_overlong_prompts=True \

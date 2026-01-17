@@ -145,7 +145,9 @@ Current reward kwargs (train script):
 During validation, we log aggregate reward means:
 - `val-core/minerva-dev/reward/mean` for the Minerva dev split.
 - `val-core/athena-bench/reward/mean` for the AthenaBench dev sets.
-- `val-core/global-val/reward/mean` as the average of the two.
+- `val-core/ifeval/reward/mean` for IFEval instruction-following validation.
+- `val-core/global-val/reward/mean` as a weighted mean:
+  `0.4 * minerva + 0.4 * athena + 0.2 * ifeval` (falls back to minerva/athena average if IFEval is missing).
 
 Optional retrieval-on evaluation for AthenaBench subsets can be added via
 `trainer.extra_val_runs` in TARBA scripts. These runs log under a separate

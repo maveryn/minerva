@@ -8,3 +8,5 @@ CTI_SYSTEM_PROMPT = """You are given a cyber threat intelligence question. Solve
 
 
 ATHENABENCH_SYSTEM_PROMPT = """You are given a cyber threat intelligence question. Solve it by reasoning step by step. Present the final answer as instructed."""
+
+INSTRUCTION_FOLLOWING_SYSTEM_PROMPT = """You are a helpful assistant. Follow the user's instructions carefully."""

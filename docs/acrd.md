@@ -93,6 +93,9 @@ Per distill run, we sample up to `data.acr.distill.batch_size` records from the 
 uniformly at random (no replacement) and run a single SFT update. If fewer records exist,
 we use all available records. The buffer is a rolling queue capped at
 `data.acr.distill.max_buffer`; once the cap is exceeded, the oldest records are dropped.
+To clear the buffer after each SFT pass, set `data.acr.distill.buffer_mode=flush`.
+In flush mode, the buffer is capped at 512 by default and each SFT run uses all buffered
+records (or a random 512 if more).
 
 For `method=dpo`, we consider every UID in the batch (no hard-threshold filtering) and build a
 preference pair from a pool of size `data.acr.rollout_n`:
@@ -136,7 +139,7 @@ Rules:
 - Fall back to `minerva.retrieval.task_specs.get_task_spec(data_source, ground_truth)`.
 - If nothing resolves, infer `is_multilabel` from ground_truth type (list/tuple -> multi).
 
-This avoids ambiguity in `binary_id` tasks by using the JSONL file stem or task name.
+This avoids ambiguity in `reward_capec_id` tasks by using the JSONL file stem or task name.
 
 ---
 
@@ -363,6 +366,7 @@ Key env overrides:
 - `ACRD_ACR_DISTILL_SELECTION_MODE` (SFT only; `random` or `top_reward`; default `random`)
 - `ACRD_ACR_DISTILL_BATCH_SIZE` (SFT only; sample size per distill run; default 256 in `cti-scripts`)
 - `ACRD_ACR_DISTILL_MAX_BUFFER` (SFT only; rolling buffer cap; default 1024 in `cti-scripts`)
+- `ACRD_ACR_DISTILL_BUFFER_MODE` (SFT only; `rolling` or `flush`; default `rolling`)
 - `ACRD_ACR_DISTILL_DEGENERATE_FILTER` (SFT only; enable repetition filter; default `true`)
 - `ACRD_ACR_DISTILL_DEGENERATE_MIN_TOKENS` (SFT only; min tokens before repetition filter; default 40)
 - `ACRD_ACR_DISTILL_DEGENERATE_REP3_MAX` (SFT only; reject if `rep_3` >= this; default 0.85)

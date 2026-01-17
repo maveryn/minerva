@@ -16,6 +16,13 @@ def binary_id(predicted: str, truth: str) -> float:
     return 1.0 if _normalize_id(predicted) == _normalize_id(truth) else 0.0
 
 
+def reward_capec_id(predicted: str, truth: str) -> float:
+    """
+    Exact-match reward for CAPEC IDs.
+    """
+    return binary_id(predicted, truth)
+
+
 def to_id_set(values: Iterable[str]) -> Set[str]:
     out: Set[str] = set()
     for v in values or []:
@@ -114,6 +121,59 @@ def reward_cwe_ids(predicted: Iterable[str], truth: Iterable[str]) -> float:
     CWE-set scoring using multi-label F1.
     """
     return f1_set(predicted, truth)
+
+
+def reward_instruction_following(predicted: str, truth: object) -> dict | float:
+    """
+    Instruction-following reward using IFEval checks.
+    """
+    if not isinstance(truth, dict):
+        return 0.0
+    prompt = str(truth.get("prompt") or "")
+    instruction_id_list = truth.get("instruction_id_list") or []
+    kwargs_list = truth.get("kwargs") or []
+    if hasattr(instruction_id_list, "tolist"):
+        instruction_id_list = instruction_id_list.tolist()
+    if hasattr(kwargs_list, "tolist"):
+        kwargs_list = kwargs_list.tolist()
+    if not prompt or not instruction_id_list:
+        return 0.0
+    if not isinstance(kwargs_list, list):
+        kwargs_list = []
+    cleaned_kwargs = []
+    for kw in kwargs_list:
+        if isinstance(kw, dict):
+            cleaned_kwargs.append({k: v for k, v in kw.items() if v is not None})
+        else:
+            cleaned_kwargs.append({})
+    kwargs_list = cleaned_kwargs
+    if len(kwargs_list) < len(instruction_id_list):
+        kwargs_list = list(kwargs_list) + [{} for _ in range(len(instruction_id_list) - len(kwargs_list))]
+    try:
+        from minerva.instruction_following_eval import evaluation_lib
+    except Exception as exc:  # pragma: no cover - dependency guard
+        raise RuntimeError(
+            "instruction-following evaluation requires the IFEval dependencies; "
+            "install absl, langdetect, nltk, immutabledict."
+        ) from exc
+
+    inp = evaluation_lib.InputExample(
+        key=int(truth.get("key", -1)) if str(truth.get("key", "")).isdigit() else -1,
+        instruction_id_list=instruction_id_list,
+        prompt=prompt,
+        kwargs=kwargs_list,
+    )
+    output = evaluation_lib.test_instruction_following_strict(
+        inp,
+        {prompt: predicted or ""},
+    )
+    follow_list = output.follow_instruction_list or []
+    instruction_rate = (sum(follow_list) / len(follow_list)) if follow_list else 0.0
+    return {
+        "score": float(output.follow_all_instructions),
+        "ifeval_instruction_rate": float(instruction_rate),
+        "ifeval_instruction_count": int(len(follow_list)),
+    }
 
 
 def _parse_cvss(vector: str, metrics: List[str]) -> dict:

@@ -75,7 +75,7 @@ def build_capec_example_tasks(
                     "input": {"example": ex, "prompt": EXAMPLE_TO_CAPEC_PROMPT.format(EXAMPLE_TEXT=ex)},
                     "ground_truth": {"capec_id": capec_id},
                     "answer": capec_id,
-                    "reward_fn": "binary_id",
+                    "reward_fn": "reward_capec_id",
                     "metadata": {"capec_name": pat.get("name", "")},
                 }
             )
