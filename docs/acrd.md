@@ -427,12 +427,16 @@ custom_reward_function:
 
 Defaults:
 - `banned_phrases` is defined in `rlvr/verl/utils/reward_score/reward_acr.py` (answer/label variants).
-- `use_fuzzy_leak_check` is enabled by default.
+- `use_fuzzy_leak_check` is disabled by default (explicit phrase/regex leak checks only).
 - `max_id_mentions=3`: reject responses that repeat the gold ID more than 3 times.
 - SFT distill selection defaults to `selection_mode=random`. If you set `selection_mode=top_reward`,
   the default tie-break is `entropy_tiebreak=mean_nll` with `entropy_sampling=true` and `entropy_beta=1.0` (SFT only).
-- SFT degenerate filter defaults to on for ACRD: reject if `rep_3 >= 0.85` or `rep_4 >= 0.90`
-  when `len(response_tokens) >= 40`.
+- SFT degenerate filter defaults to on for ACRD in `cti-scripts`:
+  - `degenerate_min_tokens=30`
+  - `rep_3 >= 0.70` or `rep_4 >= 0.75`
+  - repeated-window check (`degenerate_window_size=24`, `degenerate_window_jaccard=0.9`)
+  - near-duplicate sentence check (`degenerate_sentence_sim=0.8`, `degenerate_sentence_window=6`,
+    `degenerate_sentence_min_words=6`)
 - The default `cti-scripts` run samples up to 256 SFT records per distill step
   (`ACRD_ACR_DISTILL_BATCH_SIZE=256`).
 - Judge rubric is disabled by default; enable via `ACRD_ACR_REWARD_MANAGER=batch` and `ACRD_JUDGE_ENABLED=true`.

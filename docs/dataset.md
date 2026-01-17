@@ -31,6 +31,10 @@ The pipeline generates per-task JSONL files with standardized `task`, `input`, `
 
 Generation uses deterministic seeds where applicable; prompt text is embedded in each row.
 
+Filtering notes:
+- CVE -> CWE drops any CVE whose CWE list includes `NVD-CWE-noinfo` (noinfo-only and mixed).
+- CVE -> CVSS v3.1/v4.0 also skips CVEs with `NVD-CWE-noinfo` to keep label-less rows out of CVE-derived tasks.
+
 ## Resampling policy (fixed per-task totals)
 After task generation, each per-task JSONL is resampled to a fixed target size using a seeded reservoir sampler (seed 1337). This yields a total of 33,000 examples across tasks.
 
@@ -71,6 +75,14 @@ Split JSONLs are converted to VeRL-ready Parquet and Excel files using `rlvr/myd
 Outputs:
 - `rlvr/mydata/minerva_base/*.parquet` and `.xlsx`
 - `rlvr/mydata/minerva_lhc/*.parquet` and `.xlsx`
+
+## ACR leakage guardrails
+Answer-conditioned reasoning (ACR) runs apply explicit meta-leak filters across Minerva tasks
+(CWE, CVSS, ATT&CK technique/tactic/mitigation). Responses are flagged if they refer to
+label/reference/details text or hint at provided options, candidate pools, or given IDs
+(e.g., “label reference,” “according to the label,” “given mitigation list”). The check
+uses explicit phrase and regex matching (fuzzy similarity is disabled) to focus on
+leakage about provided materials rather than content-level reasoning.
 
 ## Auxiliary validation: IFEval
 Instruction-following validation uses the IFEval prompts from
