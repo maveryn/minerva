@@ -2001,9 +2001,9 @@ class RayPPOTrainer:
                     if leak_hits[i] is not None and bool(leak_hits[i]):
                         continue
                     if degenerate_filter:
-                    response_ids = extract_response_ids(i)
-                    if not response_ids or is_degenerate(response_ids, idx=i):
-                        continue
+                        response_ids = extract_response_ids(i)
+                        if not response_ids or is_degenerate(response_ids, idx=i):
+                            continue
                     eligible.append(i)
             else:
                 eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
