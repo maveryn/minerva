@@ -160,8 +160,10 @@ def _placeholder_for_source(source_ref: str, entities: Dict[str, Dict[str, Any]]
     placeholder = "An entity"
     if source_ref.startswith(("malware--", "tool--")):
         placeholder = "A malware"
-    elif source_ref.startswith(("intrusion-set--", "campaign--")):
+    elif source_ref.startswith("intrusion-set--"):
         placeholder = "A threat actor"
+    elif source_ref.startswith("campaign--"):
+        placeholder = "A campaign"
     else:
         if source_ref:
             logger.debug("Unhandled procedure source_ref prefix: %s", source_ref)
@@ -176,19 +178,30 @@ def _sanitize_procedure(description: str, placeholder: str, entity_name: str) ->
     if not description:
         return ""
     text = re.sub(r"\(Citation:[^)]+\)", "", description)
-    text = re.sub(r"\s+", " ", text).strip()
-    if not text:
-        return ""
-    if entity_name:
-        pattern = re.compile(rf"\b{re.escape(entity_name)}('s)?\b", re.IGNORECASE)
-        def _swap_first(match: re.Match) -> str:
-            return f"{placeholder}'s" if match.group(1) else placeholder
-        text = pattern.sub(_swap_first, text, count=1)
     text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
         return ""
-    if placeholder not in text:
+    replaced = False
+    if entity_name:
+        placeholder_no_article = re.sub(r"^(?:A|An|The)\s+", "", placeholder, flags=re.IGNORECASE).strip()
+        pattern = re.compile(rf"(?i)(\b(?:the|a|an)\s+)?\b{re.escape(entity_name)}\b('s)?")
+        def _swap_first(match: re.Match) -> str:
+            article = match.group(1) or ""
+            possessive = match.group(2) or ""
+            if possessive:
+                if article:
+                    return f"{article}{placeholder_no_article}'s"
+                return f"{placeholder}'s"
+            if article:
+                return f"{article}{placeholder_no_article}"
+            return placeholder
+        text, count = pattern.subn(_swap_first, text, count=1)
+        replaced = count > 0
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return ""
+    if not replaced and placeholder not in text:
         text = f"{placeholder} {text}"
     text = re.sub(r"\s+", " ", text).strip()
     if text and not text.endswith((".", "!", "?")):

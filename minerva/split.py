@@ -12,17 +12,13 @@ TARGET_SAMPLES: Dict[str, int] = {
     "cve_to_attack_exploitation": 265,
     "cve_to_attack_primary_impact": 230,
     "cve_to_attack_secondary_impact": 74,
-    "sigma_to_attack_technique": 2000,
-    "sigma_to_attack_tactics": 1000,
+    "sigma_to_attack_technique": 1500,
+    "sigma_to_attack_tactics": 931,
     "scenario_to_technique": 8000,
-    "scenario_to_tactics": 1844,
+    "scenario_to_tactics": 2000,
     "scenario_to_mitigations": 8000,
-    "cve_to_cwe": 8000,
+    "cve_to_cwe": 10000,
     "cve_to_cvss_v31": 2000,
-    "capec_example_to_capec": 380,
-    "capec_example_to_cwe": 196,
-    "capec_example_to_attack": 144,
-    "threat_actor": 867,
 }
 
 TARGET_VAL_SAMPLES: Dict[str, int] = {
@@ -31,15 +27,11 @@ TARGET_VAL_SAMPLES: Dict[str, int] = {
     "cve_to_attack_secondary_impact": 20,
     "sigma_to_attack_technique": 50,
     "sigma_to_attack_tactics": 50,
-    "scenario_to_technique": 200,
+    "scenario_to_technique": 220,
     "scenario_to_tactics": 50,
-    "scenario_to_mitigations": 200,
-    "cve_to_cwe": 200,
-    "cve_to_cvss_v31": 80,
-    "capec_example_to_capec": 20,
-    "capec_example_to_cwe": 20,
-    "capec_example_to_attack": 20,
-    "threat_actor": 50,
+    "scenario_to_mitigations": 220,
+    "cve_to_cwe": 250,
+    "cve_to_cvss_v31": 100,
 }
 
 FILE_MAP: Dict[str, str] = {
@@ -53,10 +45,6 @@ FILE_MAP: Dict[str, str] = {
     "scenario_to_mitigations": "scenario_to_mitigations.jsonl",
     "cve_to_cwe": "cve_to_cwe.jsonl",
     "cve_to_cvss_v31": "cve_to_cvss_v31.jsonl",
-    "capec_example_to_capec": "capec_example_to_capec.jsonl",
-    "capec_example_to_cwe": "capec_example_to_cwe.jsonl",
-    "capec_example_to_attack": "capec_example_to_attack.jsonl",
-    "threat_actor": "threat_actor.jsonl",
 }
 
 LOOKUP_FILENAME = "threat_actor_lookup.json"

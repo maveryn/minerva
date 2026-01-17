@@ -28,9 +28,6 @@ The pipeline generates per-task JSONL files with standardized `task`, `input`, `
 - Scenario -> technique / tactics / mitigations
 - CVE -> CWE
 - CVE -> CVSS v3.1
-- CAPEC example -> CAPEC / CWE / ATT&CK
-- Threat actor (procedures, open-ended)
-  - Alias lookup merges MITRE intrusion-set aliases with `rlvr/verl/utils/reward_score/aliases.csv` for reward scoring.
 
 Generation uses deterministic seeds where applicable; prompt text is embedded in each row.
 
@@ -42,17 +39,13 @@ After task generation, each per-task JSONL is resampled to a fixed target size u
 | cve_to_attack_exploitation | 245 | 20 | 265 |
 | cve_to_attack_primary_impact | 210 | 20 | 230 |
 | cve_to_attack_secondary_impact | 54 | 20 | 74 |
-| sigma_to_attack_technique | 1950 | 50 | 2000 |
-| sigma_to_attack_tactics | 950 | 50 | 1000 |
-| scenario_to_technique | 7800 | 200 | 8000 |
-| scenario_to_tactics | 1794 | 50 | 1844 |
-| scenario_to_mitigations | 7800 | 200 | 8000 |
-| cve_to_cwe | 7800 | 200 | 8000 |
-| cve_to_cvss_v31 | 1920 | 80 | 2000 |
-| capec_example_to_capec | 360 | 20 | 380 |
-| capec_example_to_cwe | 176 | 20 | 196 |
-| capec_example_to_attack | 124 | 20 | 144 |
-| threat_actor | 817 | 50 | 867 |
+| sigma_to_attack_technique | 1450 | 50 | 1500 |
+| sigma_to_attack_tactics | 881 | 50 | 931 |
+| scenario_to_technique | 7780 | 220 | 8000 |
+| scenario_to_tactics | 1950 | 50 | 2000 |
+| scenario_to_mitigations | 7780 | 220 | 8000 |
+| cve_to_cwe | 9750 | 250 | 10000 |
+| cve_to_cvss_v31 | 1900 | 100 | 2000 |
 | **Total** | **32000** | **1000** | **33000** |
 
 ## Train/validation split policy
@@ -78,6 +71,21 @@ Split JSONLs are converted to VeRL-ready Parquet and Excel files using `rlvr/myd
 Outputs:
 - `rlvr/mydata/minerva_base/*.parquet` and `.xlsx`
 - `rlvr/mydata/minerva_lhc/*.parquet` and `.xlsx`
+
+## Auxiliary validation: IFEval
+Instruction-following validation uses the IFEval prompts from
+`google-research/instruction_following_eval/data/input_data.jsonl`.
+Convert it into VeRL-ready Parquet via:
+
+```bash
+python rlvr/mydata/data_prepare/ifeval.py \
+  --input_data /path/to/instruction_following_eval/data/input_data.jsonl \
+  --out_dir rlvr/mydata/ifeval
+```
+
+The evaluation logic lives under `minerva/instruction_following_eval/` and
+requires `absl-py`, `langdetect`, `nltk`, and `immutabledict` (plus the NLTK
+`punkt` tokenizer data).
 
 ## Reproducible command sequence
 The following sequence rebuilds all artifacts end-to-end:

@@ -130,6 +130,7 @@ Sigma rule excerpt:
 
 ## Scenario to ATT&CK (MITRE procedures)
 Built from MITRE ATT&CK procedure scenarios.
+Procedure text replaces entity names with generic placeholders based on source type (intrusion-set -> `A threat actor`, campaign -> `A campaign`, malware/tool -> `A malware`) while preserving leading articles.
 
 **Technique**
 - Input: Adversary procedure description
@@ -180,12 +181,13 @@ Adversary procedure:
 ---
 
 ## CAPEC example tasks
+Note: CAPEC example tasks are currently excluded from the base Minerva splits.
 Built from CAPEC example instances (parent fallback for ATT&CK mappings). CWE limited to <=3 per example; ATT&CK technique only when a single mapping exists.
 
 **Example -> CAPEC ID**
 - Input: Example attack description
 - Output: CAPEC-<number>
-- Reward: `binary_id` (1 if ID matches, else 0)
+- Reward: `reward_capec_id` (1 if ID matches, else 0)
 ```
 Given the example attack description below, provide the single best matching CAPEC ID in CAPEC-<number> format.
 
@@ -225,6 +227,7 @@ Example description:
 ---
 
 ## Threat actor (procedures)
+Note: Threat actor tasks are currently excluded from the base Minerva splits.
 Built from MITRE ATT&CK intrusion-set procedure descriptions. For each actor, we sample 60-90% of its techniques (min 3) and generate a number of questions based on technique-count bins chosen to balance total questions per bin (~100 each across 8 bins). Each bin assigns 3..10 questions per actor (bin 0 -> 3, bin 7 -> 10); the last bin is open-ended.
 
 - Input: List of observed procedures
@@ -249,17 +252,13 @@ file	Input	Output	Reward fn	#sample	#Train	#Val
 cve_to_attack_exploitation	CVE description	ATT&CK Technique ID	reward_technique_id	265	245	20
 cve_to_attack_primary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	230	210	20
 cve_to_attack_secondary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	74	54	20
-sigma_to_attack_technique	Sigma detection + logsource	ATT&CK Technique ID	reward_technique_id	2000	1950	50
-sigma_to_attack_tactics	Sigma detection + logsource	ATT&CK Tactic IDs	reward_tactic_ids	1000	950	50
-scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_technique_id	8000	7800	200
-scenario_to_tactics	ATT&CK procedure scenario	ATT&CK Tactic IDs	reward_tactic_ids	1844	1794	50
-scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	8000	7800	200
-cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	8000	7800	200
-cve_to_cvss_v31	CVE description	CVSS v3.1 vector string	reward_cvss_v31	2000	1920	80
-capec_example_to_capec	CAPEC example text	CAPEC ID	binary_id	380	360	20
-capec_example_to_cwe	CAPEC example text	CWE IDs	reward_cwe_ids	196	176	20
-capec_example_to_attack	CAPEC example text	ATT&CK Technique ID	reward_technique_id	144	124	20
-threat_actor	Procedures list	Threat actor name	reward_threat_actor_name	867	817	50
+sigma_to_attack_technique	Sigma detection + logsource	ATT&CK Technique ID	reward_technique_id	1500	1450	50
+sigma_to_attack_tactics	Sigma detection + logsource	ATT&CK Tactic IDs	reward_tactic_ids	931	881	50
+scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_technique_id	8000	7780	220
+scenario_to_tactics	ATT&CK procedure scenario	ATT&CK Tactic IDs	reward_tactic_ids	2000	1950	50
+scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	8000	7780	220
+cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	10000	9750	250
+cve_to_cvss_v31	CVE description	CVSS v3.1 vector string	reward_cvss_v31	2000	1900	100
 
 ---
 
@@ -269,7 +268,5 @@ threat_actor	Procedures list	Threat actor name	reward_threat_actor_name	867	817	
 - `reward_cwe_ids`: F1 over predicted vs. ground-truth CWE ID sets.
 - `reward_cvss_v31`: compute CVSS v3.1 score distance (1 - |truth - pred| / 10), invalid vector -> 0. AthenaBench `athena-cti-vsp` uses delta=7.7.
 - `reward_mitigation_ids`: F1 over predicted vs. ground-truth mitigation ID sets.
-- `binary_id`: 1.0 if IDs match; else 0.
-- `reward_threat_actor_name`: 1.0 if prediction matches the actor name or an alias; else 0.
 
 See `docs/task-descriptions.tex` for a LaTeX version of this document.

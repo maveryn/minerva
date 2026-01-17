@@ -1,14 +1,13 @@
 # Minerva Dataset Pipeline
 
-Builds RL-friendly CTI datasets from public sources (NVD CVEs, CAPEC, MITRE ATT&CK procedures, Sigma rules, mappings-explorer).
+Builds RL-friendly CTI datasets from public sources (NVD CVEs, MITRE ATT&CK procedures, Sigma rules, mappings-explorer).
 
 ## What gets built
 - CVE → CWE, CVE → CVSS v3.1
 - CVE → ATT&CK exploitation/impact (mappings-explorer)
 - Sigma → ATT&CK technique/tactics
 - Procedure scenarios → ATT&CK technique/tactics/mitigations/detections
-- CAPEC examples → CAPEC ID / CWE IDs / ATT&CK technique
-- Threat actor (open-ended) from procedure descriptions
+- Train/dev splits (32k/1k) with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`)
 
 Outputs are JSONL files under `dataset/minerva/` with `dataset/minerva/metadata.json` for counts/examples. Train/dev splits (32k/1k) live under `dataset/minerva_split/` with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`).
 
@@ -55,11 +54,13 @@ Vulnerability description:
 - **Detection Strategy**: single ATT&CK detection strategy ID (DET####) with requirements block.
 
 ### CAPEC examples
+Note: CAPEC example tasks are currently excluded from the base Minerva splits.
 - **Example → CAPEC ID**: single CAPEC-<number>.
 - **Example → CWE IDs**: EXACTLY the provided count of CWE-<number> IDs (up to 3).
 - **Example → ATT&CK technique**: single ATT&CK technique ID (requirements block; prefers sub-techniques) when only one technique mapping exists.
 
 ### Threat actor (procedures)
+Note: Threat actor tasks are currently excluded from the base Minerva splits.
 ```
 Given the observed adversary procedures below, identify the most likely threat actor.
 

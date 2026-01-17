@@ -49,6 +49,48 @@ def test_minerva_cwe_ids_f1():
     assert score == 1.0
 
 
+def test_minerva_cwe_ids_overgeneration_penalty():
+    pred = "Answer: CWE-89\\n" + " ".join([f"CWE-89.{i}" for i in range(1, 6)])
+    truth = {"cwe_ids": ["CWE-74", "CWE-89"]}
+    score = reward_minerva.reward_minerva("reward_cwe_ids", pred, truth)
+    assert score < 0.2
+
+
+def test_minerva_cwe_ids_duplicate_mentions_no_penalty():
+    pred = "Answer: CWE-79, CWE-89, CWE-79"
+    truth = {"cwe_ids": ["CWE-79", "CWE-89"]}
+    score = reward_minerva.reward_minerva("reward_cwe_ids", pred, truth)
+    assert score == 1.0
+
+
+def test_minerva_train_split_no_fallback_extracts_ids():
+    pred = "Answer: CWE-79, CWE-89"
+    truth = {"cwe_ids": ["CWE-79", "CWE-89"]}
+    score = reward_minerva.reward_minerva("reward_cwe_ids", pred, truth, extra_info={"split": "train"})
+    assert score == 1.0
+
+
+def test_minerva_train_split_no_fallback_empty():
+    pred = "I cannot determine the CWE."
+    truth = {"cwe_ids": ["CWE-79"]}
+    score = reward_minerva.reward_minerva("reward_cwe_ids", pred, truth, extra_info={"split": "train"})
+    assert score == 0.0
+
+
+def test_minerva_train_split_ignores_reasoning_mentions():
+    pred = "Reasoning mentions CWE-89.1.\nAnswer: CWE-79, CWE-89"
+    truth = {"cwe_ids": ["CWE-79", "CWE-89"]}
+    score = reward_minerva.reward_minerva("reward_cwe_ids", pred, truth, extra_info={"split": "train"})
+    assert score == 1.0
+
+
+def test_minerva_train_split_multiple_technique_ids_zero():
+    pred = "Answer: T1059, T1059.003"
+    truth = {"technique_id": "T1059.003"}
+    score = reward_minerva.reward_minerva("reward_technique_id", pred, truth, extra_info={"split": "train"})
+    assert score == 0.0
+
+
 def test_athena_rcm_exact():
     pred = "Answer: CWE-352"
     truth = "CWE-352"

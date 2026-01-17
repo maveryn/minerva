@@ -28,3 +28,7 @@ latex2sympy2_extended
 math_verify
 tensorboard
 cvss
+absl-py
+langdetect
+nltk
+immutabledict
