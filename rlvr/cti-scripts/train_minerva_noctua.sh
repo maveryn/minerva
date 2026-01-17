@@ -78,6 +78,15 @@ if [ -z "${ACRD_ACR_DISTILL_MAX_BUFFER+x}" ]; then
 else
   ACR_DISTILL_MAX_BUFFER="${ACRD_ACR_DISTILL_MAX_BUFFER}"
 fi
+if [ -z "${ACRD_ACR_DISTILL_MIN_BUFFER+x}" ]; then
+  if [ "$ACR_DISTILL_BUFFER_MODE" = "buffer" ]; then
+    ACR_DISTILL_MIN_BUFFER=256
+  else
+    ACR_DISTILL_MIN_BUFFER=0
+  fi
+else
+  ACR_DISTILL_MIN_BUFFER="${ACRD_ACR_DISTILL_MIN_BUFFER}"
+fi
 ACR_DISTILL_DEGENERATE_FILTER="${ACRD_ACR_DISTILL_DEGENERATE_FILTER:-true}"
 ACR_DISTILL_DEGENERATE_MIN_TOKENS="${ACRD_ACR_DISTILL_DEGENERATE_MIN_TOKENS:-30}"
 ACR_DISTILL_DEGENERATE_REP3_MAX="${ACRD_ACR_DISTILL_DEGENERATE_REP3_MAX:-0.70}"
@@ -164,6 +173,7 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.distill.degenerate_rep_3_max="$ACR_DISTILL_DEGENERATE_REP3_MAX" \
     +data.acr.distill.degenerate_rep_4_max="$ACR_DISTILL_DEGENERATE_REP4_MAX" \
     +data.acr.distill.max_buffer="$ACR_DISTILL_MAX_BUFFER" \
+    +data.acr.distill.min_buffer="$ACR_DISTILL_MIN_BUFFER" \
     +data.acr.distill.buffer_mode="$ACR_DISTILL_BUFFER_MODE" \
     +data.acr.distill.lr_scale="$ACR_DISTILL_LR_SCALE" \
     +data.acr.distill.entropy_beta="$ACR_DISTILL_ENTROPY_BETA" \
