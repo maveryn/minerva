@@ -55,12 +55,16 @@ For each UID, select one ACR rollout to distill:
    - `response_ids` = selected ACR rollout tokens
 
 ### Step 6 - Periodic SFT distillation
-Every `distill.interval` steps:
+Every `distill.interval` steps (rolling/flush), or when the buffer reaches
+`distill.min_buffer` (buffer mode):
 1. Build an SFT minibatch from the distill buffer.
 2. Run a single-epoch SFT update on the actor using `prompt_nohint` -> response.
 3. Apply a distill LR scale (`lr_scale`), i.e., the SFT update uses
    `actor_lr * lr_scale`.
-4. Keep the buffer as a rolling queue capped by `distill.max_buffer` (drop oldest when full).
+4. Buffer handling:
+   - `rolling`: keep the buffer as a rolling queue capped by `distill.max_buffer`.
+   - `flush`: clear the buffer after each SFT run.
+   - `buffer`: run only when the buffer reaches `distill.min_buffer`, then clear.
 
 ## Parameters used (Llama-8B, LR scale = 0.1)
 
@@ -115,8 +119,10 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.distill.interval`: `10` steps
 - `data.acr.distill.reward_threshold`: `0.99`
 - `data.acr.distill.selection_mode`: `random`
-- `data.acr.distill.batch_size`: `256`
+- `data.acr.distill.batch_size`: `256` (ignored in `buffer` mode)
 - `data.acr.distill.max_buffer`: `1024`
+- `data.acr.distill.min_buffer`: `256` (used only when `buffer_mode=buffer`)
+- `data.acr.distill.buffer_mode`: `rolling`
 - `data.acr.distill.lr_scale`: `0.1` (hyperparameter)
 - `data.acr.distill.entropy_sampling`: `true` (not used under random mode)
 - `data.acr.distill.entropy_beta`: `1.0`

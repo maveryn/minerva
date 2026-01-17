@@ -93,9 +93,13 @@ Per distill run, we sample up to `data.acr.distill.batch_size` records from the 
 uniformly at random (no replacement) and run a single SFT update. If fewer records exist,
 we use all available records. The buffer is a rolling queue capped at
 `data.acr.distill.max_buffer`; once the cap is exceeded, the oldest records are dropped.
-To clear the buffer after each SFT pass, set `data.acr.distill.buffer_mode=flush`.
-In flush mode, the buffer is capped at 512 by default and each SFT run uses all buffered
-records (or a random 512 if more).
+
+Buffer behavior is controlled by `data.acr.distill.buffer_mode`:
+- `rolling` (default): run on `interval`, keep buffer between runs.
+- `flush`: run on `interval`, then clear the buffer (default cap 512; use all buffered
+  records or a random 512 if more).
+- `buffer`: ignore `interval`, run only when the buffer reaches `data.acr.distill.min_buffer`
+  (default 256); use all buffered records, then clear.
 
 For `method=dpo`, we consider every UID in the batch (no hard-threshold filtering) and build a
 preference pair from a pool of size `data.acr.rollout_n`:
@@ -115,8 +119,9 @@ candidates as rejected (distinct from chosen). Skip if you cannot form a pair.
 DPO stores `(prompt_nohint, chosen_ids, rejected_ids)` (plus metadata), not `response_ids`,
 and does not use the entropy/mean-NLL tie-break logic (SFT only).
 
-Distillation runs every `data.acr.distill.interval` steps (default 10).
-For SFT, the distill buffer persists across runs (rolling queue behavior).
+Distillation runs every `data.acr.distill.interval` steps (default 10) when
+`buffer_mode` is `rolling` or `flush`. For `buffer` mode, SFT triggers only when
+the buffer size reaches `data.acr.distill.min_buffer`, then clears the buffer.
 
 ---
 
@@ -371,9 +376,10 @@ Key env overrides:
 - `ACRD_ACR_DISTILL_LR_SCALE` (distill LR scale vs RLVR; default 1.0)
 - `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 0.99)
 - `ACRD_ACR_DISTILL_SELECTION_MODE` (SFT only; `random` or `top_reward`; default `random`)
-- `ACRD_ACR_DISTILL_BATCH_SIZE` (SFT only; sample size per distill run; default 256 in `cti-scripts`)
+- `ACRD_ACR_DISTILL_BATCH_SIZE` (SFT only; sample size per distill run; default 256 in `cti-scripts`; ignored in `buffer` mode)
 - `ACRD_ACR_DISTILL_MAX_BUFFER` (SFT only; rolling buffer cap; default 1024 in `cti-scripts`)
-- `ACRD_ACR_DISTILL_BUFFER_MODE` (SFT only; `rolling` or `flush`; default `rolling`)
+- `ACRD_ACR_DISTILL_MIN_BUFFER` (SFT only; `buffer` mode threshold; default 256 in `cti-scripts`)
+- `ACRD_ACR_DISTILL_BUFFER_MODE` (SFT only; `rolling`, `flush`, or `buffer`; default `rolling`)
 - `ACRD_ACR_DISTILL_DEGENERATE_FILTER` (SFT only; enable repetition filter; default `true`)
 - `ACRD_ACR_DISTILL_DEGENERATE_MIN_TOKENS` (SFT only; min tokens before repetition filter; default 30)
 - `ACRD_ACR_DISTILL_DEGENERATE_REP3_MAX` (SFT only; reject if `rep_3` >= this; default 0.70)

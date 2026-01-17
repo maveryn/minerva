@@ -1405,6 +1405,7 @@ class RayPPOTrainer:
             "interval": 10,
             "reward_threshold": 0.5,
             "max_buffer": 4096,
+            "min_buffer": 0,
             "batch_size": None,
             "max_seq_len": None,
             "entropy_tiebreak": "mean_nll",
@@ -1429,11 +1430,12 @@ class RayPPOTrainer:
             defaults["entropy_sampling"] = True
             defaults["max_buffer"] = 1024
             defaults["batch_size"] = 256
+            defaults["min_buffer"] = 256
         for key, value in defaults.items():
             distill_cfg.setdefault(key, value)
 
         buffer_mode = str(distill_cfg.get("buffer_mode", "rolling")).lower().strip()
-        if buffer_mode not in {"rolling", "flush"}:
+        if buffer_mode not in {"rolling", "flush", "buffer"}:
             buffer_mode = "rolling"
         distill_cfg["buffer_mode"] = buffer_mode
         if distill_source == "acr" and buffer_mode == "flush":
@@ -3725,17 +3727,29 @@ class RayPPOTrainer:
         if str(cfg.get("method", "sft")).lower().strip() != "sft":
             return {}
 
-        interval = int(cfg.get("interval", 0) or 0)
-        if interval <= 0:
-            return {}
-        if (global_step + 1) % interval != 0:
-            return {}
-        if global_step == self._distill_last_run_step:
-            return {}
+        buffer_mode = str(cfg.get("buffer_mode", "rolling")).lower().strip()
+        if buffer_mode == "buffer":
+            if global_step == self._distill_last_run_step:
+                return {}
+        else:
+            interval = int(cfg.get("interval", 0) or 0)
+            if interval <= 0:
+                return {}
+            if (global_step + 1) % interval != 0:
+                return {}
+            if global_step == self._distill_last_run_step:
+                return {}
 
         local_records = list(self._distill_buffer_local)
-        buffer_mode = str(cfg.get("buffer_mode", "rolling")).lower().strip()
-        keep_buffer = self._distill_source == "acr" and buffer_mode != "flush"
+        if buffer_mode == "buffer":
+            min_buffer = int(cfg.get("min_buffer", 0) or 0)
+            if min_buffer <= 0:
+                min_buffer = int(cfg.get("batch_size", 0) or 0)
+            if min_buffer <= 0:
+                min_buffer = 1
+            if len(local_records) < min_buffer:
+                return {}
+        keep_buffer = self._distill_source == "acr" and buffer_mode == "rolling"
         if not local_records:
             return {}
 
@@ -3744,6 +3758,8 @@ class RayPPOTrainer:
             target_batch_size = self.config.actor_rollout_ref.actor.get("ppo_mini_batch_size", None)
             if target_batch_size is None:
                 target_batch_size = getattr(self.config.actor_rollout_ref.actor, "ppo_mini_batch_size", None)
+        if buffer_mode == "buffer":
+            target_batch_size = None
         if target_batch_size is not None:
             try:
                 target_batch_size = int(target_batch_size)
