@@ -71,7 +71,7 @@ else
 fi
 if [ -z "${ACRD_ACR_DISTILL_MAX_BUFFER+x}" ]; then
   if [ "$ACR_DISTILL_BUFFER_MODE" = "flush" ]; then
-    ACR_DISTILL_MAX_BUFFER=512
+    ACR_DISTILL_MAX_BUFFER=0
   else
     ACR_DISTILL_MAX_BUFFER=1024
   fi

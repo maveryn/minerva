@@ -102,8 +102,8 @@ we use all available records. The buffer is a rolling queue capped at
 
 Buffer behavior is controlled by `data.acr.distill.buffer_mode`:
 - `rolling` (default): run on `interval`, keep buffer between runs.
-- `flush`: run on `interval`, then clear the buffer (default cap 512; use all buffered
-  records or a random 512 if more).
+- `flush`: run on `interval`, sample up to `batch_size` records for SFT, then clear the buffer
+  (no max-buffer trimming in flush mode).
 - `buffer`: ignore `interval`, run only when the global buffer reaches `data.acr.distill.min_buffer`
   (default 256); use all buffered records, then clear.
 `buffer_mode` applies to SFT; DPO remains interval-based.

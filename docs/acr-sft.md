@@ -64,7 +64,7 @@ Every `distill.interval` steps (rolling/flush), or when the global buffer reache
    `actor_lr * lr_scale`.
 4. Buffer handling:
    - `rolling`: keep the buffer as a rolling queue capped by `distill.max_buffer`.
-   - `flush`: clear the buffer after each SFT run.
+   - `flush`: sample up to `distill.batch_size`, then clear the buffer (no max-buffer trimming).
    - `buffer`: run only when the buffer reaches `distill.min_buffer`, then clear.
 
 ## Parameters used (Llama-8B, LR scale = 0.1)
