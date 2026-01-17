@@ -39,15 +39,16 @@ RLVR rollouts achieve reward 1.0.
 2. Score each ACR rollout with `reward_acr`:
    - `acr_base_score = reward_minerva(...)` in [0, 1]
    - `score = r_correct * acr_base_score - leak_penalty`
-   - `acr_leak_hit`, `acr_id_leak_hit`, and `acr_verbatim_hit` are logged
+   - `acr_leak_hit`, `acr_banned_phrase_hit`, `acr_verbatim_hit`, `acr_short_hit`, and `acr_overlap_hit` are logged
+     (`acr_id_leak_hit` is logged only when ID-in-reasoning checks are enabled)
 
 ### Step 5 - SFT candidate selection
 For each UID, select one ACR rollout to distill:
 1. Eligibility filter (ACR batch):
    - `acr_base_score >= reward_threshold`
-   - `acr_extracted == true`
    - `acr_leak_hit == false` (includes short reasoning <100 chars and low overlap Jaccard <0.05)
    - Optional degenerate filter based on repeated 3- / 4-grams
+   Parse success is implicit in `acr_base_score` (parse failures score 0); `acr_extracted` is logged but not used.
 2. Selection mode (current run): `random` among eligible rollouts.
    (Entropy tie-break settings are present but not used under random mode.)
 3. Store the selected rollout as an SFT record with:
@@ -110,7 +111,7 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.reward_kwargs.multilabel_match`: `exact`
 - `data.acr.reward_kwargs.max_id_mentions`: `0`
 - `data.acr.reward_kwargs.verbatim_min_details_chars`: `100`
-- `data.acr.reward_kwargs.verbatim_ngram_size`: `12`
+- `data.acr.reward_kwargs.verbatim_ngram_size`: `10`
 - `data.acr.reward_kwargs.verbatim_min_matches`: `2`
 - `data.acr.reward_kwargs.min_reasoning_chars`: `100`
 - `data.acr.reward_kwargs.min_overlap_jaccard`: `0.05` (Jaccard over combined task description + label reference)

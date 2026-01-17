@@ -78,8 +78,8 @@ parsing logic (`reward_minerva`) and returns:
 
 - `acr_base_score` in `[0, 1]` (verifier score)
 - `acr_extracted` (parse success)
-- `acr_leak_hit` (banned-phrase/regex checks plus verbatim overlap with
-  `LABEL_REFERENCE`; fuzzy match is optional)
+- `acr_leak_hit` (banned-phrase/regex checks, short reasoning, low-overlap reasoning,
+  and verbatim overlap with `LABEL_REFERENCE`; fuzzy match is optional)
 - `acr_id_leak_hit` (gold ID appears in reasoning; logged only, not penalized)
 - Weighted score = `r_correct * acr_base_score - leak_penalty` (used for ACR
   filtering; DPO selection uses base reward with rubric tie-breaks)
