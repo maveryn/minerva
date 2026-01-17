@@ -1440,7 +1440,7 @@ class RayPPOTrainer:
         distill_cfg["buffer_mode"] = buffer_mode
         if distill_source == "acr" and buffer_mode == "flush":
             if not user_max_buffer:
-                distill_cfg["max_buffer"] = 512
+                distill_cfg["max_buffer"] = 0
             if not user_batch_size:
                 distill_cfg["batch_size"] = 512
 
@@ -3070,11 +3070,7 @@ class RayPPOTrainer:
                 max_local = max(1, int(math.ceil(max_buffer / world_size)))
                 if len(self._distill_buffer_local) > max_local:
                     buffer_mode = str(cfg.get("buffer_mode", "rolling")).lower().strip()
-                    if buffer_mode == "flush":
-                        rng = np.random.default_rng(int(getattr(self, "global_steps", 0)))
-                        idxs = rng.choice(len(self._distill_buffer_local), size=max_local, replace=False)
-                        self._distill_buffer_local = [self._distill_buffer_local[i] for i in idxs]
-                    else:
+                    if buffer_mode != "flush":
                         self._distill_buffer_local = self._distill_buffer_local[-max_local:]
 
         metrics: dict[str, float] = {}
