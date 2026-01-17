@@ -240,16 +240,12 @@ def _details_text_tactic(
         lines.append(f"Name: {name}")
     if definition:
         lines.append(definition)
-    if techniques:
-        if definition:
-            lines.append("")
-        lines.append("Techniques:")
-        lines.extend(f"- {tech}" for tech in techniques)
     return "\n".join(lines).strip()
 
 
 def _details_text_attack_technique(
     *,
+    canonical_id: str,
     name: str,
     description: str,
     subtechniques: List[tuple[str, str]],
@@ -257,8 +253,9 @@ def _details_text_attack_technique(
     detections: List[dict],
 ) -> str:
     lines: List[str] = []
+    lines.append(f"ID: {canonical_id}")
     if name:
-        lines.append(name)
+        lines.append(f"Name: {name}")
     if subtechniques:
         lines.append(f"Sub-techniques ({len(subtechniques)})")
         lines.append("ID\tName")
@@ -268,23 +265,6 @@ def _details_text_attack_technique(
         if lines:
             lines.append("")
         lines.append(description.strip())
-    if mitigations:
-        lines.append("")
-        lines.append("Mitigations")
-        lines.append("ID\tMitigation\tDescription")
-        for item in mitigations:
-            mid = item.get("id", "")
-            mname = item.get("name", "")
-            mdesc = item.get("description", "")
-            lines.append(f"{mid}\t{mname}\t{mdesc}")
-    if detections:
-        lines.append("")
-        lines.append("Detection Strategy")
-        lines.append("ID\tName")
-        for item in detections:
-            did = item.get("id", "")
-            dname = item.get("name", "")
-            lines.append(f"{did}\t{dname}")
     return "\n".join([line for line in lines if line is not None]).strip()
 
 
@@ -324,9 +304,6 @@ def _details_text_mitigation(
         lines.append(f"Name: {name}")
     if definition:
         lines.append(f"Definition: {definition}")
-    if techniques:
-        lines.append("Techniques Addressed by Mitigation:")
-        lines.extend(techniques)
     return "\n".join([line for line in lines if line is not None]).strip()
 
 
@@ -409,6 +386,7 @@ def main() -> None:
     technique_info_by_id: Dict[str, Dict[str, str]] = {}
     stix_to_tech_id: Dict[str, str] = {}
     mitigation_by_stix: Dict[str, Dict[str, str]] = {}
+    mitigation_details_by_id: Dict[str, str] = {}
     detection_by_stix: Dict[str, Dict[str, str]] = {}
     analytic_by_stix: Dict[str, Dict[str, str]] = {}
     for obj in mitre_bundle.get("objects", []) or []:
@@ -431,10 +409,12 @@ def main() -> None:
             elif obj.get("type") == "course-of-action":
                 mid = retrieval_candidates.external_id(obj, retrieval_candidates.MITRE_SRC, prefix="M")
                 if mid:
+                    desc = str(obj.get("description") or "").replace("\r", "").strip()
+                    mitigation_details_by_id[mid] = desc
                     mitigation_by_stix[obj.get("id", "")] = {
                         "id": mid,
                         "name": str(obj.get("name") or "").strip(),
-                        "description": str(obj.get("description") or "").replace("\r", "").strip(),
+                        "description": desc,
                     }
             elif obj.get("type") == "x-mitre-detection-strategy":
                 det_id = retrieval_candidates.external_id(obj, retrieval_candidates.MITRE_SRC, prefix="DET")
@@ -557,7 +537,10 @@ def main() -> None:
                 )
                 definition = _strip_leading_name(definition, name)
             elif label_type == "mitigation_id":
-                definition = _strip_leading_name(str(entry.description or entry.text or ""), name)
+                raw_definition = mitigation_details_by_id.get(canonical_id)
+                if raw_definition is None:
+                    raw_definition = str(entry.description or entry.text or "")
+                definition = _strip_leading_name(raw_definition, name)
             elif label_type == "cwe_id":
                 definition = cwe_details_by_id.get(canonical_id, {}).get("description") or str(
                     entry.text or entry.description or ""
@@ -637,7 +620,8 @@ def main() -> None:
                     detection_rows.sort(key=lambda x: x.get("id", ""))
 
                 details_text = _details_text_attack_technique(
-                    name=name or canonical_id,
+                    canonical_id=canonical_id,
+                    name=name or "",
                     description=definition,
                     subtechniques=subtechs,
                     mitigations=mitigation_rows,
@@ -670,7 +654,9 @@ def main() -> None:
                 )
 
             if label_type == "attack_technique_id":
-                if name and not details_text.startswith(name):
+                if not details_text.startswith(f"ID: {canonical_id}"):
+                    invalid_id += 1
+                if name and "Name: " not in details_text:
                     missing_name += 1
             elif label_type == "cwe_id":
                 if name and name not in details_text.splitlines()[0]:

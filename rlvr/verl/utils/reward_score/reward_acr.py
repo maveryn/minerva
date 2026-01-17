@@ -423,6 +423,76 @@ def _split_reasoning(output: str) -> str:
     return output.strip()
 
 
+_WORD_TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+
+
+def _word_tokens(text: str) -> list[str]:
+    if not text:
+        return []
+    return [tok.lower() for tok in _WORD_TOKEN_RE.findall(text)]
+
+
+def _extract_label_reference_from_text(text: str) -> str:
+    if not text:
+        return ""
+    match = re.search(r"label_reference\s*:", text, re.IGNORECASE)
+    if not match:
+        return ""
+    rest = text[match.end() :]
+    stop = re.search(r"^\s*instructions\s*:", rest, re.IGNORECASE | re.MULTILINE)
+    if stop:
+        rest = rest[: stop.start()]
+    return rest.strip()
+
+
+def _extract_label_reference(extra_info: Optional[dict]) -> str:
+    if not isinstance(extra_info, dict):
+        return ""
+    for key in ("acr_prompt", "raw_prompt", "prompt"):
+        payload = extra_info.get(key)
+        if isinstance(payload, list):
+            for msg in payload:
+                if not isinstance(msg, dict):
+                    continue
+                content = msg.get("content")
+                if not isinstance(content, str):
+                    continue
+                details = _extract_label_reference_from_text(content)
+                if details:
+                    return details
+        elif isinstance(payload, str):
+            details = _extract_label_reference_from_text(payload)
+            if details:
+                return details
+    return ""
+
+
+def _verbatim_overlap_hit(
+    details_text: str,
+    reasoning_text: str,
+    *,
+    min_details_chars: int,
+    ngram_size: int,
+) -> bool:
+    if not details_text or not reasoning_text:
+        return False
+    if len(details_text) < min_details_chars:
+        return False
+    detail_tokens = _word_tokens(details_text)
+    reasoning_tokens = _word_tokens(reasoning_text)
+    if len(detail_tokens) < ngram_size or len(reasoning_tokens) < ngram_size:
+        return False
+    detail_ngrams = {
+        tuple(detail_tokens[i : i + ngram_size]) for i in range(len(detail_tokens) - ngram_size + 1)
+    }
+    if not detail_ngrams:
+        return False
+    for i in range(len(reasoning_tokens) - ngram_size + 1):
+        if tuple(reasoning_tokens[i : i + ngram_size]) in detail_ngrams:
+            return True
+    return False
+
+
 def _match_labels(gold: list[str], pred: list[str], policy: str) -> bool:
     if not gold or not pred:
         return False
@@ -505,6 +575,8 @@ def reward_acr(
     fuzzy_threshold: float = 0.85,
     enforce_no_id_in_reasoning: bool = True,
     max_id_mentions: Optional[int] = 3,
+    verbatim_min_details_chars: int = 100,
+    verbatim_ngram_size: int = 10,
     score_min: Optional[float] = None,
     score_max: Optional[float] = None,
 ) -> dict:
@@ -535,10 +607,23 @@ def reward_acr(
         threshold=fuzzy_threshold,
     )
 
+    reasoning = _split_reasoning(solution_str or "")
+
     id_leak_hit = False
     if enforce_no_id_in_reasoning and gold_labels:
-        reasoning = _split_reasoning(solution_str or "")
         id_leak_hit = _id_leak_in_reasoning(reasoning, gold_labels)
+
+    verbatim_hit = False
+    details_text = _extract_label_reference(extra_info)
+    if details_text:
+        verbatim_hit = _verbatim_overlap_hit(
+            details_text,
+            reasoning,
+            min_details_chars=int(verbatim_min_details_chars),
+            ngram_size=int(verbatim_ngram_size),
+        )
+        if verbatim_hit:
+            leak_hit = True
 
     id_overuse_hit = False
     id_overuse_max = 0
@@ -576,6 +661,7 @@ def reward_acr(
         "acr_id_leak_hit": bool(id_leak_hit),
         "acr_id_overuse_hit": bool(id_overuse_hit),
         "acr_id_overuse_max": int(id_overuse_max),
+        "acr_verbatim_hit": bool(verbatim_hit),
         "acr_pred_labels": pred_labels,
         "acr_gold_labels": gold_labels,
     }

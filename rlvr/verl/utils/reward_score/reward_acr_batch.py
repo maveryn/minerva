@@ -285,6 +285,8 @@ def reward_acr_batch(
     fuzzy_threshold: float = 0.85,
     enforce_no_id_in_reasoning: bool = True,
     max_id_mentions: Optional[int] = 3,
+    verbatim_min_details_chars: int = 100,
+    verbatim_ngram_size: int = 10,
     score_min: Optional[float] = None,
     score_max: Optional[float] = None,
     judge_enabled: bool | str = False,
@@ -326,6 +328,8 @@ def reward_acr_batch(
             fuzzy_threshold=fuzzy_threshold,
             enforce_no_id_in_reasoning=enforce_no_id_in_reasoning,
             max_id_mentions=max_id_mentions,
+            verbatim_min_details_chars=verbatim_min_details_chars,
+            verbatim_ngram_size=verbatim_ngram_size,
             score_min=score_min,
             score_max=score_max,
         )
