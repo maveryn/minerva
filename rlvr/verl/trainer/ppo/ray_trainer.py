@@ -4777,6 +4777,7 @@ class RayPPOTrainer:
                 if save_due:
                     save_best_only = bool(self.config.trainer.get("save_best_only", False))
                     if save_best_only:
+                        saved_best = False
                         if val_metrics is not None:
                             metric_key = str(
                                 self.config.trainer.get("save_best_metric", "val-core/global-val/reward/mean")
@@ -4817,16 +4818,18 @@ class RayPPOTrainer:
                                                 purge_dir=True,
                                                 skip_ckpt_rotation=True,
                                             )
-                        if esi_close_to_expiration:
-                            print("Force saving checkpoint: ESI instance expiration approaching.")
-                        with marked_timer("save_checkpoint", timing_raw, color="green"):
-                            last_dir = str(self.config.trainer.get("save_last_dir", "last"))
-                            self._save_checkpoint(
-                                folder_name=last_dir,
-                                update_tracker=True,
-                                purge_dir=True,
-                                skip_ckpt_rotation=True,
-                            )
+                                        saved_best = True
+                        if is_last_step:
+                            if esi_close_to_expiration and not saved_best:
+                                print("Force saving checkpoint: ESI instance expiration approaching.")
+                            with marked_timer("save_checkpoint", timing_raw, color="green"):
+                                last_dir = str(self.config.trainer.get("save_last_dir", "last"))
+                                self._save_checkpoint(
+                                    folder_name=last_dir,
+                                    update_tracker=True,
+                                    purge_dir=True,
+                                    skip_ckpt_rotation=True,
+                                )
                     else:
                         if esi_close_to_expiration:
                             print("Force saving checkpoint: ESI instance expiration approaching.")
