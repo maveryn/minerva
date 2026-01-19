@@ -1,0 +1,179 @@
+\section{Minerva Training Datasets}
+
+This section describes the 16 datasets used to train and validate Minerva.
+Each dataset is named by its primary source, with a short task description,
+input/target specification, and a citation for the data source.
+The train/validation split totals 32{,}000 / 1{,}200 samples.
+
+\subsection*{Mappings-Explorer CVE to ATT\&CK Exploitation}
+\begin{description}
+  \item[Purpose] Map vulnerability descriptions to the exploitation technique used by adversaries.
+  \item[Input] CVE description text.
+  \item[Target] Single ATT\&CK technique ID (\texttt{Txxxx} or \texttt{Txxxx.yyy}).
+  \item[Source] Mappings-Explorer CVE to ATT\&CK mappings and ATT\&CK technique catalog \cite{mappings_explorer,mitre_attack}.
+\end{description}
+
+\subsection*{Mappings-Explorer CVE to ATT\&CK Primary Impact}
+\begin{description}
+  \item[Purpose] Identify the primary impact achieved after exploitation.
+  \item[Input] CVE description text.
+  \item[Target] Single ATT\&CK technique ID (\texttt{Txxxx} or \texttt{Txxxx.yyy}).
+  \item[Source] Mappings-Explorer CVE to ATT\&CK mappings and ATT\&CK technique catalog \cite{mappings_explorer,mitre_attack}.
+\end{description}
+
+\subsection*{Mappings-Explorer CVE to ATT\&CK Secondary Impact}
+\begin{description}
+  \item[Purpose] Identify the follow-on impact enabled by the primary impact.
+  \item[Input] CVE description text plus the primary impact technique ID.
+  \item[Target] Single ATT\&CK technique ID (\texttt{Txxxx} or \texttt{Txxxx.yyy}).
+  \item[Source] Mappings-Explorer CVE to ATT\&CK mappings and ATT\&CK technique catalog \cite{mappings_explorer,mitre_attack}.
+\end{description}
+
+\subsection*{Sigma to ATT\&CK Tactics}
+\begin{description}
+  \item[Purpose] Infer adversary intent categories from detection logic.
+  \item[Input] Sigma rule excerpt (title, logsource, detection).
+  \item[Target] Set of ATT\&CK tactic IDs (\texttt{TA000x}).
+  \item[Source] Sigma rule repository and ATT\&CK tactics \cite{sigma,mitre_attack}.
+\end{description}
+
+\subsection*{Sigma to ATT\&CK Technique}
+\begin{description}
+  \item[Purpose] Map detection logic to the ATT\&CK technique it detects.
+  \item[Input] Sigma rule excerpt (title, logsource, detection).
+  \item[Target] Single ATT\&CK technique ID (\texttt{Txxxx} or \texttt{Txxxx.yyy}).
+  \item[Source] Sigma rule repository and ATT\&CK techniques \cite{sigma,mitre_attack}.
+\end{description}
+
+\subsection*{Atomic Red Team to ATT\&CK Technique}
+\begin{description}
+  \item[Purpose] Map procedure snippets to the underlying ATT\&CK technique.
+  \item[Input] Atomic Red Team procedure snippet (steps, commands, platform).
+  \item[Target] Single ATT\&CK technique ID (\texttt{Txxxx} or \texttt{Txxxx.yyy}).
+  \item[Source] Atomic Red Team and ATT\&CK techniques \cite{atomic_red_team,mitre_attack}.
+\end{description}
+
+\subsection*{Microsoft Sentinel to ATT\&CK Technique}
+\begin{description}
+  \item[Purpose] Map analytics rules to the ATT\&CK technique they detect.
+  \item[Input] Rule title, description, and KQL query.
+  \item[Target] Single ATT\&CK technique ID (\texttt{Txxxx} or \texttt{Txxxx.yyy}).
+  \item[Source] Microsoft Sentinel content and ATT\&CK techniques \cite{azure_sentinel,mitre_attack}.
+\end{description}
+
+\subsection*{Splunk Security Content to ATT\&CK Technique}
+\begin{description}
+  \item[Purpose] Map SPL detection content to the ATT\&CK technique it detects.
+  \item[Input] SPL query, detection narrative, and tags.
+  \item[Target] Single ATT\&CK technique ID (\texttt{Txxxx} or \texttt{Txxxx.yyy}).
+  \item[Source] Splunk Security Content and ATT\&CK techniques \cite{splunk_security_content,mitre_attack}.
+\end{description}
+
+\subsection*{ATT\&CK Procedure Scenario to Technique}
+\begin{description}
+  \item[Purpose] Identify the technique that best matches a procedure scenario.
+  \item[Input] ATT\&CK procedure scenario text.
+  \item[Target] Single ATT\&CK technique ID (\texttt{Txxxx} or \texttt{Txxxx.yyy}).
+  \item[Source] ATT\&CK procedure examples and technique catalog \cite{mitre_attack}.
+\end{description}
+
+\subsection*{ATT\&CK Procedure Scenario to Tactics}
+\begin{description}
+  \item[Purpose] Identify the adversary intent categories implied by the scenario.
+  \item[Input] ATT\&CK procedure scenario text.
+  \item[Target] Set of ATT\&CK tactic IDs (\texttt{TA000x}).
+  \item[Source] ATT\&CK procedure examples and tactics \cite{mitre_attack}.
+\end{description}
+
+\subsection*{ATT\&CK Procedure Scenario to Mitigations}
+\begin{description}
+  \item[Purpose] Identify mitigations that address behaviors in the scenario.
+  \item[Input] ATT\&CK procedure scenario text.
+  \item[Target] Set of ATT\&CK mitigation IDs (\texttt{Mxxxx}).
+  \item[Source] ATT\&CK procedure examples and mitigations \cite{mitre_attack}.
+\end{description}
+
+\subsection*{NVD CVE to CWE}
+\begin{description}
+  \item[Purpose] Predict weakness categories from vulnerability descriptions.
+  \item[Input] CVE description text.
+  \item[Target] Set of CWE IDs (\texttt{CWE-xxx}).
+  \item[Source] NVD CVE records and CWE catalog \cite{nvd,cwe}.
+\end{description}
+
+\subsection*{NVD CVE to CVSS v3.1}
+\begin{description}
+  \item[Purpose] Predict CVSS v3.1 base vectors from vulnerability descriptions.
+  \item[Input] CVE description text.
+  \item[Target] CVSS v3.1 base vector string.
+  \item[Source] NVD CVE records and CVSS v3.1 specification \cite{nvd,cvss_v31}.
+\end{description}
+
+\subsection*{ATT\&CK Threat Actor Attribution}
+\begin{description}
+  \item[Purpose] Attribute observed procedures to a threat actor.
+  \item[Input] Procedure or behavior summary derived from ATT\&CK group profiles.
+  \item[Target] Threat actor name (canonical or alias).
+  \item[Source] ATT\&CK groups and aliases \cite{mitre_attack}.
+\end{description}
+
+\subsection*{CAPEC Example to CAPEC}
+\begin{description}
+  \item[Purpose] Map example narratives to the CAPEC attack pattern.
+  \item[Input] CAPEC example text.
+  \item[Target] Single CAPEC ID (\texttt{CAPEC-xxx}).
+  \item[Source] CAPEC catalog \cite{capec}.
+\end{description}
+
+\subsection*{CAPEC Example to CWE}
+\begin{description}
+  \item[Purpose] Map attack examples to weakness categories.
+  \item[Input] CAPEC example text.
+  \item[Target] Set of CWE IDs (\texttt{CWE-xxx}).
+  \item[Source] CAPEC catalog and CWE catalog \cite{capec,cwe}.
+\end{description}
+
+\begin{table}[t]
+\centering
+\caption{Minerva training datasets and split sizes.}
+\label{tab:minerva-datasets}
+\begin{tabular}{l l r r}
+\hline
+Dataset & Target & Train & Val \\
+\hline
+Mappings-Explorer CVE->ATT\&CK Exploitation & ATT\&CK technique ID & 245 & 20 \\
+Mappings-Explorer CVE->ATT\&CK Primary Impact & ATT\&CK technique ID & 210 & 20 \\
+Mappings-Explorer CVE->ATT\&CK Secondary Impact & ATT\&CK technique ID & 64 & 10 \\
+Sigma->ATT\&CK Tactics & ATT\&CK tactic IDs & 950 & 50 \\
+Sigma->ATT\&CK Technique & ATT\&CK technique ID & 950 & 50 \\
+Atomic Red Team->ATT\&CK Technique & ATT\&CK technique ID & 950 & 50 \\
+Microsoft Sentinel->ATT\&CK Technique & ATT\&CK technique ID & 950 & 50 \\
+Splunk Security Content->ATT\&CK Technique & ATT\&CK technique ID & 280 & 20 \\
+ATT\&CK Scenario->Technique & ATT\&CK technique ID & 7{,}780 & 220 \\
+ATT\&CK Scenario->Tactics & ATT\&CK tactic IDs & 1{,}950 & 50 \\
+ATT\&CK Scenario->Mitigations & ATT\&CK mitigation IDs & 7{,}780 & 220 \\
+NVD CVE->CWE & CWE IDs & 6{,}696 & 220 \\
+NVD CVE->CVSS v3.1 & CVSS v3.1 vector & 1{,}900 & 100 \\
+ATT\&CK Threat Actor Attribution & Threat actor name & 779 & 60 \\
+CAPEC Example->CAPEC & CAPEC ID & 340 & 40 \\
+CAPEC Example->CWE & CWE IDs & 176 & 20 \\
+\hline
+Total & -- & 32{,}000 & 1{,}200 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{thebibliography}{99}
+\bibitem{mappings_explorer} Center for Threat-Informed Defense. Mappings Explorer.
+\url{https://github.com/center-for-threat-informed-defense/mappings-explorer}
+\bibitem{mitre_attack} MITRE ATT\&CK. \url{https://attack.mitre.org/}
+\bibitem{nvd} NIST National Vulnerability Database (NVD). \url{https://nvd.nist.gov/}
+\bibitem{sigma} SigmaHQ. Sigma Rule Repository. \url{https://github.com/SigmaHQ/sigma}
+\bibitem{atomic_red_team} Red Canary. Atomic Red Team. \url{https://github.com/redcanaryco/atomic-red-team}
+\bibitem{azure_sentinel} Microsoft Sentinel Content. \url{https://github.com/Azure/Azure-Sentinel}
+\bibitem{splunk_security_content} Splunk Security Content. \url{https://github.com/splunk/security_content}
+\bibitem{capec} MITRE CAPEC. \url{https://capec.mitre.org/}
+\bibitem{cwe} MITRE CWE. \url{https://cwe.mitre.org/}
+\bibitem{cvss_v31} FIRST. CVSS v3.1 Specification.
+\url{https://www.first.org/cvss/v3.1/specification-document}
+\end{thebibliography}

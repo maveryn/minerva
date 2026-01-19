@@ -1,0 +1,85 @@
+\section{Reward Functions for Minerva Training Tasks}
+
+We define reward functions by output type for the 16 datasets used in Minerva
+training. Rewards are computed on the extracted answer span and are always
+clamped to the range $[0, 1]$.
+
+\subsection*{Normalization}
+For identifier outputs (ATT\&CK, CWE, CAPEC), we normalize by trimming
+whitespace and uppercasing. For threat actor names, we lowercase, strip
+non-alphanumeric characters, and collapse whitespace.
+
+\subsection*{Single Identifier (Exact Match)}
+Used for CAPEC example $\rightarrow$ CAPEC.
+Let $\mathrm{norm}(x)$ be the normalized identifier. The reward is:
+\[
+r = \mathbb{1}[\mathrm{norm}(y) = \mathrm{norm}(t)].
+\]
+
+\subsection*{ATT\&CK Technique ID (Sub-technique Aware)}
+Used for CVE $\rightarrow$ ATT\&CK (exploitation, primary impact, secondary
+impact), scenario $\rightarrow$ technique, and detection rule $\rightarrow$
+technique tasks (Sigma, Atomic Red Team, Sentinel, Splunk).
+Let $b(x)$ be the base technique (e.g., \texttt{T1059}) and $s(x)$ indicate
+whether a sub-technique is present. The reward is:
+\[
+r =
+\begin{cases}
+1.0, & \mathrm{norm}(y) = \mathrm{norm}(t) \\
+0.5, & b(y) = b(t) \ \wedge\ (s(y) = 1 \ \vee\ s(t) = 1) \\
+0.0, & \text{otherwise.}
+\end{cases}
+\]
+
+\subsection*{ATT\&CK Technique ID (Base-only)}
+When prompts explicitly ask for base techniques only, we ignore sub-technique
+suffixes and score:
+\[
+r = \mathbb{1}[b(y) = b(t)].
+\]
+
+\subsection*{Multi-label Identifier Sets}
+Used for scenario $\rightarrow$ tactics, scenario $\rightarrow$ mitigations,
+CVE $\rightarrow$ CWE, and CAPEC example $\rightarrow$ CWE.
+Let $P$ and $T$ be the normalized prediction and truth sets. We use set F1:
+\[
+r =
+\begin{cases}
+1.0, & P = T = \varnothing \\
+0.0, & P = \varnothing \ \text{xor} \ T = \varnothing \\
+\frac{2|P \cap T|}{|P| + |T|}, & \text{otherwise.}
+\end{cases}
+\]
+
+\subsection*{CVSS v3.1 Base Vector}
+Used for CVE $\rightarrow$ CVSS v3.1. We parse the CVSS:3.1 vector from the
+prediction and compute the base score $s(\cdot)$. The reward is score distance:
+\[
+r = \max\left(0, 1 - \frac{|s(y) - s(t)|}{\delta}\right), \qquad \delta = 10.
+\]
+If the vector cannot be parsed, the reward is $0$.
+
+\subsection*{Threat Actor Attribution}
+Used for threat actor attribution. Ground truth is a canonical actor, but we
+score against an alias set that includes the canonical name and known aliases.
+Let $A(t)$ be the alias set for the ground truth actor. The reward is:
+\[
+r = \mathbb{1}[\mathrm{norm\_actor}(y) \in A(t)].
+\]
+
+\subsection*{Mapping from Datasets to Output Types}
+We summarize the Minerva training datasets by output type and reward:
+\begin{itemize}
+  \item \textbf{Technique ID (sub-tech aware)}: \texttt{cve\_to\_attack\_exploitation},
+    \texttt{cve\_to\_attack\_primary\_impact}, \texttt{cve\_to\_attack\_secondary\_impact},
+    \texttt{scenario\_to\_technique}, \texttt{sigma\_to\_attack\_technique},
+    \texttt{art\_to\_attack\_technique}, \texttt{sentinel\_to\_attack\_technique},
+    \texttt{splunk\_to\_attack\_technique}.
+  \item \textbf{Tactic set F1}: \texttt{scenario\_to\_tactics},
+    \texttt{sigma\_to\_attack\_tactics}.
+  \item \textbf{Mitigation set F1}: \texttt{scenario\_to\_mitigations}.
+  \item \textbf{CWE set F1}: \texttt{cve\_to\_cwe}, \texttt{capec\_example\_to\_cwe}.
+  \item \textbf{CVSS v3.1 score distance}: \texttt{cve\_to\_cvss\_v31}.
+  \item \textbf{Threat actor alias match}: \texttt{threat\_actor}.
+  \item \textbf{CAPEC exact match}: \texttt{capec\_example\_to\_capec}.
+\end{itemize}
