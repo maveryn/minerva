@@ -43,9 +43,6 @@ _PREFIX_RE = re.compile(
 _BOXED_OPEN_RE = re.compile(r"\\boxed\s*\{", re.DOTALL)
 _WORD_RE = re.compile(r"\b\w+\b")
 
-REASONING_MIN_TOKENS = 20
-REASONING_PENALTY = 0.05
-
 
 def _strip_prefix(s: str) -> str:
     return _PREFIX_RE.sub("", s).strip()
@@ -247,31 +244,6 @@ def _count_tokens(text: str) -> int:
     return len(_WORD_RE.findall(text or ""))
 
 
-def _reasoning_penalty(solution_str: str) -> float:
-    if REASONING_PENALTY <= 0 or REASONING_MIN_TOKENS <= 0:
-        return 0.0
-    span = _find_last_boxed_span(solution_str or "")
-    if not span:
-        return 0.0
-    prefix = (solution_str or "")[: span[0]].strip()
-    if _count_tokens(prefix) < REASONING_MIN_TOKENS:
-        return REASONING_PENALTY
-    return 0.0
-
-
-def _apply_reasoning_penalty(score: float, solution_str: str, extra_info: object) -> tuple[float, float]:
-    if not isinstance(score, (int, float)):
-        return score, 0.0
-    if score <= 0:
-        return 0.0, 0.0
-    if not _is_training_split(extra_info):
-        return float(score), 0.0
-    penalty = _reasoning_penalty(solution_str)
-    if penalty <= 0:
-        return float(score), 0.0
-    return max(0.0, float(score) - penalty), penalty
-
-
 def _normalize_list(pred: str, pattern: str) -> List[str]:
     return [m.upper() for m in re.findall(pattern, pred or "", re.IGNORECASE)]
 
@@ -329,17 +301,11 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
     def finalize(score):
         if isinstance(score, dict):
             if return_dict:
-                out = dict(score)
-                if _is_training_split(extra_info):
-                    out.setdefault("reasoning_penalty", 0.0)
-                return out
+                return dict(score)
             return score
-        final_score, penalty = _apply_reasoning_penalty(score, solution_str, extra_info)
         if return_dict:
-            if _is_training_split(extra_info):
-                return {"score": final_score, "reasoning_penalty": penalty}
-            return {"score": final_score}
-        return final_score
+            return {"score": float(score)}
+        return float(score)
 
     if data_source == "reward_instruction_following":
         pred = solution_str or ""
