@@ -1,6 +1,6 @@
 # Task Definitions and Prompts
 
-Structured reference for how each dataset is built, the inputs/outputs, reward used, and the exact prompt. Train/dev counts come from `dataset/minerva_split/`.
+Structured reference for how each dataset is built, the inputs/outputs, reward used, and the exact prompt. Train/dev counts come from `dataset/minerva_base_split/`.
 
 ---
 
@@ -94,7 +94,7 @@ Built from Sigma rules in `dataset/sigma/rules` and `dataset/sigma/rules-threat-
 **Technique**
 - Input: Sigma rule excerpt
 - Output: ATT&CK technique ID
-- Reward: `reward_technique_id` (1 full, 0.5 parent technique match, else 0)
+- Reward: `reward_technique_detection_sigma` (1 full, 0.5 parent technique match, else 0)
 ```
 Given the Sigma rule excerpt below (log source + detection logic), provide the single most appropriate MITRE ATT&CK Enterprise technique ID that best represents the adversary behavior this rule is intended to detect.
 
@@ -181,7 +181,6 @@ Adversary procedure:
 ---
 
 ## CAPEC example tasks
-Note: CAPEC example tasks are currently excluded from the base Minerva splits.
 Built from CAPEC example instances (parent fallback for ATT&CK mappings). CWE limited to <=3 per example; ATT&CK technique only when a single mapping exists.
 
 **Example -> CAPEC ID**
@@ -227,8 +226,7 @@ Example description:
 ---
 
 ## Threat actor (procedures)
-Note: Threat actor tasks are currently excluded from the base Minerva splits.
-Built from MITRE ATT&CK intrusion-set procedure descriptions. For each actor, we sample 60-90% of its techniques (min 3) and generate a number of questions based on technique-count bins chosen to balance total questions per bin (~100 each across 8 bins). Each bin assigns 3..10 questions per actor (bin 0 -> 3, bin 7 -> 10); the last bin is open-ended.
+Built from MITRE ATT&CK intrusion-set procedure descriptions. For each actor, we sample 60-100% of its techniques (min 3) and generate a number of questions based on technique-count bins chosen to balance total questions per bin (~100 each across 6 bins). Each bin assigns 3..8 questions per actor (bin 0 -> 3, bin 5 -> 8); the last bin is open-ended.
 
 - Input: List of observed procedures
 - Output: Threat actor name (free-form)
@@ -246,19 +244,25 @@ Return only the threat actor name.
 ---
 
 # Dataset Statistics (samples and split counts)
-All counts derive from `dataset/minerva_split/metadata.json`.
+All counts derive from `dataset/minerva_base_split/metadata.json`.
 
 file	Input	Output	Reward fn	#sample	#Train	#Val
 cve_to_attack_exploitation	CVE description	ATT&CK Technique ID	reward_technique_id	265	245	20
 cve_to_attack_primary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	230	210	20
-cve_to_attack_secondary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	74	54	20
-sigma_to_attack_technique	Sigma detection + logsource	ATT&CK Technique ID	reward_technique_id	1500	1450	50
-sigma_to_attack_tactics	Sigma detection + logsource	ATT&CK Tactic IDs	reward_tactic_ids	931	881	50
-scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_technique_id	8500	8280	220
+cve_to_attack_secondary_impact	CVE description	ATT&CK Technique ID	reward_technique_id	74	64	10
+sigma_to_attack_tactics	Sigma detection + logsource	ATT&CK Tactic IDs	reward_tactic_ids	1000	950	50
+sigma_to_attack_technique	Sigma detection + logsource	ATT&CK Technique ID	reward_technique_detection_sigma	1000	950	50
+art_to_attack_technique	ART procedure snippet	ATT&CK Technique ID	reward_technique_detection_art	1000	950	50
+sentinel_to_attack_technique	Sentinel analytics rule	ATT&CK Technique ID	reward_technique_detection_sentinel	1000	950	50
+splunk_to_attack_technique	Splunk detection rule	ATT&CK Technique ID	reward_technique_detection_splunk	300	280	20
+scenario_to_technique	ATT&CK procedure scenario	ATT&CK Technique ID	reward_technique_id	8000	7780	220
 scenario_to_tactics	ATT&CK procedure scenario	ATT&CK Tactic IDs	reward_tactic_ids	2000	1950	50
-scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	8500	8280	220
-cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	9000	8750	250
+scenario_to_mitigations	ATT&CK procedure scenario	ATT&CK Mitigation IDs	reward_mitigation_ids	8000	7780	220
+cve_to_cwe	CVE description	CWE IDs	reward_cwe_ids	6916	6696	220
 cve_to_cvss_v31	CVE description	CVSS v3.1 vector string	reward_cvss_v31	2000	1900	100
+threat_actor	Observed procedures	Threat actor name	reward_threat_actor_name	839	779	60
+capec_example_to_capec	CAPEC example	CAPEC ID	reward_capec_id	380	340	40
+capec_example_to_cwe	CAPEC example	CWE IDs	reward_cwe_ids	196	176	20
 
 ---
 

@@ -95,6 +95,37 @@ def reward_technique_sub_id(predicted: str, truth: str) -> float:
     return 1.0 if _normalize_id(predicted) == _normalize_id(truth) else 0.0
 
 
+def reward_technique_ids(predicted: Iterable[str], truth: Iterable[str]) -> float:
+    """
+    Exact-match reward for technique ID sets.
+    """
+    return 1.0 if to_id_set(predicted) == to_id_set(truth) else 0.0
+
+
+def reward_technique_detection_art(predicted: str, truth: str) -> float:
+    return reward_technique_id(predicted, truth)
+
+
+def reward_technique_detection_sigma(predicted: str, truth: str) -> float:
+    return reward_technique_id(predicted, truth)
+
+
+def reward_technique_detection_sigma_base(predicted: str, truth: str) -> float:
+    return reward_technique_id_only(predicted, truth)
+
+
+def reward_technique_detection_sentinel(predicted: str, truth: str) -> float:
+    return reward_technique_id(predicted, truth)
+
+
+def reward_technique_detection_splunk(predicted: str, truth: str) -> float:
+    return reward_technique_id(predicted, truth)
+
+
+def reward_technique_detection_elastic(predicted: str, truth: str) -> float:
+    return reward_technique_id_only(predicted, truth)
+
+
 def reward_tactic_ids(predicted: Iterable[str], truth: Iterable[str]) -> float:
     """
     Wrapper for tactic-set scoring (TA000x IDs) using multi-label F1.

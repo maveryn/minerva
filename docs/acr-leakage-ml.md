@@ -42,4 +42,4 @@ Use real outputs as the base and generate positives with targeted leakage:
 - Run normalization + rules first (fast, deterministic).
 - Apply the classifier to the remaining responses; reject if predicted leak.
 
-This keeps costs low while improving robustness to phrasing variants and paraphrases.*** End Patch}Probably not; the tool is FREEFORM; use apply_patch accordingly. Let's craft patch. Use apply_patch with proper patch format. Need to escape backticks? not necessary. Keep ASCII. Let's do. Let's ensure apply_patch content correct. Make sure final line newline. We'll do. Continue. 
+This keeps costs low while improving robustness to phrasing variants and paraphrases.

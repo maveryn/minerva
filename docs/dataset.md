@@ -25,9 +25,12 @@ Network fetches are rate-limited; use `NVD_API_KEY` to avoid strict NVD throttli
 The pipeline generates per-task JSONL files with standardized `task`, `input`, `ground_truth`, and `reward_fn` fields. Tasks include:
 - CVE -> ATT&CK exploitation / primary impact / secondary impact
 - Sigma -> ATT&CK technique / tactics
+- Detection rules (ART/Sentinel/Splunk) -> ATT&CK technique
 - Scenario -> technique / tactics / mitigations
 - CVE -> CWE
 - CVE -> CVSS v3.1
+- CAPEC example -> CAPEC / CWE
+- Threat actor -> name (procedures attribution)
 
 Generation uses deterministic seeds where applicable; prompt text is embedded in each row.
 
@@ -36,24 +39,30 @@ Filtering notes:
 - CVE -> CVSS v3.1/v4.0 also skips CVEs with `NVD-CWE-noinfo` to keep label-less rows out of CVE-derived tasks.
 
 ## Resampling policy (fixed per-task totals)
-After task generation, each per-task JSONL is resampled to a fixed target size using a seeded reservoir sampler (seed 1337). This yields a total of 33,000 examples across tasks.
+After task generation, each per-task JSONL is resampled to a fixed target size using a seeded reservoir sampler (seed 1337). This yields a total of 33,200 examples across tasks.
 
 | Task | Train samples | Validation samples | Total samples |
 | --- | --- | --- |
 | cve_to_attack_exploitation | 245 | 20 | 265 |
 | cve_to_attack_primary_impact | 210 | 20 | 230 |
-| cve_to_attack_secondary_impact | 54 | 20 | 74 |
-| sigma_to_attack_technique | 1450 | 50 | 1500 |
-| sigma_to_attack_tactics | 881 | 50 | 931 |
-| scenario_to_technique | 8280 | 220 | 8500 |
+| cve_to_attack_secondary_impact | 64 | 10 | 74 |
+| sigma_to_attack_tactics | 950 | 50 | 1000 |
+| sigma_to_attack_technique | 950 | 50 | 1000 |
+| art_to_attack_technique | 950 | 50 | 1000 |
+| sentinel_to_attack_technique | 950 | 50 | 1000 |
+| splunk_to_attack_technique | 280 | 20 | 300 |
+| scenario_to_technique | 7780 | 220 | 8000 |
 | scenario_to_tactics | 1950 | 50 | 2000 |
-| scenario_to_mitigations | 8280 | 220 | 8500 |
-| cve_to_cwe | 8750 | 250 | 9000 |
+| scenario_to_mitigations | 7780 | 220 | 8000 |
+| cve_to_cwe | 6696 | 220 | 6916 |
 | cve_to_cvss_v31 | 1900 | 100 | 2000 |
-| **Total** | **32000** | **1000** | **33000** |
+| threat_actor | 779 | 60 | 839 |
+| capec_example_to_capec | 340 | 40 | 380 |
+| capec_example_to_cwe | 176 | 20 | 196 |
+| **Total** | **32000** | **1200** | **33200** |
 
 ## Train/validation split policy
-Splits are produced by sampling the per-task totals above, shuffling with a fixed RNG seed (1337), and assigning a fixed number of validation rows per task (table above). The remainder of each task is assigned to training. This yields exactly 32,000 training rows and 1,000 validation rows. No cross-task balancing is applied after the per-task split.
+Splits are produced by sampling the per-task totals above, shuffling with a fixed RNG seed (1337), and assigning a fixed number of validation rows per task (table above). The remainder of each task is assigned to training. This yields exactly 32,000 training rows and 1,200 validation rows. No cross-task balancing is applied after the per-task split.
 
 Split outputs:
 - Base: `dataset/minerva_base_split/minerva-base-train.jsonl`, `minerva-base-dev.jsonl`

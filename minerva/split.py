@@ -12,26 +12,38 @@ TARGET_SAMPLES: Dict[str, int] = {
     "cve_to_attack_exploitation": 265,
     "cve_to_attack_primary_impact": 230,
     "cve_to_attack_secondary_impact": 74,
-    "sigma_to_attack_technique": 1500,
-    "sigma_to_attack_tactics": 931,
-    "scenario_to_technique": 8500,
+    "sigma_to_attack_technique": 1000,
+    "sigma_to_attack_tactics": 1000,
+    "art_to_attack_technique": 1000,
+    "sentinel_to_attack_technique": 1000,
+    "splunk_to_attack_technique": 300,
+    "scenario_to_technique": 8000,
     "scenario_to_tactics": 2000,
-    "scenario_to_mitigations": 8500,
-    "cve_to_cwe": 9000,
+    "scenario_to_mitigations": 8000,
+    "cve_to_cwe": 6916,
     "cve_to_cvss_v31": 2000,
+    "threat_actor": 839,
+    "capec_example_to_capec": 380,
+    "capec_example_to_cwe": 196,
 }
 
 TARGET_VAL_SAMPLES: Dict[str, int] = {
     "cve_to_attack_exploitation": 20,
     "cve_to_attack_primary_impact": 20,
-    "cve_to_attack_secondary_impact": 20,
+    "cve_to_attack_secondary_impact": 10,
     "sigma_to_attack_technique": 50,
     "sigma_to_attack_tactics": 50,
+    "art_to_attack_technique": 50,
+    "sentinel_to_attack_technique": 50,
+    "splunk_to_attack_technique": 20,
     "scenario_to_technique": 220,
     "scenario_to_tactics": 50,
     "scenario_to_mitigations": 220,
-    "cve_to_cwe": 250,
+    "cve_to_cwe": 220,
     "cve_to_cvss_v31": 100,
+    "threat_actor": 60,
+    "capec_example_to_capec": 40,
+    "capec_example_to_cwe": 20,
 }
 
 FILE_MAP: Dict[str, str] = {
@@ -40,11 +52,17 @@ FILE_MAP: Dict[str, str] = {
     "cve_to_attack_secondary_impact": "cve_to_attack_secondary_impact.jsonl",
     "sigma_to_attack_technique": "sigma_to_attack_technique.jsonl",
     "sigma_to_attack_tactics": "sigma_to_attack_tactics.jsonl",
+    "art_to_attack_technique": "art_to_attack_technique.jsonl",
+    "sentinel_to_attack_technique": "sentinel_to_attack_technique.jsonl",
+    "splunk_to_attack_technique": "splunk_to_attack_technique.jsonl",
     "scenario_to_technique": "scenario_to_technique.jsonl",
     "scenario_to_tactics": "scenario_to_tactics.jsonl",
     "scenario_to_mitigations": "scenario_to_mitigations.jsonl",
     "cve_to_cwe": "cve_to_cwe.jsonl",
     "cve_to_cvss_v31": "cve_to_cvss_v31.jsonl",
+    "threat_actor": "threat_actor.jsonl",
+    "capec_example_to_capec": "capec_example_to_capec.jsonl",
+    "capec_example_to_cwe": "capec_example_to_cwe.jsonl",
 }
 
 LOOKUP_FILENAME = "threat_actor_lookup.json"
@@ -347,7 +365,7 @@ def build_splits(
     seed: int = 1337,
     train_ratio: float = 0.8,
     target_train: int = 32000,
-    target_dev: int = 1000,
+    target_dev: int = 1200,
     reuse_split: Optional[str] = None,
 ) -> None:
     logger = get_logger("split")
@@ -517,7 +535,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=1337, help="RNG seed (default: 1337)")
     parser.add_argument("--train-ratio", type=float, default=0.8, help="Train ratio per-task before global adjustment (default: 0.8)")
     parser.add_argument("--target-train", type=int, default=32000, help="Final target train size (default: 32000)")
-    parser.add_argument("--target-dev", type=int, default=1000, help="Final target dev size (default: 1000)")
+    parser.add_argument("--target-dev", type=int, default=1200, help="Final target dev size (default: 1200)")
     parser.add_argument(
         "--reuse-split",
         default=None,

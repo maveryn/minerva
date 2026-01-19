@@ -40,6 +40,11 @@ _PREFIX_RE = re.compile(
     r"^\s*(?:final\s+answer|answer|prediction|output|result)\s*[:\-ƒ?\"ƒ?\"]?\s*",
     re.IGNORECASE,
 )
+_BOXED_OPEN_RE = re.compile(r"\\boxed\s*\{", re.DOTALL)
+_WORD_RE = re.compile(r"\b\w+\b")
+
+REASONING_MIN_TOKENS = 30
+REASONING_PENALTY = 0.05
 
 
 def _strip_prefix(s: str) -> str:
@@ -107,6 +112,19 @@ ATHENA_EXTRACTORS = {
     "athena-cti-mcq-3k": _extract_mcq,
     "athena-cti-ckt": _extract_mcq,
     "reward_threat_actor_name": _extract_taa,
+    "reward_technique_detection_elastic": _extract_ate,
+}
+
+DETECTION_TECHNIQUE_MULTI = {
+}
+
+DETECTION_TECHNIQUE_SINGLE = {
+    "reward_technique_detection_art",
+    "reward_technique_detection_sigma",
+    "reward_technique_detection_sigma_base",
+    "reward_technique_detection_sentinel",
+    "reward_technique_detection_splunk",
+    "reward_technique_detection_elastic",
 }
 
 
@@ -207,6 +225,53 @@ def _extract_answer_line(text: str) -> str:
     return ""
 
 
+def _find_last_boxed_span(text: str) -> Optional[tuple[int, int]]:
+    matches = list(_BOXED_OPEN_RE.finditer(text or ""))
+    for match in reversed(matches):
+        start = match.start()
+        i = match.end()
+        depth = 1
+        while i < len(text) and depth > 0:
+            ch = text[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            i += 1
+        if depth == 0:
+            return start, i
+    return None
+
+
+def _count_tokens(text: str) -> int:
+    return len(_WORD_RE.findall(text or ""))
+
+
+def _reasoning_penalty(solution_str: str) -> float:
+    if REASONING_PENALTY <= 0 or REASONING_MIN_TOKENS <= 0:
+        return 0.0
+    span = _find_last_boxed_span(solution_str or "")
+    if not span:
+        return 0.0
+    prefix = (solution_str or "")[: span[0]].strip()
+    if _count_tokens(prefix) < REASONING_MIN_TOKENS:
+        return REASONING_PENALTY
+    return 0.0
+
+
+def _apply_reasoning_penalty(score: float, solution_str: str, extra_info: object) -> float:
+    if not isinstance(score, (int, float)):
+        return score
+    if score <= 0:
+        return 0.0
+    if not _is_training_split(extra_info):
+        return score
+    penalty = _reasoning_penalty(solution_str)
+    if penalty <= 0:
+        return score
+    return max(0.0, score - penalty)
+
+
 def _normalize_list(pred: str, pattern: str) -> List[str]:
     return [m.upper() for m in re.findall(pattern, pred or "", re.IGNORECASE)]
 
@@ -261,6 +326,9 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
     Route reward computation based on data_source.
     """
     allow_fallback = not _is_training_split(extra_info)
+    def finalize(score: float) -> float:
+        return _apply_reasoning_penalty(score, solution_str, extra_info)
+
     if data_source == "reward_instruction_following":
         pred = solution_str or ""
     else:
@@ -269,27 +337,27 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
     # AthenaBench tasks
     if data_source == "athena-cti-rcm":
         truth = _clean_freeform(str(_get_truth(ground_truth)))
-        return 1.0 if pred.lower() == truth.lower() else 0.0
+        return finalize(1.0 if pred.lower() == truth.lower() else 0.0)
     if data_source == "athena-cti-ate":
         truth = _clean_freeform(str(_get_truth(ground_truth))).upper()
-        return 1.0 if pred.split(".")[0].upper() == truth.split(".")[0].upper() and truth else 0.0
+        return finalize(1.0 if pred.split(".")[0].upper() == truth.split(".")[0].upper() and truth else 0.0)
     if data_source == "athena-cti-rms":
         truth_vals = set(_truth_ids(_get_truth(ground_truth), r"M\d{4}"))
         pred_vals = set(_truth_ids(pred, r"M\d{4}"))
         if not truth_vals:
-            return 0.0
+            return finalize(0.0)
         if not pred_vals:
-            return 0.0
+            return finalize(0.0)
         tp = len(pred_vals & truth_vals)
         precision = tp / len(pred_vals) if pred_vals else 0.0
         recall = tp / len(truth_vals) if truth_vals else 0.0
         if precision + recall == 0:
-            return 0.0
-        return 2 * precision * recall / (precision + recall)
+            return finalize(0.0)
+        return finalize(2 * precision * recall / (precision + recall))
     if data_source == "athena-cti-taa":
         truth = _clean_freeform(str(_get_truth(ground_truth)))
         relation = _is_connected(pred, truth, _ALIAS_DICT)
-        return 1.0 if relation == "C" else 0.0
+        return finalize(1.0 if relation == "C" else 0.0)
     if data_source == "athena-cti-vsp":
         truth = _clean_freeform(str(_get_truth(ground_truth)))
         truth_score = None
@@ -304,10 +372,10 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                     truth_score = None
         if not minerva_reward or not hasattr(minerva_reward, "reward_cvss_v31"):
             raise RuntimeError("athena-cti-vsp requires minerva.reward.reward_cvss_v31 for scoring")
-        return minerva_reward.reward_cvss_v31(pred, truth, truth_score, delta=7.7)
+        return finalize(minerva_reward.reward_cvss_v31(pred, truth, truth_score, delta=7.7))
     if data_source in {"athena-cti-mcq", "athena-cti-mcq-3k", "athena-cti-ckt"}:
         truth = _clean_freeform(str(_get_truth(ground_truth))).upper()
-        return 1.0 if pred.upper() == truth and truth else 0.0
+        return finalize(1.0 if pred.upper() == truth and truth else 0.0)
 
     # Minerva tasks: use reward_fn names
     if minerva_reward and data_source:
@@ -318,6 +386,13 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                 "reward_technique_id": "technique_id",
                 "reward_technique_id_only": "technique_id",
                 "reward_technique_sub_id": "technique_id",
+                "reward_technique_ids": "technique_ids",
+                "reward_technique_detection_art": "technique_id",
+                "reward_technique_detection_sigma": "technique_id",
+                "reward_technique_detection_sigma_base": "technique_id",
+                "reward_technique_detection_sentinel": "technique_id",
+                "reward_technique_detection_splunk": "technique_id",
+                "reward_technique_detection_elastic": "technique_id",
                 "reward_tactic_ids": "tactic_ids",
                 "reward_mitigation_ids": "mitigation_ids",
                 "reward_detection_id": "detection_id",
@@ -343,7 +418,9 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                     if not pred_vals:
                         source_text = pred or solution_str or ""
                         pred_vals = [p for p in _split_candidates(source_text) if p.startswith("TA")]
-                    truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"TA0?\d{4}")
+                    truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(
+                        truth_val, r"TA0?\d{4}"
+                    )
                 else:
                     if pred:
                         pred_vals = _truth_ids(pred, r"M\d{4}")
@@ -355,7 +432,16 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                         source_text = pred or solution_str or ""
                         pred_vals = [p for p in _split_candidates(source_text) if p.startswith("M")]
                     truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"M\d{4}")
-                return fn(pred_vals, truth_vals)
+                return finalize(fn(pred_vals, truth_vals))
+            if data_source == "reward_technique_ids" or data_source in DETECTION_TECHNIQUE_MULTI:
+                if pred:
+                    pred_vals = _truth_ids(pred, r"T\d{4}(?:\.\d{3})?")
+                elif allow_fallback:
+                    pred_vals = _truth_ids(solution_str or "", r"T\d{4}(?:\.\d{3})?")
+                else:
+                    pred_vals = _truth_ids(_extract_answer_line(solution_str), r"T\d{4}(?:\.\d{3})?")
+                truth_vals = truth_val if isinstance(truth_val, (list, tuple, set)) else _truth_ids(truth_val, r"T\d{4}(?:\.\d{3})?")
+                return finalize(fn(pred_vals, truth_vals))
             if data_source == "reward_cwe_ids":
                 if pred:
                     pred_vals = _truth_ids(pred, r"CWE-\d+(?:\.\d+)?")
@@ -375,8 +461,8 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                         total_mentions = len(mentions)
                         if total_mentions > expected:
                             score *= expected / total_mentions
-                return score
-            if data_source in {"reward_technique_id", "reward_technique_id_only", "reward_technique_sub_id"}:
+                return finalize(score)
+            if data_source in {"reward_technique_id", "reward_technique_id_only", "reward_technique_sub_id"} or data_source in DETECTION_TECHNIQUE_SINGLE:
                 match = re.search(r"T\d{4}(?:\.\d{3})?", pred, re.IGNORECASE) if pred else None
                 if not match and solution_str and allow_fallback:
                     match = re.search(r"T\d{4}(?:\.\d{3})?", solution_str, re.IGNORECASE)
@@ -391,7 +477,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                     pred_val = ""
                 else:
                     pred_val = match.group(0) if match else pred
-                return fn(pred_val, truth_val)
+                return finalize(fn(pred_val, truth_val))
             if data_source == "reward_detection_id":
                 det_preds = _extract_detection_ids(pred)
                 if not det_preds and allow_fallback:
@@ -404,7 +490,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                     pred_val = ""
                 truth_candidates = _extract_detection_ids(truth_val) if truth_val else []
                 truth_val_norm = truth_candidates[0] if truth_candidates else (truth_val or "")
-                return fn(pred_val, truth_val_norm)
+                return finalize(fn(pred_val, truth_val_norm))
             if data_source == "reward_cvss_v31":
                 if not pred and solution_str:
                     if allow_fallback:
@@ -420,7 +506,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                     score_val = ground_truth.get("score")
                     if isinstance(score_val, (int, float)):
                         truth_score = float(score_val)
-                return fn(pred, truth_val, truth_score, delta=10.0)
+                return finalize(fn(pred, truth_val, truth_score, delta=10.0))
             if data_source == "reward_cvss_v40":
                 if not pred and solution_str:
                     if allow_fallback:
@@ -431,7 +517,7 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                         answer_line = _extract_answer_line(solution_str)
                         matches = re.findall(r"(CVSS:4\\.0/[^\\s]+)", answer_line or "", re.IGNORECASE)
                         pred = matches[0].strip() if len(matches) == 1 else ""
-                return fn(pred, truth_val, None)
+                return finalize(fn(pred, truth_val, None))
             if data_source == "reward_capec_id":
                 match = re.search(r"CAPEC-\\d+", pred or "", re.IGNORECASE) if pred else None
                 if not match and solution_str and allow_fallback:
@@ -444,14 +530,14 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                     pred_val = ""
                 else:
                     pred_val = match.group(0).upper() if match else pred
-                return fn(pred_val, truth_val)
-            return fn(pred, truth_val)
+                return finalize(fn(pred_val, truth_val))
+            return finalize(fn(pred, truth_val))
 
     # Fallback: use mathruler if available
     try:
         from mathruler.grader import grade_answer
 
-        return float(grade_answer(pred, _get_truth(ground_truth)))
+        return finalize(float(grade_answer(pred, _get_truth(ground_truth))))
     except Exception:
         pass
 

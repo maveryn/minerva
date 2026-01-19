@@ -80,7 +80,7 @@
 \section*{Task Definitions and Prompts}
 
 This section documents the benchmark's 16 tasks in a paper-ready format: dataset construction, model input/output, reward function, and the exact prompt template used.
-Train/validation counts are taken from \datasetfile{dataset/minerva_split/metadata.json}.
+Train/validation counts are taken from \datasetfile{dataset/minerva_base_split/metadata.json}.
 Placeholders shown in braces (e.g., \texttt{\{CVE\_DESCRIPTION\}}) are substituted with instance-specific content at runtime.
 
 % ============================================================
@@ -93,7 +93,7 @@ Placeholders shown in braces (e.g., \texttt{\{CVE\_DESCRIPTION\}}) are substitut
   \item[Source] \datasetfile{dataset/mappings-explorer/kev-02.13.2025_attack-15.1-enterprise.yaml}. CVE descriptions are extracted from YAML comments (CVE IDs normalized to ``This vulnerability''/``this vulnerability''); labels are derived from \texttt{attack\_object\_id}.
   \item[Input] CVE description.
   \item[Output] One MITRE ATT\&CK Enterprise technique ID (T#### or T####.###).
-  \item[Reward] \texttt{reward\_technique\_id}.
+  \item[Reward] \texttt{reward\_technique\_detection\_sigma}.
 \end{taskmeta}
 \begin{promptbox}
 Given the vulnerability description below, output the single most appropriate MITRE ATT&CK Enterprise technique ID for:
@@ -302,7 +302,6 @@ CVE description:
 % ============================================================
 % 13--15: CAPEC example tasks
 % ============================================================
-\paragraph{Note.} CAPEC example tasks are currently excluded from the base Minerva splits.
 
 \tasksection{CAPEC Example $\rightarrow$ CAPEC ID}
 \textbf{Goal.} Given an example attack description, classify it to the best matching CAPEC pattern ID.
@@ -361,10 +360,9 @@ Example description:
 % ============================================================
 
 \tasksection{Threat Actor (Procedures)}
-\paragraph{Note.} Threat actor tasks are currently excluded from the base Minerva splits.
 \textbf{Goal.} Attribute an observed set of procedures to the most likely threat actor.
 \begin{taskmeta}
-  \item[Source] Built from MITRE ATT\&CK intrusion-set procedure descriptions. For each actor, we sample 60--90\% of techniques (min 3) and generate a number of questions based on technique-count bins chosen to balance total questions per bin ($\sim$100 each across 8 bins). Each bin assigns 3--10 questions per actor (bin 0 $\rightarrow$ 3, bin 7 $\rightarrow$ 10); the last bin is open-ended.
+  \item[Source] Built from MITRE ATT\&CK intrusion-set procedure descriptions. For each actor, we sample 60--100\% of techniques (min 3) and generate a number of questions based on technique-count bins chosen to balance total questions per bin ($\sim$100 each across 6 bins). Each bin assigns 3--8 questions per actor (bin 0 $\rightarrow$ 3, bin 5 $\rightarrow$ 8); the last bin is open-ended.
   \item[Input] A list of observed procedures.
   \item[Output] Threat actor name.
   \item[Reward] \texttt{reward\_threat\_actor\_name}.
@@ -398,16 +396,22 @@ Table~\ref{tab:dataset-splits} summarizes the split sizes for each task.
 \midrule
 1  & \datasetfile{cve_to_attack_exploitation}      & CVE description                  & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 245 / 20 \\
 2  & \datasetfile{cve_to_attack_primary_impact}    & CVE description                  & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 210 / 20 \\
-3  & \datasetfile{cve_to_attack_secondary_impact}  & CVE description                  & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 54 / 20 \\
-4  & \datasetfile{sigma_to_attack_technique}       & Sigma detection + logsource      & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 1450 / 50 \\
-5  & \datasetfile{sigma_to_attack_tactics}         & Sigma detection + logsource      & ATT\&CK tactic IDs       & \texttt{reward\_tactic\_ids}   & 881 / 50 \\
-6  & \datasetfile{scenario_to_technique}           & ATT\&CK procedure scenario       & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 8280 / 220 \\
-7  & \datasetfile{scenario_to_tactics}             & ATT\&CK procedure scenario       & ATT\&CK tactic IDs       & \texttt{reward\_tactic\_ids}   & 1950 / 50 \\
-8  & \datasetfile{scenario_to_mitigations}         & ATT\&CK procedure scenario       & ATT\&CK mitigation IDs   & \texttt{reward\_mitigation\_ids} & 8280 / 220 \\
-9  & \datasetfile{cve_to_cwe}                      & CVE description                  & CWE IDs                  & \texttt{reward\_cwe\_ids}      & 8750 / 250 \\
-10 & \datasetfile{cve_to_cvss_v31}                 & CVE description                  & CVSS v3.1 vector         & \texttt{reward\_cvss\_v31}     & 1900 / 100 \\
+3  & \datasetfile{cve_to_attack_secondary_impact}  & CVE description                  & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 64 / 10 \\
+4  & \datasetfile{sigma_to_attack_tactics}         & Sigma detection + logsource      & ATT\&CK tactic IDs       & \texttt{reward\_tactic\_ids}   & 950 / 50 \\
+5  & \datasetfile{sigma_to_attack_technique}       & Sigma detection + logsource      & ATT\&CK technique ID     & \texttt{reward\_technique\_detection\_sigma} & 950 / 50 \\
+6  & \datasetfile{art_to_attack_technique}         & ART procedure snippet            & ATT\&CK technique ID     & \texttt{reward\_technique\_detection\_art} & 950 / 50 \\
+7  & \datasetfile{sentinel_to_attack_technique}    & Sentinel analytics rule          & ATT\&CK technique ID     & \texttt{reward\_technique\_detection\_sentinel} & 950 / 50 \\
+8  & \datasetfile{splunk_to_attack_technique}      & Splunk detection rule            & ATT\&CK technique ID     & \texttt{reward\_technique\_detection\_splunk} & 280 / 20 \\
+9  & \datasetfile{scenario_to_technique}           & ATT\&CK procedure scenario       & ATT\&CK technique ID     & \texttt{reward\_technique\_id} & 7780 / 220 \\
+10 & \datasetfile{scenario_to_tactics}             & ATT\&CK procedure scenario       & ATT\&CK tactic IDs       & \texttt{reward\_tactic\_ids}   & 1950 / 50 \\
+11 & \datasetfile{scenario_to_mitigations}         & ATT\&CK procedure scenario       & ATT\&CK mitigation IDs   & \texttt{reward\_mitigation\_ids} & 7780 / 220 \\
+12 & \datasetfile{cve_to_cwe}                      & CVE description                  & CWE IDs                  & \texttt{reward\_cwe\_ids}      & 6696 / 220 \\
+13 & \datasetfile{cve_to_cvss_v31}                 & CVE description                  & CVSS v3.1 vector         & \texttt{reward\_cvss\_v31}     & 1900 / 100 \\
+14 & \datasetfile{threat_actor}                    & Observed procedures              & Threat actor name        & \texttt{reward\_threat\_actor\_name} & 779 / 60 \\
+15 & \datasetfile{capec_example_to_capec}          & CAPEC example                    & CAPEC ID                 & \texttt{reward\_capec\_id}     & 340 / 40 \\
+16 & \datasetfile{capec_example_to_cwe}            & CAPEC example                    & CWE IDs                  & \texttt{reward\_cwe\_ids}      & 176 / 20 \\
 \midrule
-\multicolumn{5}{@{}r}{\textbf{Total}} & \textbf{32000 / 1000} \\
+\multicolumn{5}{@{}r}{\textbf{Total}} & \textbf{32000 / 1200} \\
 \bottomrule
 \end{tabular}
 \end{table}
