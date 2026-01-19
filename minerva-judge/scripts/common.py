@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(PROJECT_ROOT / "rlvr") not in sys.path:
     sys.path.append(str(PROJECT_ROOT / "rlvr"))
 
-from athena_eval.models import GeminiModel, HuggingFaceModel, OpenAIModel  # noqa: E402
+from athena_eval.models import GeminiModel, HuggingFaceModel, OpenAIModel, VLLMModel  # noqa: E402
 from rlvr.verl.utils.reward_score import reward_minerva as reward_minerva_mod  # noqa: E402
 
 from minerva.acr_prompt import build_acr_block, dedupe_labels, extract_gold_labels  # noqa: E402
@@ -33,6 +33,8 @@ class ModelConfig:
     name: str
     backend: str
     max_new_tokens: int
+    batch_size: int = 1
+    vllm_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 def iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
@@ -187,19 +189,23 @@ def load_model(config: ModelConfig):
         return OpenAIModel(config.name)
     if config.backend == "gemini":
         return GeminiModel(config.name)
+    if config.backend in {"hf", "vllm"}:
+        try:
+            return VLLMModel(
+                config.name,
+                max_new_tokens=config.max_new_tokens,
+                vllm_kwargs=config.vllm_kwargs or {},
+                batch_size=config.batch_size,
+            )
+        except Exception:
+            if config.backend == "vllm":
+                raise
+        return HuggingFaceModel(config.name, max_new_tokens=config.max_new_tokens)
     return HuggingFaceModel(config.name, max_new_tokens=config.max_new_tokens)
 
 
 def load_rubric_prompt() -> str:
-    prompt_path = (
-        PROJECT_ROOT
-        / "rlvr"
-        / "verl"
-        / "utils"
-        / "reward_score"
-        / "prompts"
-        / "acr_rubric_prompt.txt"
-    )
+    prompt_path = PROJECT_ROOT / "minerva-judge" / "prompts" / "judge_prompt.txt"
     return prompt_path.read_text(encoding="utf-8")
 
 
@@ -242,40 +248,81 @@ def extract_json_object(text: str) -> Optional[dict[str, Any]]:
     return None
 
 
-def parse_rubric(obj: dict[str, Any]) -> Optional[dict[str, int]]:
+_BAD_CATEGORIES = {
+    1: "Leakage",
+    2: "Incoherent",
+    3: "Ungrounded",
+    4: "Mismatch",
+    5: "Other",
+}
+
+
+def _normalize_label(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
+def _normalize_title(value: Any) -> str:
+    return " ".join(str(value or "").strip().split())
+
+
+def _find_category_id(text: str) -> Optional[int]:
+    if not text:
+        return None
+    match = re.search(r"\b([1-5])\b", text)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def parse_rubric(obj: dict[str, Any]) -> Optional[dict[str, Any]]:
     if not obj:
         return None
-    key_map = {
-        "Q1": "Q1",
-        "Q2": "Q2",
-        "Q3": "Q3",
-        "Q4": "Q4",
-        "Q1_no_leakage": "Q1",
-        "Q2_clarity": "Q2",
-        "Q3_groundedness": "Q3",
-        "Q4_alignment": "Q4",
-    }
-    parsed: dict[str, int] = {}
-    for raw_key, raw_val in obj.items():
-        key = key_map.get(str(raw_key).strip())
-        if key is None:
-            continue
-        try:
-            val = int(raw_val)
-        except Exception:
-            continue
-        if val < 1 or val > 4:
-            continue
-        parsed[key] = val
-    if all(k in parsed for k in ("Q1", "Q2", "Q3", "Q4")):
+    label = _normalize_label(obj.get("label"))
+    if label not in {"GOOD", "BAD"}:
+        return None
+    parsed: dict[str, Any] = {"label": label}
+    if label == "GOOD":
         return parsed
-    return None
+
+    raw_id = obj.get("category_id")
+    cat_id = None
+    if raw_id is not None:
+        try:
+            cat_id = int(str(raw_id).strip())
+        except Exception:
+            cat_id = _find_category_id(str(raw_id))
+    if cat_id is None:
+        cat_id = _find_category_id(_normalize_title(obj.get("category")))
+
+    raw_title = obj.get("category_title") or obj.get("category")
+    cat_title = _normalize_title(raw_title)
+    if cat_id is None and cat_title:
+        for cand_id, cand_title in _BAD_CATEGORIES.items():
+            if cat_title.casefold() == cand_title.casefold():
+                cat_id = cand_id
+                break
+    if not cat_title:
+        cat_title = _BAD_CATEGORIES.get(cat_id, "")
+
+    if cat_id not in _BAD_CATEGORIES:
+        return None
+
+    expected = _BAD_CATEGORIES.get(cat_id, "")
+    if expected and cat_title and cat_title.casefold() != expected.casefold():
+        return None
+
+    parsed["category_id"] = cat_id
+    parsed["category_title"] = cat_title or expected
+    return parsed
 
 
-def compute_rubric_score(rubric: dict[str, int]) -> float:
-    weights = {"Q1": 0.30, "Q2": 0.30, "Q3": 0.20, "Q4": 0.20}
-    score_1_to_4 = sum(weights[k] * float(rubric[k]) for k in weights)
-    return (score_1_to_4 - 1.0) / 3.0
+def compute_rubric_score(rubric: dict[str, Any]) -> float:
+    label = _normalize_label(rubric.get("label"))
+    if label == "GOOD":
+        return 1.0
+    if label == "BAD":
+        return 0.0
+    return 0.0
 
 
 def extract_predicted(data_source: str, response: str) -> str:

@@ -434,6 +434,7 @@ Table~\ref{tab:dataset-splits} summarizes the split sizes for each task.
   \item[\texttt{reward\_cwe\_ids}] F1 score over the predicted vs.\ ground-truth sets of CWE IDs.
 \item[\texttt{reward\_cvss\_v31}] Compute CVSS v3.1 score distance (1 - \lvert truth - pred \rvert / 10); invalid vectors score 0. AthenaBench \texttt{athena-cti-vsp} uses delta=7.7.
   \item[\texttt{reward\_mitigation\_ids}] F1 score over the predicted vs.\ ground-truth sets of mitigation IDs.
+  \item[Training-only short-reasoning penalty] If a boxed answer exists and the text before it has fewer than 20 word tokens (regex word count), subtract 0.05 and clamp at $\ge 0$.
   \item[\texttt{binary\_id}] Score is 1.0 if the predicted ID matches the ground truth; otherwise 0.
   \item[\texttt{reward\_threat\_actor\_name}] Score is 1.0 if the prediction matches the actor name or an alias; otherwise 0.
 \end{description}

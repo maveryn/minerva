@@ -272,5 +272,6 @@ capec_example_to_cwe	CAPEC example	CWE IDs	reward_cwe_ids	196	176	20
 - `reward_cwe_ids`: F1 over predicted vs. ground-truth CWE ID sets.
 - `reward_cvss_v31`: compute CVSS v3.1 score distance (1 - |truth - pred| / 10), invalid vector -> 0. AthenaBench `athena-cti-vsp` uses delta=7.7.
 - `reward_mitigation_ids`: F1 over predicted vs. ground-truth mitigation ID sets.
+- Training-only short-reasoning penalty: if a boxed answer exists and the text before it has fewer than 20 word tokens (regex word count), subtract 0.05 and clamp at >= 0.
 
 See `docs/task-descriptions.tex` for a LaTeX version of this document.

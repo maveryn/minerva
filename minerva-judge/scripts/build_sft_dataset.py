@@ -45,6 +45,11 @@ def main() -> None:
                     "source_model": record.get("model"),
                     "judge_model": record.get("judge_model"),
                     "rubric_score": record.get("rubric_score"),
+                    "judge_label": record.get("judge_label"),
+                    "judge_category_id": record.get("judge_category_id"),
+                    "judge_category_title": record.get("judge_category_title"),
+                    "prompt_variant": record.get("prompt_variant"),
+                    "hinted": record.get("hinted"),
                 }
             )
             if args.max_samples is not None and len(rows) >= args.max_samples:

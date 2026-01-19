@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import random
+import re
 from typing import Optional
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
@@ -28,9 +29,28 @@ except Exception:  # pragma: no cover
     genai = None  # type: ignore
 
 
+def _default_vllm_batch_size(model_name: str) -> int:
+    name_upper = model_name.upper()
+    is_8b = re.search(r"(?<!\\d)8B(?!\\d)", name_upper) is not None
+    try:
+        if torch.cuda.is_available():
+            total_mem = torch.cuda.get_device_properties(0).total_memory
+            total_gb = total_mem / (1024**3)
+        else:
+            total_gb = 0.0
+    except Exception:
+        total_gb = 0.0
+    if is_8b and total_gb >= 80.0:
+        return 192
+    if is_8b and total_gb >= 40.0:
+        return 128
+    return 32
+
+
 @dataclass
 class BaseModel:
     name: str
+    batch_size: int = 1
 
     def generate(self, prompt: str, **_: object) -> str:  # pragma: no cover - interface
         """Return a model response for *prompt*.
@@ -40,6 +60,12 @@ class BaseModel:
         extra information such as the ground-truth answer.
         """
         raise NotImplementedError
+
+    def generate_batch(self, prompts: list[str], **kwargs: object) -> list[str]:
+        responses: list[str] = []
+        for prompt in prompts:
+            responses.append(self.generate(prompt, **kwargs))
+        return responses
 
 class OpenAIModel(BaseModel):
     """Wrapper for OpenAI chat and responses APIs."""
@@ -208,8 +234,16 @@ class HuggingFaceModel(BaseModel):
 class VLLMModel(BaseModel):
     """Wrapper for vLLM-backed models."""
 
-    def __init__(self, name: str, max_new_tokens: int = 2048, vllm_kwargs: Optional[dict] = None):
-        super().__init__(name)
+    def __init__(
+        self,
+        name: str,
+        max_new_tokens: int = 2048,
+        vllm_kwargs: Optional[dict] = None,
+        batch_size: Optional[int] = None,
+    ):
+        if batch_size is None:
+            batch_size = _default_vllm_batch_size(name)
+        super().__init__(name, batch_size=batch_size)
         try:
             from vllm import LLM, SamplingParams  # type: ignore
         except Exception as exc:  # pragma: no cover
@@ -244,8 +278,8 @@ class VLLMModel(BaseModel):
             return None
         return list(ids)
 
-    def generate(self, prompt: str, temperature: float = 0.0, **_: object) -> str:
-        formatted = self._format_prompt(prompt)
+    def generate(self, prompt: str, temperature: float = 0.0, apply_chat_template: bool = True, **_: object) -> str:
+        formatted = self._format_prompt(prompt) if apply_chat_template else prompt
         eos = self._eos_ids()
         if eos is not None and not isinstance(eos, list):
             eos = [eos]
@@ -262,6 +296,25 @@ class VLLMModel(BaseModel):
             return ""
         text = first.outputs[0].text
         return (text or "").strip()
+
+    def generate_batch(
+        self,
+        prompts: list[str],
+        temperature: float = 0.0,
+        apply_chat_template: bool = True,
+        **_: object,
+    ) -> list[str]:
+        formatted = [self._format_prompt(p) for p in prompts] if apply_chat_template else list(prompts)
+        eos = self._eos_ids()
+        if eos is not None and not isinstance(eos, list):
+            eos = [eos]
+        params = self._SamplingParams(
+            temperature=temperature,
+            max_tokens=self.max_new_tokens,
+            stop_token_ids=eos,
+        )
+        outputs = self.llm.generate(formatted, params, use_tqdm=False)
+        return [out.outputs[0].text.strip() if getattr(out, "outputs", None) else "" for out in outputs]
 
 
 def load_model(cfg: dict) -> BaseModel:
