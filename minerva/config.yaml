@@ -77,7 +77,7 @@ TASKS:
     alias_csv_path: rlvr/verl/utils/reward_score/aliases.csv
     binning:
       min_techniques: 3
-      bin_count: 8
+      bin_count: 6
       target_questions_per_bin: 100
       questions_start: 3
       questions_step: 1

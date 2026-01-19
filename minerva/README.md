@@ -6,10 +6,13 @@ Builds RL-friendly CTI datasets from public sources (NVD CVEs, MITRE ATT&CK proc
 - CVE → CWE, CVE → CVSS v3.1
 - CVE → ATT&CK exploitation/impact (mappings-explorer)
 - Sigma → ATT&CK technique/tactics
+- Detection rules (ART/Sentinel/Splunk) → ATT&CK technique
 - Procedure scenarios → ATT&CK technique/tactics/mitigations/detections
-- Train/dev splits (32k/1k) with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`)
+- CAPEC examples → CAPEC/CWE
+- Threat actor (procedures) → name attribution
+- Train/dev splits (32k/1.2k) with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`)
 
-Outputs are JSONL files under `dataset/minerva/` with `dataset/minerva/metadata.json` for counts/examples. Train/dev splits (32k/1k) live under `dataset/minerva_split/` with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`).
+Outputs are JSONL files under `dataset/minerva/` with `dataset/minerva/metadata.json` for counts/examples. Train/dev splits (32k/1.2k) live under `dataset/minerva_split/` with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`).
 
 ## Run it
 ```
@@ -54,13 +57,11 @@ Vulnerability description:
 - **Detection Strategy**: single ATT&CK detection strategy ID (DET####) with requirements block.
 
 ### CAPEC examples
-Note: CAPEC example tasks are currently excluded from the base Minerva splits.
 - **Example → CAPEC ID**: single CAPEC-<number>.
 - **Example → CWE IDs**: EXACTLY the provided count of CWE-<number> IDs (up to 3).
 - **Example → ATT&CK technique**: single ATT&CK technique ID (requirements block; prefers sub-techniques) when only one technique mapping exists.
 
 ### Threat actor (procedures)
-Note: Threat actor tasks are currently excluded from the base Minerva splits.
 ```
 Given the observed adversary procedures below, identify the most likely threat actor.
 
@@ -69,5 +70,5 @@ Observed procedures:
 
 Return only the threat actor name.
 ```
-Multiple variants are generated per actor by sampling 60-90% of techniques (min 3) and assigning a question count based on technique-count bins chosen to balance total questions per bin (~100 each across 8 bins). Each bin assigns 3-10 questions per actor (bin 0 -> 3, bin 7 -> 10); the last bin is open-ended.
+Multiple variants are generated per actor by sampling 60-100% of techniques (min 3) and assigning a question count based on technique-count bins chosen to balance total questions per bin (~100 each across 6 bins). Each bin assigns 3-8 questions per actor (bin 0 -> 3, bin 5 -> 8); the last bin is open-ended.
 Rewarding uses `threat_actor_lookup.json`, which merges MITRE intrusion-set aliases with supplemental aliases from `rlvr/verl/utils/reward_score/aliases.csv`.

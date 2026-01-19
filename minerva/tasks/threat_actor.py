@@ -14,7 +14,7 @@ from minerva.utils import load_yaml, write_jsonl
 LOOKUP_FILENAME = "threat_actor_lookup.json"
 DEFAULT_BINNING = {
     "min_techniques": 3,
-    "bin_count": 8,
+    "bin_count": 6,
     "target_questions_per_bin": 100,
     "questions_start": 3,
     "questions_step": 1,
@@ -346,10 +346,11 @@ def build_threat_actor_tasks(
         if len(technique_ids) < min_required:
             continue
         for question_idx in range(num_questions):
-            pct = rng.uniform(0.6, 0.9)
+            pct = rng.uniform(0.6, 1.0)
             k = max(3, math.ceil(len(technique_ids) * pct))
             k = min(k, len(technique_ids))
             sampled_tids = rng.sample(technique_ids, k)
+            rng.shuffle(sampled_tids)
             sampled_texts = []
             for tid in sampled_tids:
                 candidates = procedures_by_tid.get(tid, [])

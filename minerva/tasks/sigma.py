@@ -162,7 +162,11 @@ def build_sigma_datasets(
             tech_prompt = (
                 TECHNIQUE_PROMPT_SUB if ask_subtechnique else TECHNIQUE_PROMPT_ONLY
             ).format(SIGMA_RULE_EXCERPT=excerpt)
-            reward_fn = "reward_technique_id" if ask_subtechnique else "reward_technique_id_only"
+            reward_fn = (
+                "reward_technique_detection_sigma"
+                if ask_subtechnique
+                else "reward_technique_detection_sigma_base"
+            )
             technique_rows.append(
                 {
                     "task": "sigma_to_attack_technique",

@@ -6,8 +6,11 @@ Minerva builds reinforcement-learning friendly cyber threat intelligence (CTI) d
 - CVE → ATT&CK (exploitation/primary/secondary impact) from mappings-explorer
 - CVE → CWE, CVE → CVSS v3.1
 - Sigma → ATT&CK technique / tactics
+- Detection rules (ART/Sentinel/Splunk) → ATT&CK technique
 - ATT&CK procedure scenarios → technique / tactics / mitigations / detections
-- Train/dev splits (32k/1k) with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`)
+- CAPEC examples → CAPEC / CWE
+- Threat actor (procedures) → name attribution
+- Train/dev splits (32k/1.2k) with minimal fields (`task`, `prompt`, `ground_truth`, `reward_fn`)
 
 See `docs/task-descriptions.md` for inputs/outputs/rewards, prompts, and per-task split statistics.
 

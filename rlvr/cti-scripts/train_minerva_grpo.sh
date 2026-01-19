@@ -36,14 +36,14 @@ VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3
 
 OUTPUT_ROOT="${GRPO_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 
-TRAIN_BATCH_SIZE="${GRPO_TRAIN_BATCH_SIZE:-64}"
+TRAIN_BATCH_SIZE="${GRPO_TRAIN_BATCH_SIZE:-128}"
 VAL_BATCH_SIZE="${GRPO_VAL_BATCH_SIZE:-2250}"
 MAX_PROMPT_LEN="${GRPO_MAX_PROMPT_LEN:-2048}"
 MAX_RESPONSE_LEN="${GRPO_MAX_RESPONSE_LEN:-1024}"
 ROLLOUT_N="${GRPO_ROLLOUT_N:-8}"
 ROLLOUT_GPU_UTIL="${GRPO_ROLLOUT_GPU_UTIL:-0.95}"
 TOTAL_STEPS="${GRPO_TOTAL_STEPS:-500}"
-N_GPUS="${GRPO_N_GPUS_PER_NODE:-4}"
+N_GPUS="${GRPO_N_GPUS_PER_NODE:-2}"
 VAL_BEFORE_TRAIN="${GRPO_VAL_BEFORE_TRAIN:-false}"
 SAVE_FREQ="${GRPO_SAVE_FREQ:-10}"
 TEST_FREQ="${GRPO_TEST_FREQ:-10}"
@@ -52,9 +52,6 @@ SAVE_BEST_METRIC="${GRPO_SAVE_BEST_METRIC:-val-core/global-val/reward/mean}"
 SAVE_BEST_MODE="${GRPO_SAVE_BEST_MODE:-max}"
 SAVE_BEST_DIR="${GRPO_SAVE_BEST_DIR:-best}"
 
-USE_KL_LOSS="${GRPO_USE_KL_LOSS:-false}"
-KL_LOSS_COEF="${GRPO_KL_LOSS_COEF:-0.0}"
-KL_LOSS_TYPE="${GRPO_KL_LOSS_TYPE:-low_var_kl}"
 ENTROPY_COEFF="${GRPO_ENTROPY_COEFF:-0.0}"
 ACTOR_LR="${GRPO_ACTOR_LR:-1e-6}"
 TENSOR_PARALLEL_SIZE="${GRPO_TENSOR_PARALLEL_SIZE:-1}"
@@ -79,9 +76,9 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size="$TRAIN_BATCH_SIZE" \
     actor_rollout_ref.actor.use_dynamic_bsz=True \
-    actor_rollout_ref.actor.use_kl_loss="$USE_KL_LOSS" \
-    actor_rollout_ref.actor.kl_loss_coef="$KL_LOSS_COEF" \
-    actor_rollout_ref.actor.kl_loss_type="$KL_LOSS_TYPE" \
+    actor_rollout_ref.actor.use_kl_loss=False \
+    actor_rollout_ref.actor.kl_loss_coef=0.0 \
+    actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.entropy_coeff="$ENTROPY_COEFF" \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \

@@ -30,18 +30,21 @@ RESAMPLE_COUNTS: Dict[str, int] = {
     "cve_to_attack_exploitation": 265,
     "cve_to_attack_primary_impact": 230,
     "cve_to_attack_secondary_impact": 74,
-    "sigma_to_attack_technique": 1500,
-    "sigma_to_attack_tactics": 931,
-    "scenario_to_technique": 8500,
+    "sigma_to_attack_technique": 1000,
+    "sigma_to_attack_tactics": 1000,
+    "art_to_attack_technique": 1000,
+    "sentinel_to_attack_technique": 1000,
+    "splunk_to_attack_technique": 300,
+    "scenario_to_technique": 8000,
     "scenario_to_tactics": 2000,
-    "scenario_to_mitigations": 8500,
-    "cve_to_cwe": 9000,
+    "scenario_to_mitigations": 8000,
+    "cve_to_cwe": 6916,
     "cve_to_cvss_v31": 2000,
     "cve_to_cvss_v40": 0,
-    "capec_example_to_capec": 0,
-    "capec_example_to_cwe": 0,
+    "capec_example_to_capec": 380,
+    "capec_example_to_cwe": 196,
     "capec_example_to_attack": 0,
-    "threat_actor": 0,
+    "threat_actor": 839,
 }
 RESAMPLE_SEED = 1337
 
@@ -149,6 +152,21 @@ def _dedupe_jsonl(path: Path) -> tuple[int, int]:
     if removed > 0:
         path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8")
     return len(rows), removed
+
+
+def _copy_external_task(src: Path, dest: Path, logger=None) -> int:
+    if not src.exists():
+        if logger is not None:
+            logger.warning("Missing external task file: %s", src)
+        return 0
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dest)
+    count = 0
+    for _ in _iter_jsonl(dest):
+        count += 1
+    if logger is not None:
+        logger.info("Copied external task %s -> %s (%d rows)", src.name, dest, count)
+    return count
 
 
 def _replace_minerva_path(path: str, output_root: str) -> str:
@@ -289,6 +307,22 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
     except Exception as exc:
         logger.error("Failed sigma build: %s", exc)
 
+    # External detection datasets (prebuilt under dataset/detection)
+    try:
+        minerva_out = cfg.get("COMMON", {}).get("minerva_out", "dataset/minerva")
+        detection_sources = {
+            "art_to_attack_technique": Path("dataset/detection/art_to_attack_technique.jsonl"),
+            "sentinel_to_attack_technique": Path("dataset/detection/sentinel_to_attack_technique.jsonl"),
+            "splunk_to_attack_technique": Path("dataset/detection/splunk_to_attack_technique.jsonl"),
+        }
+        for task_name, src in detection_sources.items():
+            dest = Path(minerva_out) / f"{task_name}.jsonl"
+            count = _copy_external_task(src, dest, logger=logger)
+            if count:
+                summary[task_name] = count
+    except Exception as exc:
+        logger.error("Failed detection dataset import: %s", exc)
+
     tasks_cfg = cfg.get("TASKS", {})
     cap_cfg = tasks_cfg
 
@@ -422,6 +456,9 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
         "cve_to_cvss_v40": Path(tasks_cfg.get("CVE_CVSS_V40", {}).get("output_path", "dataset/minerva/cve_to_cvss_v40.jsonl")),
         "sigma_to_attack_technique": Path(minerva_out) / "sigma_to_attack_technique.jsonl",
         "sigma_to_attack_tactics": Path(minerva_out) / "sigma_to_attack_tactics.jsonl",
+        "art_to_attack_technique": Path(minerva_out) / "art_to_attack_technique.jsonl",
+        "sentinel_to_attack_technique": Path(minerva_out) / "sentinel_to_attack_technique.jsonl",
+        "splunk_to_attack_technique": Path(minerva_out) / "splunk_to_attack_technique.jsonl",
         "capec_example_to_capec": Path(cap_cfg.get("CAPEC_EXAMPLE_CAPEC", {}).get("output_path", "dataset/minerva/capec_example_to_capec.jsonl")),
         "capec_example_to_cwe": Path(cap_cfg.get("CAPEC_EXAMPLE_CWE", {}).get("output_path", "dataset/minerva/capec_example_to_cwe.jsonl")),
         "capec_example_to_attack": Path(cap_cfg.get("CAPEC_EXAMPLE_ATTACK", {}).get("output_path", "dataset/minerva/capec_example_to_attack.jsonl")),
@@ -435,9 +472,13 @@ def build_minerva_dataset(cfg: Dict, *, logger, detailed_prompts: bool) -> None:
     dedupe_info: Dict[str, int] = {}
     for task_name, path in task_paths.items():
         if task_name in summary:
-            kept, removed = _dedupe_jsonl(path)
-            if removed:
-                dedupe_info[task_name] = removed
+            if task_name == "threat_actor":
+                kept = sum(1 for _ in _iter_jsonl(path))
+                removed = 0
+            else:
+                kept, removed = _dedupe_jsonl(path)
+                if removed:
+                    dedupe_info[task_name] = removed
             target_n = RESAMPLE_COUNTS.get(task_name)
             if target_n is not None:
                 resampled, _ = _resample_jsonl(path, target_n, resample_rng, logger=logger)

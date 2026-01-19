@@ -3,6 +3,7 @@
 ## Project summary
 - Minerva builds RL-friendly cyber threat intelligence datasets (CVE, CAPEC, ATT&CK, Sigma, mappings-explorer).
 - The repo also contains related tooling (`athena_*`) and a large RL training stack (`rlvr/`); most dataset work lives under `minerva/`.
+- Current focus is ACRD; TARBA/SLHC/LHC approaches are not in active use (docs moved to `docs/deprecated/`).
 
 ## Key entry points
 - `minerva/pipeline.py` orchestrates dataset generation from sources using `minerva/config.yaml`.
@@ -64,6 +65,7 @@
 - Uses label details from `dataset/label_details/` and reward logic in `rlvr/verl/utils/reward_score/reward_acr.py`.
 
 ## TARBA tool-augmented retrieval (RLVR)
+- Deprecated for now; see `docs/deprecated/`.
 - Code flow: `minerva/retrieval/` builds canonical label docs + BM25 indexes; `minerva/retrieval/server.py` serves `/retrieve`; `rlvr/verl/tools/cti_retrieval_tool.py` calls the server; `rlvr/verl/utils/dataset/minerva_tarba_retrieval_dataset.py` injects tool instructions + per-task budgets; `rlvr/verl/utils/reward_score/reward_tarba.py` adds retrieval shaping; controller updates in `rlvr/verl/trainer/ppo/ray_trainer.py`.
 - Build label docs + index (generated artifacts):
   - `python -m minerva.retrieval.build_label_docs --config configs/retrieval/label_docs.yaml --out_dir dataset/retrieval/label_docs`
