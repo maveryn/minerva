@@ -76,6 +76,9 @@ Helper scripts:
 - `minerva-judge/run_generate_models.sh`: generate responses for the full train split across the 5 target models.
 - `minerva-judge/run_judge_folder.sh`: run the judge over all `responses_*.jsonl` files in `minerva-judge/data`.
 
+Note: vLLM uses multiprocessing; the helper scripts set
+`VLLM_WORKER_MULTIPROC_METHOD=spawn` to avoid CUDA re-init errors.
+
 ## Step 3: score with the judge model (e.g., GPT-OSS 120B)
 
 ```bash

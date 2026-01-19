@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+export VLLM_WORKER_MULTIPROC_METHOD="${VLLM_WORKER_MULTIPROC_METHOD:-spawn}"
+
 INPUT_DIR="${MINERVA_JUDGE_RESPONSES_DIR:-$ROOT_DIR/data}"
 OUTPUT_PATH="${MINERVA_JUDGE_JUDGED_OUTPUT:-$ROOT_DIR/data/judged_all.jsonl}"
 JUDGE_MODEL="${MINERVA_JUDGE_JUDGE_MODEL:-openai/gpt-oss-120b}"

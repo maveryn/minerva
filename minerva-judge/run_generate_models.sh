@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 
+export VLLM_WORKER_MULTIPROC_METHOD="${VLLM_WORKER_MULTIPROC_METHOD:-spawn}"
+
 INPUT_JSONL="${MINERVA_JUDGE_INPUT:-$REPO_ROOT/dataset/minerva_base_split/minerva-base-train.jsonl}"
 OUTPUT_DIR="${MINERVA_JUDGE_OUTPUT_DIR:-$ROOT_DIR/data}"
 BACKEND="${MINERVA_JUDGE_BACKEND:-vllm}"
