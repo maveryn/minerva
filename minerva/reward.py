@@ -240,7 +240,7 @@ def _extract_cvss_v31(vector: str) -> str:
     for found in _CVSS_V31_RE.finditer(vector):
         match = found
     if match:
-        return match.group(1).strip()
+        return match.group(1).strip().rstrip(" .,:;)]\"'")
     return ""
 
 

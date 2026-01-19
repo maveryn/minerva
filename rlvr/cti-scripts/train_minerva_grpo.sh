@@ -37,7 +37,7 @@ VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3
 OUTPUT_ROOT="${GRPO_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 
 TRAIN_BATCH_SIZE="${GRPO_TRAIN_BATCH_SIZE:-128}"
-VAL_BATCH_SIZE="${GRPO_VAL_BATCH_SIZE:-2250}"
+VAL_BATCH_SIZE="${GRPO_VAL_BATCH_SIZE:-2500}"
 MAX_PROMPT_LEN="${GRPO_MAX_PROMPT_LEN:-2048}"
 MAX_RESPONSE_LEN="${GRPO_MAX_RESPONSE_LEN:-1024}"
 ROLLOUT_N="${GRPO_ROLLOUT_N:-8}"
@@ -65,6 +65,7 @@ python3 -m verl.trainer.main_ppo \
     data.dataloader_num_workers=0 \
     custom_reward_function.path="$REWARD_FN_PATH" \
     custom_reward_function.name=reward_minerva \
+    +custom_reward_function.reward_kwargs.return_dict=true \
     data.train_batch_size="$TRAIN_BATCH_SIZE" \
     data.val_batch_size="$VAL_BATCH_SIZE" \
     data.max_prompt_length="$MAX_PROMPT_LEN" \

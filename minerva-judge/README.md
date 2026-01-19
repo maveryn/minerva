@@ -3,13 +3,13 @@
 This folder contains a small pipeline to build a judge SFT dataset from Minerva
 train prompts. The flow is:
 
-1) sample prompts from the Minerva train split
-2) generate ACRD-style answer-conditioned responses from several base models
-3) keep only responses verified as correct by `reward_minerva`
-4) score those (prompt, response) pairs with a GPT-5 judge
-5) export an SFT dataset to train a smaller judge model (e.g., Qwen 4B/8B)
+1) use the Minerva train split (optionally sample for quick tests)
+2) generate responses for every prompt, both with ACR-style answer hints and without
+3) score (prompt, response) pairs with a GPT-5 judge
+4) export an SFT dataset to train a smaller judge model (e.g., Qwen 4B/8B)
 
-The judge prompt uses the ACR rubric (`rlvr/verl/utils/reward_score/prompts/acr_rubric_prompt.txt`).
+The judge prompt uses the GOOD/BAD rubric in `minerva-judge/prompts/judge_prompt.txt`
+(derived from `docs/acr-judge-prompt.md`).
 
 ## Folder layout
 
@@ -22,7 +22,15 @@ The judge prompt uses the ACR rubric (`rlvr/verl/utils/reward_score/prompts/acr_
 - OpenAI judge: set `OPENAI_API_KEY` (uses `athena_eval.models.OpenAIModel`)
 - Hugging Face model generation: set `HF_TOKEN` if the model is gated
 
-## Step 1: sample prompts
+## Step 1: choose prompts
+
+For full runs, use the full train split directly:
+
+```bash
+INPUT=dataset/minerva_base_split/minerva-base-train.jsonl
+```
+
+Optional: sample a smaller subset for quick tests.
 
 ```bash
 python minerva-judge/scripts/sample_minerva_prompts.py \
@@ -32,45 +40,56 @@ python minerva-judge/scripts/sample_minerva_prompts.py \
   --seed 1337
 ```
 
-## Step 2: generate answer-guided responses
+## Step 2: generate responses (hinted + plain)
 
-The script keeps sampling prompts (with replacement) until it collects
-`--target-correct` verified-correct responses. It uses the same ACRD prompt
-template (GROUND_TRUTH_LABELS + optional LABEL_REFERENCE block) to
-condition the model on the correct answer while instructing it not to mention
-the label in reasoning. For HF models, it renders a system+user chat template
-using the model tokenizer (matching ACRD’s chat-formatting behavior).
+The script iterates each prompt once and emits two responses:
+`prompt_variant=hinted` (ACR answer hints) and `prompt_variant=plain` (no hints).
+It records the rule-based reward and correctness flag for each response.
+For HF models, it renders a system+user chat template using the model tokenizer
+(matching ACRD’s chat-formatting behavior).
 
-Example (repeat for each base model):
+Example (repeat for each base model; use `--backend vllm` to enable batched vLLM inference):
 
 ```bash
 python minerva-judge/scripts/generate_answer_guided.py \
-  --input minerva-judge/data/prompts_1k.jsonl \
+  --input "$INPUT" \
   --output minerva-judge/data/responses_llama3_8b.jsonl \
   --model meta-llama/Meta-Llama-3-8B-Instruct \
-  --target-correct 1024 \
-  --max-attempts 20000 \
-  --temperature 0.2
+  --backend vllm \
+  --batch-size 32 \
+  --max-new-tokens 1024 \
+  --temperature 0.7
 ```
+
+Use `--variants plain|hinted|both` (default `both`) to control which prompt
+variants are generated. Add `--limit` for a quick sanity check. For vLLM
+engine tuning (e.g., tensor parallelism), pass `--vllm-args '{"tensor_parallel_size": 2}'`.
 
 Suggested model set:
 - `meta-llama/Meta-Llama-3-8B-Instruct`
 - `meta-llama/Meta-Llama-3-8B`
 - `Qwen/Qwen3-4B-Instruct`
 - `Qwen/Qwen3-8B-Instruct`
+- `openai/gpt-oss-20b`
 
-## Step 3: score with the GPT-5 judge
+Helper scripts:
+- `minerva-judge/run_generate_models.sh`: generate responses for the full train split across the 5 target models.
+- `minerva-judge/run_judge_folder.sh`: run the judge over all `responses_*.jsonl` files in `minerva-judge/data`.
+
+## Step 3: score with the judge model (e.g., GPT-OSS 120B)
 
 ```bash
 python minerva-judge/scripts/score_with_judge.py \
   --input minerva-judge/data/responses_llama3_8b.jsonl \
   --output minerva-judge/data/judged_llama3_8b.jsonl \
-  --judge-model gpt-5 \
+  --judge-model openai/gpt-oss-120b \
+  --backend vllm \
+  --batch-size 8 \
   --max-new-tokens 64
 ```
 
 By default the judge only scores responses marked correct. Use
-`--include-incorrect` to score all responses.
+`--include-incorrect` to score all responses (recommended for BAD labels).
 
 ## Step 4: build the SFT dataset
 
@@ -87,8 +106,9 @@ python minerva-judge/scripts/build_sft_dataset.py \
 ## Output schema (high level)
 
 - `prompts_*.jsonl`: `uid`, `prompt`, `answer`, `reward_fn`, `task`
-- `responses_*.jsonl`: adds `model`, `acr_prompt`, `response`,
-  `prediction`, `reward`, `correct`, `attempt`
+- `responses_*.jsonl`: adds `model`, `prompt_variant`, `prompt_used`, `acr_prompt`,
+  `response`, `prediction`, `reward`, `correct`
 - `judged_*.jsonl`: adds `judge_prompt`, `judge_response`, `rubric_valid`,
-  `rubric_score`, and parsed rubric fields when possible
+  `rubric_score` (1 for GOOD, 0 for BAD), plus `judge_label`,
+  `judge_category_id`, `judge_category_title` when present
 - `judge_sft.parquet`: `messages` for SFT (`user` = judge prompt, `assistant` = judge response)

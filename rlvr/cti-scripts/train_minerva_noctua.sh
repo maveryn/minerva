@@ -116,7 +116,7 @@ ACR_JUDGE_DTYPE="${ACRD_JUDGE_DTYPE:-auto}"
 ACR_JUDGE_TRUST_REMOTE_CODE="${ACRD_JUDGE_TRUST_REMOTE_CODE:-true}"
 
 TRAIN_BATCH_SIZE="${ACRD_TRAIN_BATCH_SIZE:-128}"
-VAL_BATCH_SIZE="${ACRD_VAL_BATCH_SIZE:-2250}"
+VAL_BATCH_SIZE="${ACRD_VAL_BATCH_SIZE:-2500}"
 ACR_JUDGE_BATCH_SIZE="${ACRD_JUDGE_BATCH_SIZE:-$TRAIN_BATCH_SIZE}"
 TOTAL_STEPS="${ACRD_TOTAL_STEPS:-500}"
 SAVE_FREQ="${ACRD_SAVE_FREQ:-10}"
@@ -193,6 +193,7 @@ python3 -m verl.trainer.main_ppo \
     data.exclude_cvss_train="$ACR_EXCLUDE_CVSS_TRAIN" \
     custom_reward_function.path="$REWARD_FN_PATH" \
     custom_reward_function.name=reward_minerva \
+    +custom_reward_function.reward_kwargs.return_dict=true \
     data.train_batch_size="$TRAIN_BATCH_SIZE" \
     data.val_batch_size="$VAL_BATCH_SIZE" \
     actor_rollout_ref.model.path="$MODEL_PATH" \

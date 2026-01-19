@@ -18,16 +18,16 @@ Do not include explanations or extra text.
 ## Decision rule
 Mark BAD if the response shows any of the following. Use one pass; do not grade correctness beyond these checks.
 
-1. Reference leakage: explicitly or implicitly says the answer/label/options/reference were provided (e.g., "given the label," "as shown above," "based on the provided details"), or quotes/paraphrases the provided reference text instead of reasoning from the prompt content.
-2. Degenerate or incoherent: loops, repeated phrases/lines, templated filler, or gibberish/ill-formed reasoning.
-3. Ungrounded specifics: invents concrete details not in the question (extra CVEs, vendors, malware names, IOCs, dates, techniques, etc.).
-4. Reasoning/answer mismatch: reasoning supports a different label than the final answer, or directly contradicts it.
-5. Others: refusals, policy/meta artifacts, generic CTI tutorials, prompt copying, or missing/incorrect answer formatting (e.g., no required ID format or multiple IDs when a single ID is required).
+1. Leakage: explicitly or implicitly says the answer/label/options/reference were provided (e.g., "given the label," "as shown above," "based on the provided details"), or quotes/paraphrases the provided reference text instead of reasoning from the prompt content.
+2. Incoherent: loops, repeated phrases/lines, templated filler, or gibberish/ill-formed reasoning.
+3. Ungrounded: invents concrete details not in the question (extra CVEs, vendors, malware names, IOCs, dates, techniques, etc.).
+4. Mismatch: reasoning supports a different label than the final answer, or directly contradicts it.
+5. Other: refusals, policy/meta artifacts, generic CTI tutorials, prompt copying, or missing/incorrect answer formatting (e.g., no required ID format or multiple IDs when a single ID is required).
 
 ## Output format examples
 ```
 {"label": "GOOD"}
 ```
 ```
-{"label": "BAD", "category_id": 1, "category_title": "Reference leakage"}
+{"label": "BAD", "category_id": 1, "category_title": "Leakage"}
 ```

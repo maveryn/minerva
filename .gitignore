@@ -215,6 +215,7 @@ athenabench/
 outputs/
 
 # Minerva datasets (generated / local)
+dataset/detection_cache/
 
 # Minerva analysis outputs
 minerva/analysis/results/
