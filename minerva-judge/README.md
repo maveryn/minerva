@@ -93,6 +93,7 @@ python minerva-judge/scripts/score_with_judge.py \
 
 By default the judge only scores responses marked correct. Use
 `--include-incorrect` to score all responses (recommended for BAD labels).
+If you want the judge to see the CTI system prompt as well, pass `--include-system`.
 
 ## Step 4: build the SFT dataset
 
@@ -109,7 +110,7 @@ python minerva-judge/scripts/build_sft_dataset.py \
 ## Output schema (high level)
 
 - `prompts_*.jsonl`: `uid`, `prompt`, `answer`, `reward_fn`, `task`
-- `responses_*.jsonl`: adds `model`, `prompt_variant`, `prompt_used`, `acr_prompt`,
+- `responses_*.jsonl`: adds `model`, `prompt_variant`, `prompt` (the user prompt given to the model),
   `response`, `prediction`, `reward`, `correct`
 - `judged_*.jsonl`: adds `judge_prompt`, `judge_response`, `rubric_valid`,
   `rubric_score` (1 for GOOD, 0 for BAD), plus `judge_label`,
