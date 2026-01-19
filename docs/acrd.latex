@@ -1,0 +1,72 @@
+\section{Answer-Conditioned Reasoning + Distillation (ACRD, SFT)}
+
+ACRD augments the standard RLVR loop with a per-batch reasoning trace generator
+that is conditioned on the ground-truth label and then distilled via SFT. The
+goal is to teach the model how to justify correct labels without exposing the
+answer at inference time.
+
+\subsection*{Setup}
+Each training sample is $(x, y^\*)$, where $x$ is the original task prompt and
+$y^\*$ is the ground-truth label (single ID, label set, or CVSS vector depending
+on the task). We train with the same RLVR rollout policy and reward used for
+Minerva tasks.
+
+\subsection*{Step 1: RLVR Rollouts}
+For each batch, the actor generates $n$ RLVR responses on the original prompt
+$x$ (no hints). The reward $r_{\text{base}} \in [0,1]$ is computed with the
+standard Minerva verifier.
+
+\subsection*{Step 2: Answer-Conditioned Reasoning (ACR) Generation}
+We build an ACR prompt by appending an answer-conditioned block to the last user
+message of $x$:
+\begin{itemize}
+  \item \textbf{GROUND\_TRUTH\_LABELS}: the gold label(s) $y^\*$.
+  \item \textbf{LABEL\_REFERENCE}: canonical label details (if available).
+  \item \textbf{Instructions}: produce a short reasoning and end with the final
+    answer in the original task format.
+\end{itemize}
+The label details are drawn from a canonical store (per entity type) and
+truncated as needed to respect a maximum prompt length. If the prompt remains
+too long after truncation, ACR is skipped for that sample.
+
+We only generate ACR traces for hard examples, using the RLVR rollouts from the
+same batch. Let $\hat{r}_{\max}$ be the maximum RLVR reward for a UID; ACR is
+run only if:
+\[
+\hat{r}_{\max} < 1.0.
+\]
+For eligible samples we generate $k$ ACR rollouts with the same actor.
+
+\subsection*{Step 3: ACR Reward and Filtering}
+Each ACR response is scored with the same extraction logic as RLVR to obtain the
+base correctness score $r_{\text{base}}$. We then apply leakage guards (banned
+phrases, minimum reasoning length, minimum overlap with task context, and
+verbatim label-detail overlap). The scalar ACR score is:
+\[
+r_{\text{acr}} = r_{\text{correct}} \cdot r_{\text{base}} - \lambda \cdot
+\mathbb{1}[\text{leak}],
+\]
+where $r_{\text{correct}}$ and $\lambda$ are fixed weights. ACR traces are
+eligible for distillation if:
+\[
+r_{\text{base}} \ge \tau \quad \wedge \quad \text{leak} = \text{false}.
+\]
+We also drop degenerate traces with high n-gram repetition.
+
+\subsection*{Step 4: Per-batch SFT Distillation}
+For each UID, we select one eligible ACR trace (uniform random by default) and
+store it in a rolling buffer. Every $I$ RLVR steps, we sample a minibatch of
+accepted traces and perform an SFT update using the \emph{original} prompt $x$
+(no hints) and the ACR response $y_{\text{acr}}$:
+\[
+\mathcal{L}_{\text{sft}} = -\sum_{t} \log p_\theta(y_{\text{acr},t} \mid x).
+\]
+This distillation step teaches the model to internalize the reasoning and final
+answer format without exposing ground-truth labels at inference time.
+
+\subsection*{Implementation Notes}
+ACRD is implemented as a per-batch augmentation inside the RLVR trainer. It
+requires raw chat prompts to append the ACR block, and uses a label-details
+store keyed by entity type (e.g., ATT\&CK technique, CWE, CAPEC). The ACR traces
+are filtered before distillation to prevent leakage and low-quality reasoning
+from entering the SFT buffer.
