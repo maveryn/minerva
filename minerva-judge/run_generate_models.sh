@@ -17,16 +17,17 @@ LIMIT="${MINERVA_JUDGE_LIMIT:-}"
 
 VLLM_ARGS="${MINERVA_JUDGE_VLLM_ARGS:-}"
 
-DEFAULT_BATCH_SIZE="${MINERVA_JUDGE_BATCH_SIZE:-32}"
-GPT_OSS_BATCH_SIZE="${MINERVA_JUDGE_BATCH_SIZE_GPT_OSS_20B:-8}"
+DEFAULT_BATCH_SIZE="${MINERVA_JUDGE_BATCH_SIZE:-2048}"
+GPT_OSS_BATCH_SIZE="${MINERVA_JUDGE_BATCH_SIZE_GPT_OSS_20B:-2048}"
 GPT_OSS_VLLM_ARGS="${MINERVA_JUDGE_VLLM_ARGS_GPT_OSS_20B:-}"
 
 MODELS=(
   # "meta-llama/Llama-3.2-3B-Instruct|llama3_2_3b"
   # "meta-llama/Llama-3.1-8B-Instruct|llama3_1_8b"
   # "Qwen/Qwen3-4B-Instruct-2507|qwen3_4b"
-  "Qwen/Qwen3-8B|qwen3_8b"
-  "openai/gpt-oss-20b|gpt_oss_20b"
+  # "Qwen/Qwen3-8B|qwen3_8b"
+  # "openai/gpt-oss-20b|gpt_oss_20b"
+  "openai/gpt-oss-120b|gpt_oss_120b"
 )
 
 mkdir -p "$OUTPUT_DIR"

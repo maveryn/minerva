@@ -1,0 +1,20 @@
+You are given a question, reference text, and the correct answer. Write a response
+that arrives at the correct answer while following the criterion below. The response
+MUST satisfy the criterion. Do NOT output only the boxed answer unless the criterion
+explicitly allows answer-only. If you include reasoning, keep it brief. Put the
+final answer inside \boxed{...}, and follow the question's required output format
+for the content inside the box. Output ONLY the response text.
+Do NOT add meta commentary or mention instruction conflicts or hierarchy.
+Do NOT mention the criterion or the instructions themselves.
+
+CRITERION_INSTRUCTION:
+{CRITERION_INSTRUCTION}
+
+CORRECT_ANSWER:
+{CORRECT_ANSWER}
+
+QUESTION:
+{QUESTION}
+
+REFERENCE:
+{REFERENCE}
