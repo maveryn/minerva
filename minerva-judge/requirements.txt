@@ -1,0 +1,5 @@
+# Minerva-judge runtime pins for GPT-OSS mxfp4 support.
+vllm==0.13.0
+torch==2.9.0
+torchaudio==2.9.0
+torchvision==0.24.0

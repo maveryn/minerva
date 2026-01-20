@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import sys
+import json
 from pathlib import Path
 from typing import Any
 
@@ -23,9 +25,51 @@ from common import (
 )
 
 
-def iter_inputs(paths: list[Path]):
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+DROP_FIELDS = {
+    "prompt",
+    "prompt_used",
+    "acr_prompt",
+    "response",
+    "judge_prompt",
+}
+
+
+def format_source_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(PROJECT_ROOT))
+    except Exception:
+        return str(path)
+
+
+def iter_input_file(path: Path):
+    with path.open("r", encoding="utf-8") as f:
+        for line_num, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            yield line_num, json.loads(line)
+
+
+def count_lines(paths: list[Path], include_incorrect: bool) -> int:
+    total = 0
     for path in paths:
-        yield from iter_jsonl(path)
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if include_incorrect:
+                    total += 1
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("correct"):
+                    total += 1
+    return total
 
 
 def existing_keys(path: Path) -> set[str]:
@@ -52,10 +96,32 @@ def build_key(row: dict[str, Any]) -> str:
     return ":".join(str(p) for p in parts if p is not None)
 
 
+def compact_row(
+    row: dict[str, Any],
+    *,
+    source_path: Path,
+    source_line: int,
+    include_system: bool,
+) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    for key, value in row.items():
+        if key in DROP_FIELDS:
+            continue
+        compact[key] = value
+    compact["source_file"] = format_source_path(source_path)
+    compact["source_line"] = source_line
+    compact["judge_include_system"] = bool(include_system)
+    return compact
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score Minerva responses with a judge model.")
     parser.add_argument("--input", action="append", required=True, help="Input responses JSONL (repeatable)")
-    parser.add_argument("--output", required=True, help="Output judged JSONL")
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Output judged JSONL file, or a directory to write judged_*.jsonl files",
+    )
     parser.add_argument("--judge-model", required=True, help="Judge model name (e.g., gpt-5)")
     parser.add_argument(
         "--backend",
@@ -86,8 +152,27 @@ def main() -> None:
         if not path.exists():
             raise FileNotFoundError(f"input not found: {path}")
 
+    total_lines = count_lines(input_paths, args.include_incorrect)
+
     output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.exists() and output_path.is_file():
+        output_is_dir = False
+    else:
+        output_is_dir = output_path.suffix.lower() != ".jsonl"
+    if output_is_dir:
+        output_path.mkdir(parents=True, exist_ok=True)
+    else:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def output_path_for_input(input_path: Path) -> Path:
+        if output_is_dir:
+            name = input_path.name
+            if name.startswith("responses_"):
+                name = f"judged_{name[len('responses_'):]}"
+            else:
+                name = f"judged_{name}"
+            return output_path / name
+        return output_path
 
     vllm_kwargs = {}
     if args.vllm_args:
@@ -111,7 +196,7 @@ def main() -> None:
     rubric_template = load_rubric_prompt()
     system_prompt = load_cti_system_prompt().strip() if args.include_system else ""
 
-    seen = existing_keys(output_path)
+    seen_by_output: dict[Path, set[str]] = {}
 
     total = 0
     written = 0
@@ -126,7 +211,11 @@ def main() -> None:
             question = f"{system_prompt}\n\n{question}"
         return question
 
-    def flush(batch_rows: list[dict[str, Any]], batch_prompts: list[str]) -> None:
+    def flush(
+        out_file,
+        batch_rows: list[tuple[dict[str, Any], Path, int]],
+        batch_prompts: list[str],
+    ) -> None:
         nonlocal written
         if not batch_rows:
             return
@@ -135,7 +224,9 @@ def main() -> None:
             temperature=args.temperature,
             apply_chat_template=True,
         )
-        for row, judge_prompt, judge_response in zip(batch_rows, batch_prompts, judge_outputs, strict=False):
+        for (row, source_path, source_line), judge_prompt, judge_response in zip(
+            batch_rows, batch_prompts, judge_outputs, strict=False
+        ):
             judge_key = build_key(row)
             obj = extract_json_object(judge_response)
             rubric = parse_rubric(obj or {})
@@ -145,12 +236,16 @@ def main() -> None:
             judge_category_id = rubric.get("category_id") if rubric_valid else None
             judge_category_title = rubric.get("category_title") if rubric_valid else None
 
-            out = dict(row)
+            out = compact_row(
+                row,
+                source_path=source_path,
+                source_line=source_line,
+                include_system=args.include_system,
+            )
             out.update(
                 {
                     "judge_key": judge_key,
                     "judge_model": args.judge_model,
-                    "judge_prompt": judge_prompt,
                     "judge_response": judge_response,
                     "rubric_valid": rubric_valid,
                     "rubric_score": rubric_score,
@@ -161,38 +256,65 @@ def main() -> None:
                 }
             )
 
-            f.write(json_dumps(out) + "\n")
-            f.flush()
+            out_file.write(json_dumps(out) + "\n")
+            out_file.flush()
             written += 1
 
-    with output_path.open("a", encoding="utf-8") as f:
-        batch_rows: list[dict[str, Any]] = []
-        batch_prompts: list[str] = []
-        for row in tqdm(iter_inputs(input_paths), desc="judging"):
-            total += 1
-            if args.limit is not None and total > args.limit:
+    pbar = tqdm(
+        total=total_lines,
+        desc="judging",
+        unit="row",
+        dynamic_ncols=True,
+        mininterval=1.0,
+        smoothing=0.05,
+        disable=False,
+        file=sys.stdout,
+    )
+    try:
+        stop = False
+        for input_path in input_paths:
+            output_target = output_path_for_input(input_path)
+            seen = seen_by_output.get(output_target)
+            if seen is None:
+                seen = existing_keys(output_target)
+                seen_by_output[output_target] = seen
+            with output_target.open("a", encoding="utf-8") as f:
+                batch_rows: list[tuple[dict[str, Any], Path, int]] = []
+                batch_prompts: list[str] = []
+                for source_line, row in iter_input_file(input_path):
+                    if (not args.include_incorrect) and not row.get("correct"):
+                        continue
+                    if args.limit is not None and total >= args.limit:
+                        stop = True
+                        break
+                    total += 1
+                    pbar.update(1)
+                    judge_key = build_key(row)
+                    if judge_key in seen:
+                        continue
+
+                    question = render_question(row)
+                    response = str(row.get("response", ""))
+                    judge_prompt = build_judge_prompt(rubric_template, question, response)
+
+                    batch_rows.append((row, input_path, source_line))
+                    batch_prompts.append(judge_prompt)
+                    if len(batch_rows) >= batch_size:
+                        flush(f, batch_rows, batch_prompts)
+                        batch_rows = []
+                        batch_prompts = []
+
+                if batch_rows:
+                    flush(f, batch_rows, batch_prompts)
+            if stop:
                 break
-            if (not args.include_incorrect) and not row.get("correct"):
-                continue
-            judge_key = build_key(row)
-            if judge_key in seen:
-                continue
+    finally:
+        pbar.close()
 
-            question = render_question(row)
-            response = str(row.get("response", ""))
-            judge_prompt = build_judge_prompt(rubric_template, question, response)
-
-            batch_rows.append(row)
-            batch_prompts.append(judge_prompt)
-            if len(batch_rows) >= batch_size:
-                flush(batch_rows, batch_prompts)
-                batch_rows = []
-                batch_prompts = []
-
-        if batch_rows:
-            flush(batch_rows, batch_prompts)
-
-    print(f"Wrote {written} judged rows to {output_path}")
+    if output_is_dir:
+        print(f"Wrote {written} judged rows under {output_path}")
+    else:
+        print(f"Wrote {written} judged rows to {output_path}")
 
 
 def json_dumps(obj: Any) -> str:
