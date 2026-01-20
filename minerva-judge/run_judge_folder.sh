@@ -6,13 +6,13 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 export VLLM_WORKER_MULTIPROC_METHOD="${VLLM_WORKER_MULTIPROC_METHOD:-spawn}"
 
 INPUT_DIR="${MINERVA_JUDGE_RESPONSES_DIR:-$ROOT_DIR/data}"
-OUTPUT_PATH="${MINERVA_JUDGE_JUDGED_OUTPUT:-$ROOT_DIR/data/judged_all.jsonl}"
+OUTPUT_PATH="${MINERVA_JUDGE_JUDGED_OUTPUT:-$ROOT_DIR/data}"
 JUDGE_MODEL="${MINERVA_JUDGE_JUDGE_MODEL:-openai/gpt-oss-120b}"
 BACKEND="${MINERVA_JUDGE_BACKEND:-vllm}"
 TEMPERATURE="${MINERVA_JUDGE_TEMPERATURE:-0.0}"
-MAX_NEW_TOKENS="${MINERVA_JUDGE_MAX_NEW_TOKENS:-64}"
-VLLM_ARGS="${MINERVA_JUDGE_VLLM_ARGS:-}"
-DEFAULT_BATCH_SIZE="${MINERVA_JUDGE_BATCH_SIZE:-8}"
+MAX_NEW_TOKENS="${MINERVA_JUDGE_MAX_NEW_TOKENS:-512}"
+VLLM_ARGS="${MINERVA_JUDGE_VLLM_ARGS:-{\"gpu_memory_utilization\":0.95}}"
+DEFAULT_BATCH_SIZE="${MINERVA_JUDGE_BATCH_SIZE:-1024}"
 
 mapfile -t INPUT_FILES < <(find "$INPUT_DIR" -maxdepth 1 -type f -name "responses_*.jsonl" | sort)
 if [ "${#INPUT_FILES[@]}" -eq 0 ]; then
@@ -27,7 +27,6 @@ cmd=(python "$ROOT_DIR/scripts/score_with_judge.py"
   --batch-size "$DEFAULT_BATCH_SIZE"
   --max-new-tokens "$MAX_NEW_TOKENS"
   --temperature "$TEMPERATURE"
-  --include-incorrect
 )
 
 for file in "${INPUT_FILES[@]}"; do
