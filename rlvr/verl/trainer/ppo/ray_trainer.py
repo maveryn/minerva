@@ -1410,6 +1410,7 @@ class RayPPOTrainer:
             "max_seq_len": None,
             "entropy_tiebreak": "mean_nll",
             "selection_mode": "top_reward",
+            "disable_filters": False,
             "degenerate_filter": False,
             "degenerate_min_tokens": 40,
             "degenerate_rep_3_max": 0.85,
@@ -1877,6 +1878,9 @@ class RayPPOTrainer:
             return int(non_pad[-1].item() + 1)
 
         degenerate_filter = bool(self._distill_cfg.get("degenerate_filter", False))
+        disable_filters = bool(self._distill_cfg.get("disable_filters", False))
+        if self._distill_source == "acr" and disable_filters:
+            degenerate_filter = False
         degenerate_min_tokens = int(self._distill_cfg.get("degenerate_min_tokens", 0) or 0)
         try:
             degenerate_rep_3_max = float(self._distill_cfg.get("degenerate_rep_3_max", 1.0))
@@ -2026,12 +2030,13 @@ class RayPPOTrainer:
                         base_val = base_scores[i]
                     if base_val is None or base_val < threshold:
                         continue
-                    if leak_hits[i] is not None and bool(leak_hits[i]):
-                        continue
-                    if degenerate_filter:
-                        response_ids = extract_response_ids(i)
-                        if not response_ids or is_degenerate(response_ids, idx=i):
+                    if not disable_filters:
+                        if leak_hits[i] is not None and bool(leak_hits[i]):
                             continue
+                        if degenerate_filter:
+                            response_ids = extract_response_ids(i)
+                            if not response_ids or is_degenerate(response_ids, idx=i):
+                                continue
                     eligible.append(i)
             else:
                 eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
@@ -2790,6 +2795,9 @@ class RayPPOTrainer:
             return int(non_pad[-1].item() + 1)
 
         degenerate_filter = bool(cfg.get("degenerate_filter", False))
+        disable_filters = bool(cfg.get("disable_filters", False))
+        if self._distill_source == "acr" and disable_filters:
+            degenerate_filter = False
         degenerate_min_tokens = int(cfg.get("degenerate_min_tokens", 0) or 0)
         try:
             degenerate_rep_3_max = float(cfg.get("degenerate_rep_3_max", 1.0))
@@ -2940,14 +2948,15 @@ class RayPPOTrainer:
                         continue
                     if base_score < threshold:
                         continue
-                    if leak_hits_list is not None and bool(leak_hits_list[i]):
-                        continue
-                    if degenerate_filter:
-                        degenerate_checked += 1
-                        response_ids = extract_response_ids(i)
-                        if not response_ids or is_degenerate(response_ids, idx=i):
-                            degenerate_filtered += 1
+                    if not disable_filters:
+                        if leak_hits_list is not None and bool(leak_hits_list[i]):
                             continue
+                        if degenerate_filter:
+                            degenerate_checked += 1
+                            response_ids = extract_response_ids(i)
+                            if not response_ids or is_degenerate(response_ids, idx=i):
+                                degenerate_filtered += 1
+                                continue
                     eligible.append(i)
             else:
                 eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
