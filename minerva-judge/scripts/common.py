@@ -253,7 +253,8 @@ _BAD_CATEGORIES = {
     2: "Incoherent",
     3: "Ungrounded",
     4: "Mismatch",
-    5: "Other",
+    5: "Unsupported",
+    6: "Other",
 }
 
 
@@ -268,7 +269,7 @@ def _normalize_title(value: Any) -> str:
 def _find_category_id(text: str) -> Optional[int]:
     if not text:
         return None
-    match = re.search(r"\b([1-5])\b", text)
+    match = re.search(r"\b([1-6])\b", text)
     if not match:
         return None
     return int(match.group(1))

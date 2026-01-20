@@ -1,0 +1,27 @@
+{
+  "leakage": {
+    "category_id": 1,
+    "category_title": "Leakage",
+    "instruction": "Says or implies the answer/label/options/reference were provided, or quotes/paraphrases provided reference text instead of reasoning from the prompt."
+  },
+  "incoherent": {
+    "category_id": 2,
+    "category_title": "Incoherent",
+    "instruction": "Loops, repeated phrases/lines, templated filler, or gibberish."
+  },
+  "ungrounded": {
+    "category_id": 3,
+    "category_title": "Ungrounded",
+    "instruction": "Invents concrete details not in the question (extra CVEs, vendors, malware names, IOCs, dates, techniques, etc.)."
+  },
+  "mismatch": {
+    "category_id": 4,
+    "category_title": "Mismatch",
+    "instruction": "Reasoning supports a different label than the final answer, or directly contradicts it."
+  },
+  "unsupported": {
+    "category_id": 5,
+    "category_title": "Unsupported",
+    "instruction": "Provides reasoning but does not use evidence from the prompt to justify the answer (hand-wavy or irrelevant justification), OR provides an answer with no reasoning at all (answer-only)."
+  }
+}

@@ -18,7 +18,10 @@ Criteria (one per bullet):
    vendors, malware names, IOCs, dates, techniques, etc.).
 4. Mismatch: reasoning supports a different label than the final answer,
    or directly contradicts it.
-5. Other: refusals, policy/meta artifacts, generic CTI tutorials, or prompt copying.
+5. Unsupported: provides reasoning but does not use evidence from the prompt to
+   justify the answer (hand-wavy or irrelevant justification), OR provides an
+   answer with no reasoning at all (answer-only).
+6. Other: refusals, policy/meta artifacts, generic CTI tutorials, or prompt copying.
 
 Example outputs:
 {"label": "GOOD"}
