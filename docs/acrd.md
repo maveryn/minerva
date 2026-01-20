@@ -73,7 +73,7 @@ For `method=sft`, input is the original RLVR prompt (`acr_orig_prompt`), while t
 The ACR prompt (with answer hints) is kept only for debugging and selection analysis.
 Selection is per-UID (one record per original prompt):
 
-- Eligibility: `acr_base_score >= data.acr.distill.reward_threshold` (default 0.99),
+- Eligibility: `acr_base_score >= data.acr.distill.reward_threshold` (default 1.0 in Minerva cti-scripts),
   and `acr_leak_hit == false`.
 - Leakage includes banned-phrase detection (fuzzy match optional), short reasoning (default: <100 chars),
   low overlap with the combined task description + label reference (Jaccard <0.05; task description
@@ -333,7 +333,7 @@ For `method=dpo`, each per-batch record includes:
 - `chosen_meta`, `rejected_meta` (ACR scores)
 
 #### 4.2 Acceptance criteria (per-batch)
-- Eligibility (SFT): `acr_base_score >= reward_threshold` (default 0.99),
+- Eligibility (SFT): `acr_base_score >= reward_threshold` (default 1.0 in Minerva cti-scripts),
   and `acr_leak_hit == false`.
 - Degenerate filter (SFT): drop eligible responses with high n-gram repetition
   using `rep_n = 1 - distinct_n` over token IDs (defaults: `rep_3 >= 0.85` or `rep_4 >= 0.90`,
@@ -395,7 +395,7 @@ Key env overrides:
 - `ACRD_ACR_DISTILL_METHOD` (`sft` or `dpo`; default `sft`)
 - `ACRD_ACR_DISTILL_INTERVAL` (distill interval in steps; default 10)
 - `ACRD_ACR_DISTILL_LR_SCALE` (distill LR scale vs RLVR; default 1.0)
-- `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 0.99)
+- `ACRD_ACR_DISTILL_THRESHOLD` (threshold applied to `acr_base_score` before r_correct scaling; default 1.0 in Minerva cti-scripts)
 - `ACRD_ACR_DISTILL_SELECTION_MODE` (SFT only; `random` or `top_reward`; default `random`)
 - `ACRD_ACR_DISTILL_BATCH_SIZE` (SFT only; sample size per distill run; default 256 in `cti-scripts`; ignored in `buffer` mode)
 - `ACRD_ACR_DISTILL_MAX_BUFFER` (SFT only; rolling buffer cap; default 1024 in `cti-scripts`)

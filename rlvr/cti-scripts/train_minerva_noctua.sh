@@ -119,6 +119,7 @@ ACR_JUDGE_TRUST_REMOTE_CODE="${ACRD_JUDGE_TRUST_REMOTE_CODE:-true}"
 TRAIN_BATCH_SIZE="${ACRD_TRAIN_BATCH_SIZE:-128}"
 VAL_BATCH_SIZE="${ACRD_VAL_BATCH_SIZE:-2500}"
 ACR_JUDGE_BATCH_SIZE="${ACRD_JUDGE_BATCH_SIZE:-$TRAIN_BATCH_SIZE}"
+N_GPUS="${ACRD_N_GPUS_PER_NODE:-4}"
 TOTAL_STEPS="${ACRD_TOTAL_STEPS:-500}"
 SAVE_FREQ="${ACRD_SAVE_FREQ:-10}"
 TEST_FREQ="${ACRD_TEST_FREQ:-10}"
@@ -221,7 +222,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name='minerva' \
     trainer.experiment_name="$EXPERIMENT_NAME" \
     trainer.val_before_train=False \
-    trainer.n_gpus_per_node=4 \
+    trainer.n_gpus_per_node="$N_GPUS" \
     trainer.nnodes=1 \
     trainer.save_freq="$SAVE_FREQ" \
     trainer.test_freq="$TEST_FREQ" \
