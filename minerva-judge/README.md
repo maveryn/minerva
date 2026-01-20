@@ -75,6 +75,8 @@ Suggested model set:
 Helper scripts:
 - `minerva-judge/run_generate_models.sh`: generate responses for the full train split across the 5 target models.
 - `minerva-judge/run_judge_folder.sh`: run the judge over all `responses_*.jsonl` files in `minerva-judge/data`.
+  Writes `judged_*.jsonl` into `minerva-judge/data` by default (replaces the
+  `responses_` prefix) and supports `MINERVA_JUDGE_JUDGED_OUTPUT` for a combined file.
 
 Note: vLLM uses multiprocessing; the helper scripts set
 `VLLM_WORKER_MULTIPROC_METHOD=spawn` to avoid CUDA re-init errors.
@@ -94,6 +96,8 @@ python minerva-judge/scripts/score_with_judge.py \
 By default the judge only scores responses marked correct. Use
 `--include-incorrect` to score all responses (recommended for BAD labels).
 If you want the judge to see the CTI system prompt as well, pass `--include-system`.
+You can also pass `--output minerva-judge/data` to write one `judged_*.jsonl`
+file per input.
 
 ## Step 4: build the SFT dataset
 
@@ -112,7 +116,8 @@ python minerva-judge/scripts/build_sft_dataset.py \
 - `prompts_*.jsonl`: `uid`, `prompt`, `answer`, `reward_fn`, `task`
 - `responses_*.jsonl`: adds `model`, `prompt_variant`, `prompt` (the user prompt given to the model),
   `response`, `prediction`, `reward`, `correct`
-- `judged_*.jsonl`: adds `judge_prompt`, `judge_response`, `rubric_valid`,
-  `rubric_score` (1 for GOOD, 0 for BAD), plus `judge_label`,
-  `judge_category_id`, `judge_category_title` when present
+- `judged_*.jsonl`: adds `judge_response`, `rubric_valid`, `rubric_score`
+  (1 for GOOD, 0 for BAD), plus `judge_label`, `judge_category_id`,
+  `judge_category_title` when present. Stores `source_file` + `source_line`
+  references instead of the original prompt/response and judge prompt.
 - `judge_sft.parquet`: `messages` for SFT (`user` = judge prompt, `assistant` = judge response)
