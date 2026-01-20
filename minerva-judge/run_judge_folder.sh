@@ -20,6 +20,34 @@ if [ "${#INPUT_FILES[@]}" -eq 0 ]; then
   exit 1
 fi
 
+OUTPUT_IS_DIR=true
+if [[ "$OUTPUT_PATH" == *.jsonl ]]; then
+  OUTPUT_IS_DIR=false
+fi
+
+if [ "$OUTPUT_IS_DIR" = true ]; then
+  FILTERED_FILES=()
+  for file in "${INPUT_FILES[@]}"; do
+    base="$(basename "$file")"
+    if [[ "$base" == responses_* ]]; then
+      judged_name="judged_${base#responses_}"
+    else
+      judged_name="judged_${base}"
+    fi
+    judged_path="$OUTPUT_PATH/$judged_name"
+    if [ -s "$judged_path" ]; then
+      echo "Skipping $file (found $judged_path)"
+      continue
+    fi
+    FILTERED_FILES+=("$file")
+  done
+  INPUT_FILES=("${FILTERED_FILES[@]}")
+  if [ "${#INPUT_FILES[@]}" -eq 0 ]; then
+    echo "All response files already have judged outputs in $OUTPUT_PATH"
+    exit 0
+  fi
+fi
+
 cmd=(python "$ROOT_DIR/scripts/score_with_judge.py"
   --output "$OUTPUT_PATH"
   --judge-model "$JUDGE_MODEL"
