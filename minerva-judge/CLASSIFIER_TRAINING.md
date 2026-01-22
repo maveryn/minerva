@@ -131,6 +131,48 @@ python minerva-judge/classifier/scripts/eval_textcnn_threshold_sweep.py \
   --out minerva-judge/classifier/experiments/threshold_sweep_textcnn.jsonl
 ```
 
+## Validation results
+
+Metrics below are from the saved `eval_metrics.json` (HF models) or `metrics.json`
+(TextCNN) in `minerva-judge/classifier/outputs`.
+
+ModernBERT (2k, prompt+response):
+
+| run_tag | max_len | lr | prec | rec | f1 |
+| --- | --- | --- | --- | --- | --- |
+| modernbert-2k-lr1e-06 | 2048 | 1e-06 | 0.7627 | 0.7816 | 0.7720 |
+| modernbert-2k-lr1e-05 | 2048 | 1e-05 | 0.8140 | 0.8934 | 0.8518 |
+| modernbert-2k-lr3e-05 | 2048 | 3e-05 | 0.8232 | 0.9048 | 0.8621 |
+| modernbert-2k-lr5e-05 | 2048 | 5e-05 | 0.8282 | 0.9000 | 0.8626 |
+| modernbert-2k-lr5e-05-focal | 2048 | 5e-05 | 0.8975 | 0.7523 | 0.8185 |
+
+TextCNN (prompt+response unless noted):
+
+| run_tag | max_tokens | notes | prec | rec | f1 |
+| --- | --- | --- | --- | --- | --- |
+| textcnn_lr5e-4 | 3072 | default (k=3,4,5; 256 filters; 200d) | 0.8122 | 0.9041 | 0.8557 |
+| textcnn_lr5e-4_pretrained | 3072 | pretrained word vecs | 0.8483 | 0.8030 | 0.8250 |
+| textcnn_k2345 | 2048 | k=2,3,4,5 | 0.8153 | 0.8889 | 0.8505 |
+| textcnn_wide | 2048 | 300d, 384 filters | 0.7970 | 0.9086 | 0.8492 |
+| textcnn_lr1e-3 | 2048 | lr=1e-3 | 0.8469 | 0.8194 | 0.8329 |
+| textcnn_lr3e-3 | 2048 | lr=3e-3 | 0.8369 | 0.8073 | 0.8219 |
+| textcnn_response_only | 1024 | response-only | 0.8220 | 0.8366 | 0.8292 |
+
+TextCNN threshold sweep (default `textcnn_lr5e-4`):
+
+| threshold | prec | rec | f1 |
+| --- | --- | --- | --- |
+| 0.50 | 0.8122 | 0.9041 | 0.8557 |
+| 0.55 | 0.8209 | 0.8892 | 0.8537 |
+| 0.60 | 0.8286 | 0.8647 | 0.8462 |
+| 0.65 | 0.8392 | 0.8398 | 0.8395 |
+| 0.70 | 0.8545 | 0.8059 | 0.8295 |
+| 0.75 | 0.8688 | 0.7588 | 0.8101 |
+| 0.80 | 0.8839 | 0.7009 | 0.7819 |
+| 0.85 | 0.8996 | 0.6162 | 0.7315 |
+| 0.90 | 0.9235 | 0.5053 | 0.6532 |
+| 0.95 | 0.9512 | 0.3259 | 0.4855 |
+
 ## Notes
 
 - The classifier is trained only on reward-correct responses.
