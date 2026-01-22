@@ -1446,12 +1446,12 @@ class RayPPOTrainer:
             "dedup_by_uid": True,
             "buffer_mode": "rolling",
             "filter_mode": "ml",
-            "filter_model": "xashru/textcnn-lr6e-4-k345-f384-e200-t3072-d0p25",
+            "filter_model": "xashru/textcnn-response-only-lr6e-4-k345-f384-e300-t1024-d0p25",
             "filter_model_type": "textcnn",
-            "filter_threshold": 0.75,
+            "filter_threshold": 0.5,
             "filter_batch_size": None,
-            "filter_max_length": 2048,
-            "filter_text_mode": "response_prompt",
+            "filter_max_length": 1024,
+            "filter_text_mode": "response",
             "filter_device": "auto",
             "filter_dtype": "auto",
             "filter_tokenizer": None,
@@ -1539,6 +1539,8 @@ class RayPPOTrainer:
         self._acr_truncation = self.config.data.get("truncation", "error")
         self._acr_debug_samples = max(0, int(os.getenv("ACRD_DEBUG_SAMPLES", "0")))
         self._acr_details_debug_samples = max(0, int(os.getenv("ACRD_DETAILS_DEBUG_SAMPLES", "2")))
+        self._acr_filter_debug_samples = max(0, int(os.getenv("ACRD_ML_DEBUG_SAMPLES", "0")))
+        self._acr_filter_debug_remaining = 0
 
         acr_cfg = self.config.data.get("acr", {}) if self.config is not None else {}
         if isinstance(acr_cfg, DictConfig):
@@ -2699,7 +2701,10 @@ class RayPPOTrainer:
 
     def _acr_filter_mode(self, disable_filters: bool) -> str:
         mode = str(self._distill_cfg.get("filter_mode", "heuristic")).lower().strip()
-        if mode not in {"off", "heuristic", "ml"}:
+        compact = mode.replace(" ", "")
+        if compact in {"ml+heuristic", "ml+heuristics", "ml_heuristic", "ml_heuristics", "ml&heuristic", "both"}:
+            mode = "ml+heuristic"
+        if mode not in {"off", "heuristic", "ml", "ml+heuristic"}:
             mode = "heuristic"
         if mode == "heuristic" and disable_filters:
             mode = "off"
@@ -2742,7 +2747,7 @@ class RayPPOTrainer:
         cfg = self._distill_cfg
         model_name = cfg.get("filter_model")
         if not model_name:
-            print("ACR distill filter mode 'ml' requested but filter_model is not set; disabling filter.")
+            print("ACR distill ML filter requested but filter_model is not set; disabling filter.")
             self._acr_filter_disabled = True
             return
         model_type = str(cfg.get("filter_model_type", "auto")).lower().strip()
@@ -2949,15 +2954,25 @@ class RayPPOTrainer:
         batch_size = int(state.get("batch_size") or 64)
         scores: list[float] = []
         model.eval()
+        debug_remaining = int(getattr(self, "_acr_filter_debug_remaining", 0) or 0)
+
+        def truncate_text(text: str, max_chars: int = 400) -> str:
+            cleaned = (text or "").replace("\n", " ").replace("\r", " ").strip()
+            if len(cleaned) <= max_chars:
+                return cleaned
+            return cleaned[:max_chars].rstrip() + "..."
 
         for start in range(0, len(prompt_texts), batch_size):
             batch_prompts = prompt_texts[start : start + batch_size]
             batch_responses = response_texts[start : start + batch_size]
             seqs: list[list[int]] = []
+            debug_items: list[tuple[int, str, str, list[str]]] = []
             for prompt, response in zip(batch_prompts, batch_responses):
                 tokens = self._textcnn_build_tokens(prompt, response, text_mode, max_tokens)
                 if not tokens:
                     tokens = ["<unk>"]
+                if debug_remaining > 0 and len(debug_items) < debug_remaining:
+                    debug_items.append((len(seqs), prompt, response, tokens))
                 seqs.append([vocab.get(tok, 1) for tok in tokens])
             if not seqs:
                 continue
@@ -2976,7 +2991,31 @@ class RayPPOTrainer:
             with torch.no_grad():
                 logits = model(x)
                 probs = torch.softmax(logits, dim=-1)
-                scores.extend(probs[:, 1].detach().cpu().tolist())
+                batch_scores = probs[:, 1].detach().cpu().tolist()
+                scores.extend(batch_scores)
+            if debug_remaining > 0 and debug_items:
+                for idx, prompt, response, tokens in debug_items:
+                    if debug_remaining <= 0:
+                        break
+                    score_val = float(batch_scores[idx]) if idx < len(batch_scores) else float("nan")
+                    token_preview = " ".join(tokens[:120])
+                    if len(tokens) > 120:
+                        token_preview = token_preview + " ..."
+                    step = getattr(self, "global_steps", None)
+                    step_str = f" step={step}" if step is not None else ""
+                    print("***** ACRD ML FILTER DEBUG *****")
+                    print(
+                        f"score={score_val:.4f} text_mode={text_mode} "
+                        f"max_tokens={max_tokens if max_tokens else 'none'} tokens={len(tokens)}"
+                        + step_str
+                    )
+                    if text_mode != "response":
+                        print("prompt_preview=" + truncate_text(prompt))
+                    print("response_preview=" + truncate_text(response))
+                    print("input_tokens_preview=" + truncate_text(token_preview, max_chars=500))
+                    print("*****")
+                    debug_remaining -= 1
+                self._acr_filter_debug_remaining = max(0, debug_remaining)
         return scores
 
     def _collect_distill_candidates(
@@ -3119,13 +3158,31 @@ class RayPPOTrainer:
                 return 0
             return int(non_pad[-1].item() + 1)
 
+        def get_base_score(idx: int) -> Optional[float]:
+            base_score = reward_threshold_list[idx]
+            if base_scores_list is not None:
+                base_score = base_scores_list[idx]
+            return base_score
+
         disable_filters = bool(cfg.get("disable_filters", False))
         filter_mode = (
             self._acr_filter_mode(disable_filters) if self._distill_source == "acr" else "heuristic"
         )
-        use_heuristics = filter_mode == "heuristic"
+        use_ml = False
+        use_heuristics = False
+        degenerate_filter = False
 
-        degenerate_filter = bool(cfg.get("degenerate_filter", False)) if use_heuristics else False
+        def update_filter_flags() -> None:
+            nonlocal use_ml, use_heuristics, degenerate_filter
+            use_ml = filter_mode in {"ml", "ml+heuristic"}
+            use_heuristics = filter_mode in {"heuristic", "ml+heuristic"}
+            degenerate_filter = bool(cfg.get("degenerate_filter", False)) if use_heuristics else False
+
+        update_filter_flags()
+        self._acr_filter_debug_remaining = (
+            int(getattr(self, "_acr_filter_debug_samples", 0) or 0) if use_ml else 0
+        )
+
         degenerate_min_tokens = int(cfg.get("degenerate_min_tokens", 0) or 0)
         try:
             degenerate_rep_3_max = float(cfg.get("degenerate_rep_3_max", 1.0))
@@ -3239,30 +3296,61 @@ class RayPPOTrainer:
                 continue
             grouped.setdefault(uid_str, []).append(idx)
 
+        degenerate_checked = 0
+        degenerate_filtered = 0
+        heuristic_input = 0
+        heuristic_passed = 0
+        heuristic_ok_by_idx: Optional[dict[int, bool]] = None
+
+        def ensure_heuristics_scored() -> None:
+            nonlocal heuristic_ok_by_idx, degenerate_checked, degenerate_filtered, heuristic_input, heuristic_passed
+            if heuristic_ok_by_idx is not None:
+                return
+            heuristic_ok_by_idx = {}
+            if self._distill_source != "acr" or not use_heuristics:
+                return
+            for idxs in grouped.values():
+                for i in idxs:
+                    base_score = get_base_score(i)
+                    if base_score is None or base_score < threshold:
+                        continue
+                    heuristic_input += 1
+                    if leak_hits_list is not None and bool(leak_hits_list[i]):
+                        continue
+                    if degenerate_filter:
+                        degenerate_checked += 1
+                        response_ids = extract_response_ids(i)
+                        if not response_ids or is_degenerate(response_ids, idx=i):
+                            degenerate_filtered += 1
+                            continue
+                    heuristic_ok_by_idx[i] = True
+                    heuristic_passed += 1
+
         ml_scores_by_idx: dict[int, float] = {}
         ml_checked = 0
         ml_kept = 0
         filter_threshold = float(cfg.get("filter_threshold", 0.5))
-        if self._distill_source == "acr" and filter_mode == "ml":
+        if self._distill_source == "acr" and use_ml:
             self._maybe_init_acr_filter_model()
             if self._acr_filter_state is None:
                 if disable_filters:
                     filter_mode = "off"
-                    use_heuristics = False
+                    update_filter_flags()
                 else:
                     filter_mode = "heuristic"
-                    use_heuristics = True
-                    degenerate_filter = bool(cfg.get("degenerate_filter", False))
+                    update_filter_flags()
             else:
+                if use_heuristics:
+                    ensure_heuristics_scored()
                 idxs_to_score: list[int] = []
                 prompt_texts: list[str] = []
                 response_texts: list[str] = []
                 for idxs in grouped.values():
                     for i in idxs:
-                        base_score = reward_threshold_list[i]
-                        if base_scores_list is not None:
-                            base_score = base_scores_list[i]
+                        base_score = get_base_score(i)
                         if base_score is None or base_score < threshold:
+                            continue
+                        if use_heuristics and not heuristic_ok_by_idx.get(i, False):
                             continue
                         response_text = extract_response_text(i)
                         if not response_text:
@@ -3276,11 +3364,10 @@ class RayPPOTrainer:
                         print("ACR filter model returned invalid scores; disabling filter.")
                         if disable_filters:
                             filter_mode = "off"
-                            use_heuristics = False
+                            update_filter_flags()
                         else:
                             filter_mode = "heuristic"
-                            use_heuristics = True
-                            degenerate_filter = bool(cfg.get("degenerate_filter", False))
+                            update_filter_flags()
                     else:
                         for idx, score in zip(idxs_to_score, scores):
                             try:
@@ -3301,8 +3388,6 @@ class RayPPOTrainer:
         hint_count = 0
         nohint_count = 0
         records = []
-        degenerate_checked = 0
-        degenerate_filtered = 0
         entropy_sampling = bool(cfg.get("entropy_sampling", False))
         entropy_beta = cfg.get("entropy_beta", 1.0)
         try:
@@ -3321,33 +3406,27 @@ class RayPPOTrainer:
             selection_mode = "random"
         else:
             selection_mode = "random"
-        if filter_mode == "ml":
+        if use_ml:
             selection_mode = "ml_score"
+
+        if self._distill_source == "acr" and use_heuristics:
+            ensure_heuristics_scored()
 
         for uid, idxs in grouped.items():
             if self._distill_source == "acr":
                 eligible = []
                 for i in idxs:
-                    base_score = reward_threshold_list[i]
-                    if base_scores_list is not None:
-                        base_score = base_scores_list[i]
+                    base_score = get_base_score(i)
                     if base_score is None:
                         continue
                     if base_score < threshold:
                         continue
-                    if filter_mode == "ml":
+                    if use_heuristics and not heuristic_ok_by_idx.get(i, False):
+                        continue
+                    if use_ml:
                         score_val = ml_scores_by_idx.get(i)
                         if score_val is None or score_val < filter_threshold:
                             continue
-                    elif use_heuristics:
-                        if leak_hits_list is not None and bool(leak_hits_list[i]):
-                            continue
-                        if degenerate_filter:
-                            degenerate_checked += 1
-                            response_ids = extract_response_ids(i)
-                            if not response_ids or is_degenerate(response_ids, idx=i):
-                                degenerate_filtered += 1
-                                continue
                     eligible.append(i)
             else:
                 eligible = [i for i in idxs if reward_threshold_list[i] >= threshold]
@@ -3491,14 +3570,18 @@ class RayPPOTrainer:
             metrics["distill/uid_group_frac"] = float(selected_groups / max(1, total_groups))
             metrics["distill/uid_group_count"] = float(selected_groups)
             metrics["distill/uid_group_total"] = float(total_groups)
+        if heuristic_input > 0:
+            metrics["distill/heuristic_input"] = float(heuristic_input)
+            metrics["distill/heuristic_passed"] = float(heuristic_passed)
+            metrics["distill/heuristic_passed_frac"] = float(heuristic_passed / max(1, heuristic_input))
         if degenerate_filter and degenerate_checked > 0:
             metrics["distill/degenerate_filtered"] = float(degenerate_filtered)
             metrics["distill/degenerate_filtered_frac"] = float(degenerate_filtered / max(1, degenerate_checked))
-        if filter_mode == "ml":
-            metrics["distill/ml_filter_checked"] = float(ml_checked)
-            metrics["distill/ml_filter_kept"] = float(ml_kept)
+        if use_ml:
+            metrics["distill/ml_filter_input"] = float(ml_checked)
+            metrics["distill/ml_filter_passed"] = float(ml_kept)
             if ml_checked > 0:
-                metrics["distill/ml_filter_kept_frac"] = float(ml_kept / max(1, ml_checked))
+                metrics["distill/ml_filter_passed_frac"] = float(ml_kept / max(1, ml_checked))
             metrics["distill/ml_filter_threshold"] = float(filter_threshold)
         if selected_rewards:
             metrics["distill/selected_reward_mean"] = float(np.mean(selected_rewards))

@@ -40,8 +40,7 @@ For eligible samples we generate $k$ ACR rollouts with the same actor.
 \subsection*{Step 3: ACR Reward and Filtering}
 Each ACR response is scored with the same extraction logic as RLVR to obtain the
 base correctness score $r_{\text{base}}$. We then apply leakage guards (banned
-phrases, minimum reasoning length, minimum overlap with task context, and
-verbatim label-detail overlap). The scalar ACR score is:
+phrases, minimum reasoning length, minimum overlap with task context). The scalar ACR score is:
 \[
 r_{\text{acr}} = r_{\text{correct}} \cdot r_{\text{base}} - \lambda \cdot
 \mathbb{1}[\text{leak}],
