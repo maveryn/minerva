@@ -1446,9 +1446,9 @@ class RayPPOTrainer:
             "dedup_by_uid": True,
             "buffer_mode": "rolling",
             "filter_mode": "ml",
-            "filter_model": "xashru/textcnn-lr5e-4",
+            "filter_model": "xashru/textcnn-lr6e-4-k345-f384-e200-t3072-d0p25",
             "filter_model_type": "textcnn",
-            "filter_threshold": 0.8,
+            "filter_threshold": 0.75,
             "filter_batch_size": None,
             "filter_max_length": 2048,
             "filter_text_mode": "response_prompt",
@@ -3315,10 +3315,14 @@ class RayPPOTrainer:
         selection_mode = str(cfg.get("selection_mode", "random")).lower().strip()
         if selection_mode in {"max_reward", "top_reward", "best", "reward"}:
             selection_mode = "top_reward"
+        elif selection_mode in {"ml_score", "ml", "model_score"}:
+            selection_mode = "ml_score"
         elif selection_mode in {"random", "rand", "uniform"}:
             selection_mode = "random"
         else:
             selection_mode = "random"
+        if filter_mode == "ml":
+            selection_mode = "ml_score"
 
         for uid, idxs in grouped.items():
             if self._distill_source == "acr":
@@ -3367,6 +3371,19 @@ class RayPPOTrainer:
                     tiebreak_proxy = response_len(chosen_idx)
                 else:
                     tiebreak_proxy = mean_nll(chosen_idx)
+            elif selection_mode == "ml_score":
+                score_pairs = []
+                for i in eligible:
+                    score_val = ml_scores_by_idx.get(i)
+                    if score_val is None or not math.isfinite(score_val):
+                        continue
+                    score_pairs.append((i, float(score_val)))
+                if not score_pairs:
+                    chosen_idx = int(rng.choice(eligible))
+                else:
+                    max_score = max(score for _, score in score_pairs)
+                    top = [i for i, score in score_pairs if score >= (max_score - 1e-6)]
+                    chosen_idx = int(rng.choice(top))
             else:
                 max_reward = max(reward_list[i] for i in eligible)
                 top = [i for i in eligible if reward_list[i] >= (max_reward - 1e-6)]

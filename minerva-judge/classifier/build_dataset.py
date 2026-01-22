@@ -6,10 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FINAL_MARKER_RE = re.compile(
+    r"(assistantfinal|<\|channel\|>final<\|message\|>|<\|assistant\|>final)",
+    flags=re.IGNORECASE,
+)
 
 
 def iter_jsonl(path: Path):
@@ -32,6 +37,18 @@ def build_key(row: dict[str, Any]) -> str:
     if attempt is not None:
         parts.append(attempt)
     return ":".join(str(p) for p in parts if p is not None)
+
+
+def extract_final_response(text: str | None) -> str:
+    if not isinstance(text, str):
+        return ""
+    raw = text.strip()
+    if not raw:
+        return ""
+    match = FINAL_MARKER_RE.search(raw)
+    if match:
+        return raw[match.end() :].strip()
+    return raw
 
 
 def load_needed_keys(judged_paths: list[Path]) -> dict[str, set[str]]:
@@ -144,7 +161,9 @@ def main() -> None:
             if response_row.get("correct") is not True:
                 continue
             prompt = response_row.get("prompt")
-            response = response_row.get("response")
+            response = extract_final_response(
+                response_row.get("response_final") or response_row.get("response")
+            )
             if not isinstance(prompt, str) or not isinstance(response, str):
                 continue
             label = 1 if label_text == "GOOD" else 0
@@ -182,7 +201,7 @@ def main() -> None:
             if label_text not in {"GOOD", "BAD"}:
                 continue
             prompt = row.get("source_prompt") or row.get("prompt")
-            response = row.get("response")
+            response = extract_final_response(row.get("response_final") or row.get("response"))
             if not isinstance(prompt, str) or not isinstance(response, str):
                 continue
             label = 1 if label_text == "GOOD" else 0
