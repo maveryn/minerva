@@ -14,6 +14,7 @@ os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from datasets import load_dataset
 from transformers import (
@@ -58,6 +59,105 @@ def compute_metrics(eval_pred):
     return {"accuracy": acc, "precision": precision, "recall": recall, "f1": f1}
 
 
+def focal_loss(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    *,
+    gamma: float,
+    alpha_bad: float | None,
+    alpha_good: float | None,
+) -> torch.Tensor:
+    log_probs = F.log_softmax(logits, dim=-1)
+    probs = torch.exp(log_probs)
+    labels = labels.long()
+    log_pt = log_probs.gather(1, labels.unsqueeze(1)).squeeze(1)
+    pt = probs.gather(1, labels.unsqueeze(1)).squeeze(1)
+    loss = -((1.0 - pt) ** gamma) * log_pt
+    if alpha_bad is not None or alpha_good is not None:
+        alpha_bad = 1.0 if alpha_bad is None else float(alpha_bad)
+        alpha_good = 1.0 if alpha_good is None else float(alpha_good)
+        alpha = torch.where(
+            labels == 0,
+            torch.tensor(alpha_bad, device=labels.device),
+            torch.tensor(alpha_good, device=labels.device),
+        )
+        loss = loss * alpha
+    return loss.mean()
+
+
+class LossTrainer(Trainer):
+    def __init__(
+        self,
+        *args,
+        loss_type: str,
+        focal_gamma: float,
+        focal_alpha_bad: float | None,
+        focal_alpha_good: float | None,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.loss_type = loss_type
+        self.focal_gamma = focal_gamma
+        self.focal_alpha_bad = focal_alpha_bad
+        self.focal_alpha_good = focal_alpha_good
+
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        labels = inputs.get("labels")
+        outputs = model(**{k: v for k, v in inputs.items() if k != "labels"})
+        logits = outputs.logits
+        if labels is None:
+            loss = outputs.loss if hasattr(outputs, "loss") else None
+        elif self.loss_type == "focal":
+            loss = focal_loss(
+                logits,
+                labels,
+                gamma=self.focal_gamma,
+                alpha_bad=self.focal_alpha_bad,
+                alpha_good=self.focal_alpha_good,
+            )
+        else:
+            loss = F.cross_entropy(logits, labels)
+        return (loss, outputs) if return_outputs else loss
+
+
+def maybe_resize_position_embeddings(model, max_length: int) -> None:
+    current = getattr(model.config, "max_position_embeddings", None)
+    if current is None or max_length <= current:
+        return
+    try:
+        model.resize_position_embeddings(max_length)
+        model.config.max_position_embeddings = max_length
+        print(f"Resized position embeddings to {max_length}")
+        return
+    except NotImplementedError:
+        pass
+
+    base_prefix = getattr(model, "base_model_prefix", "")
+    base_model = getattr(model, base_prefix, None) if base_prefix else None
+    embeddings = None
+    if base_model is not None and hasattr(base_model, "embeddings"):
+        embeddings = getattr(base_model, "embeddings")
+    if embeddings is None or not hasattr(embeddings, "position_embeddings"):
+        raise NotImplementedError(
+            f"Position embedding resize not supported for model type {model.__class__.__name__}"
+        )
+
+    old_weight = embeddings.position_embeddings.weight.data
+    old_len, hidden = old_weight.shape
+    new_embed = torch.nn.Embedding(max_length, hidden).to(old_weight.device)
+    new_embed.weight.data[:old_len] = old_weight
+    if max_length > old_len:
+        torch.nn.init.normal_(
+            new_embed.weight.data[old_len:],
+            mean=0.0,
+            std=getattr(model.config, "initializer_range", 0.02),
+        )
+    embeddings.position_embeddings = new_embed
+    embeddings.position_ids = torch.arange(max_length, device=old_weight.device).unsqueeze(0)
+    model.config.max_position_embeddings = max_length
+    print(f"Resized position embeddings from {old_len} to {max_length} (manual).")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train a Longformer classifier.")
     parser.add_argument(
@@ -76,6 +176,11 @@ def main() -> None:
         help="Base model name",
     )
     parser.add_argument(
+        "--tokenizer-name",
+        default=None,
+        help="Tokenizer name (defaults to model name)",
+    )
+    parser.add_argument(
         "--output-dir",
         default="minerva-judge/classifier/outputs/longformer-base-4096",
         help="Output directory",
@@ -91,6 +196,15 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=1337, help="Random seed")
     parser.add_argument("--fp16", action="store_true", help="Enable fp16 training")
     parser.add_argument("--bf16", action="store_true", help="Enable bf16 training")
+    parser.add_argument(
+        "--loss-type",
+        choices=["cross_entropy", "focal"],
+        default="cross_entropy",
+        help="Loss function type",
+    )
+    parser.add_argument("--focal-gamma", type=float, default=2.0, help="Focal loss gamma")
+    parser.add_argument("--focal-alpha-bad", type=float, default=None, help="Focal loss alpha for BAD class")
+    parser.add_argument("--focal-alpha-good", type=float, default=None, help="Focal loss alpha for GOOD class")
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -107,7 +221,18 @@ def main() -> None:
         data_files={"train": str(train_path), "validation": str(eval_path)},
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    tokenizer_name = args.tokenizer_name or args.model_name
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    except Exception as exc:
+        if args.tokenizer_name is None and "mosaic-bert" in args.model_name:
+            print(
+                f"Tokenizer load failed for {tokenizer_name}; "
+                "falling back to bert-base-uncased."
+            )
+            tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        else:
+            raise exc
     tokenizer.model_max_length = args.max_length
 
     def tokenize_batch(batch):
@@ -134,10 +259,7 @@ def main() -> None:
         label2id=label2id,
     )
     if hasattr(model.config, "max_position_embeddings") and args.max_length > model.config.max_position_embeddings:
-        if hasattr(model, "resize_position_embeddings"):
-            model.resize_position_embeddings(args.max_length)
-            model.config.max_position_embeddings = args.max_length
-            print(f"Resized position embeddings to {args.max_length}")
+        maybe_resize_position_embeddings(model, args.max_length)
 
     output_dir = PROJECT_ROOT / args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -169,13 +291,17 @@ def main() -> None:
         pad_to_multiple_of=8,
         use_global_attention=use_global_attention,
     )
-    trainer = Trainer(
+    trainer = LossTrainer(
         model=model,
         args=training_args,
         train_dataset=tokenized["train"],
         eval_dataset=tokenized["validation"],
         data_collator=collator,
         compute_metrics=compute_metrics,
+        loss_type=args.loss_type,
+        focal_gamma=args.focal_gamma,
+        focal_alpha_bad=args.focal_alpha_bad,
+        focal_alpha_good=args.focal_alpha_good,
     )
 
     trainer.train()
