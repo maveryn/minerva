@@ -53,7 +53,7 @@ Reward (`reward_acr`) uses the RLVR parsing logic (`reward_minerva`) and returns
 - `acr_base_score` = `reward_minerva` score (0..1), before scaling
 - `score` = `r_correct * acr_base_score - leak_penalty` (no ID leak penalty)
 - `acr_leak_hit` from banned phrase/regex detection (explicit match by default; fuzzy optional),
-  plus short reasoning, low-overlap reasoning, verbatim overlap, and optional ID-overuse checks
+  plus short reasoning, low-overlap reasoning, and optional ID-overuse checks
 - `acr_banned_phrase_hit` for the phrase/regex match component only
 - `acr_short_hit` and `acr_overlap_hit` for minimum-reasoning and overlap guards (logged only)
 - `acr_id_leak_hit` if the reasoning section contains any gold IDs (logged only)
@@ -78,7 +78,6 @@ Selection is per-UID (one record per original prompt):
 - Leakage includes banned-phrase detection (fuzzy match optional), short reasoning (default: <100 chars),
   low overlap with the combined task description + label reference (Jaccard <0.05; task description
   extracted from the original prompt block; overlap computed on the reasoning portion only),
-  verbatim overlap (default: two 10-word spans from `LABEL_REFERENCE`, with details >= 100 chars),
   plus optional ID overuse when `max_id_mentions > 0` (default 0 in `cti-scripts`; reward default 3).
 - Degenerate filter (default on): drop eligible responses with high n-gram repetition using
   `rep_n = 1 - distinct_n` over token IDs (defaults: `rep_3 >= 0.85` or `rep_4 >= 0.90`,
@@ -274,12 +273,7 @@ Implemented in `rlvr/verl/utils/reward_score/reward_acr.py` (`reward_acr`).
   (tokenized with IDs stripped). If overlap < `min_overlap_jaccard` (default 0.05), mark `acr_overlap_hit`
   and treat as leakage.
 
-#### 3.6 Verbatim label-detail overlap
-- If `LABEL_REFERENCE` is at least `verbatim_min_details_chars` (default 100 chars) and the reasoning contains
-  at least `verbatim_min_matches` exact `verbatim_ngram_size`-word spans (defaults: 2 spans, size 10),
-  mark `acr_verbatim_hit` and treat as leakage.
-
-#### 3.7 "ID in reasoning" detection
+#### 3.6 "ID in reasoning" detection
 - The reasoning section (everything before the last non-empty line) is checked for gold IDs.
 - This is logged as `acr_id_leak_hit` but is not penalized in the score.
 
@@ -304,7 +298,6 @@ Return a dict with:
 - `acr_short_hit`
 - `acr_overlap_hit`
 - `acr_id_leak_hit`
-- `acr_verbatim_hit`
 - `acr_id_overuse_hit` / `acr_id_overuse_max` (only when `max_id_mentions > 0`)
 The score is used for filtering/ranking traces, not for PPO updates by default.
 
@@ -412,9 +405,6 @@ Key env overrides:
 - `ACRD_ACR_MAX_ID_MENTIONS` (leakage check; reject if gold ID appears more than this; default 0)
 - `ACRD_ACR_MIN_REASONING_CHARS` (leakage check; reject if reasoning < this; default 100)
 - `ACRD_ACR_MIN_OVERLAP_JACCARD` (leakage check; reject if overlap < this; default 0.05)
-- `ACRD_ACR_VERBATIM_MIN_DETAILS_CHARS` (verbatim guard; default 100)
-- `ACRD_ACR_VERBATIM_NGRAM_SIZE` (verbatim guard; default 10)
-- `ACRD_ACR_VERBATIM_MIN_MATCHES` (verbatim guard; default 2)
 - `ACRD_JUDGE_ENABLED` (true/false; only used with `ACRD_ACR_REWARD_MANAGER=batch`)
 - `ACRD_JUDGE_MODEL` (default `openai/gpt-oss-20b`)
 - `ACRD_JUDGE_BATCH_SIZE`, `ACRD_JUDGE_MAX_NEW_TOKENS`, `ACRD_JUDGE_TEMPERATURE`, `ACRD_JUDGE_TOP_P`
@@ -468,8 +458,6 @@ Defaults:
 - `banned_phrases` is defined in `rlvr/verl/utils/reward_score/reward_acr.py` (answer/label variants).
 - `use_fuzzy_leak_check` is disabled by default (explicit phrase/regex leak checks only).
 - `max_id_mentions` defaults to 3 in `reward_acr` but is 0 (disabled) in `cti-scripts` unless overridden.
-- Verbatim guard defaults in `cti-scripts`: `verbatim_min_details_chars=100`, `verbatim_ngram_size=10`,
-  `verbatim_min_matches=2`.
 - SFT distill selection defaults to `selection_mode=random`. If you set `selection_mode=top_reward`,
   the default tie-break is `entropy_tiebreak=mean_nll` with `entropy_sampling=true` and `entropy_beta=1.0` (SFT only).
 - SFT degenerate filter defaults to on for ACRD in `cti-scripts`:

@@ -539,36 +539,6 @@ def _extract_label_reference(extra_info: Optional[dict]) -> str:
     return ""
 
 
-def _verbatim_overlap_hit(
-    details_text: str,
-    reasoning_text: str,
-    *,
-    min_details_chars: int,
-    ngram_size: int,
-    min_matches: int,
-) -> bool:
-    if not details_text or not reasoning_text:
-        return False
-    if len(details_text) < min_details_chars:
-        return False
-    detail_tokens = _word_tokens(details_text)
-    reasoning_tokens = _word_tokens(reasoning_text)
-    if len(detail_tokens) < ngram_size or len(reasoning_tokens) < ngram_size:
-        return False
-    detail_ngrams = {
-        tuple(detail_tokens[i : i + ngram_size]) for i in range(len(detail_tokens) - ngram_size + 1)
-    }
-    if not detail_ngrams:
-        return False
-    matches = 0
-    for i in range(len(reasoning_tokens) - ngram_size + 1):
-        if tuple(reasoning_tokens[i : i + ngram_size]) in detail_ngrams:
-            matches += 1
-            if matches >= max(1, min_matches):
-                return True
-    return False
-
-
 def _match_labels(gold: list[str], pred: list[str], policy: str) -> bool:
     if not gold or not pred:
         return False
@@ -651,9 +621,6 @@ def reward_acr(
     fuzzy_threshold: float = 0.85,
     enforce_no_id_in_reasoning: bool = True,
     max_id_mentions: Optional[int] = 3,
-    verbatim_min_details_chars: int = 100,
-    verbatim_ngram_size: int = 10,
-    verbatim_min_matches: int = 2,
     min_reasoning_chars: int = 100,
     min_overlap_jaccard: float = 0.05,
     score_min: Optional[float] = None,
@@ -697,18 +664,7 @@ def reward_acr(
     if enforce_no_id_in_reasoning and gold_labels:
         id_leak_hit = _id_leak_in_reasoning(reasoning, gold_labels)
 
-    verbatim_hit = False
     details_text = _extract_label_reference(extra_info)
-    if details_text:
-        verbatim_hit = _verbatim_overlap_hit(
-            details_text,
-            reasoning,
-            min_details_chars=int(verbatim_min_details_chars),
-            ngram_size=int(verbatim_ngram_size),
-            min_matches=int(verbatim_min_matches),
-        )
-        if verbatim_hit:
-            leak_hit = True
 
     overlap_hit = False
     overlap_score = None
@@ -755,7 +711,6 @@ def reward_acr(
         "acr_leak_hit": bool(leak_hit),
         "acr_banned_phrase_hit": bool(banned_hit),
         "acr_id_leak_hit": bool(id_leak_hit),
-        "acr_verbatim_hit": bool(verbatim_hit),
         "acr_short_hit": bool(short_hit),
         "acr_overlap_hit": bool(overlap_hit),
         "acr_pred_labels": pred_labels,

@@ -39,7 +39,7 @@ RLVR rollouts achieve reward 1.0.
 2. Score each ACR rollout with `reward_acr`:
    - `acr_base_score = reward_minerva(...)` in [0, 1]
    - `score = r_correct * acr_base_score - leak_penalty`
-   - `acr_leak_hit`, `acr_banned_phrase_hit`, `acr_verbatim_hit`, `acr_short_hit`, and `acr_overlap_hit` are logged
+   - `acr_leak_hit`, `acr_banned_phrase_hit`, `acr_short_hit`, and `acr_overlap_hit` are logged
      (`acr_id_leak_hit` is logged only when ID-in-reasoning checks are enabled)
 
 ### Step 5 - SFT candidate selection
@@ -110,9 +110,6 @@ The `lr_scale=0.1` is a tunable hyperparameter (explicitly set by the script).
 - `data.acr.reward_kwargs.leak_penalty`: `0.5`
 - `data.acr.reward_kwargs.multilabel_match`: `exact`
 - `data.acr.reward_kwargs.max_id_mentions`: `0`
-- `data.acr.reward_kwargs.verbatim_min_details_chars`: `100`
-- `data.acr.reward_kwargs.verbatim_ngram_size`: `10`
-- `data.acr.reward_kwargs.verbatim_min_matches`: `2`
 - `data.acr.reward_kwargs.min_reasoning_chars`: `100`
 - `data.acr.reward_kwargs.min_overlap_jaccard`: `0.05` (Jaccard over combined task description + label reference)
 - Judge rubric: disabled (`judge_enabled=false`)

@@ -6,7 +6,7 @@ set -euo pipefail
 # Usage:
 #   huggingface-cli login
 #   MODEL_DIR=/path/to/textcnn_run \
-#   HF_REPO=xashru/textcnn-lr6e-4-k345-f384-e200-t3072-d0p25 \
+#   HF_REPO=xashru/textcnn-response-only-lr6e-4-k345-f384-e300-t1024-d0p25 \
 #   bash minerva-judge/classifier/scripts/upload_textcnn_best.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,7 +17,7 @@ else
 fi
 
 MODEL_DIR="${MODEL_DIR:-}"
-HF_REPO="${HF_REPO:-xashru/textcnn-lr6e-4-k345-f384-e200-t3072-d0p25}"
+HF_REPO="${HF_REPO:-xashru/textcnn-response-only-lr6e-4-k345-f384-e300-t1024-d0p25}"
 
 if [[ -z "$MODEL_DIR" ]]; then
   echo "MODEL_DIR is required."

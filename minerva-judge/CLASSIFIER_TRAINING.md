@@ -1,7 +1,7 @@
 # Classifier Training (TextCNN)
 
 This note documents how we build the GOOD/BAD classifier dataset and train the
-TextCNN models.
+TextCNN model used for ACRD ML filtering.
 
 ## Dataset construction
 
@@ -40,7 +40,7 @@ python minerva-judge/classifier/build_dataset.py \
   --seed 1337
 ```
 
-## Input formatting (TextCNN)
+## Model input (TextCNN)
 
 Implementation: `minerva-judge/classifier/baselines/train_textcnn.py`.
 
@@ -55,22 +55,29 @@ Tokenization:
   - prompt tokens are truncated to the remaining budget,
   - if response exceeds the budget, prompt tokens are dropped.
 
-## TextCNN training
+Vocabulary:
+- Built from the training split.
+- `max_vocab=100000`, `min_freq=2`.
+- Special tokens: `<pad>` and `<unk>`.
 
-Architecture:
-- Embedding layer + 1D convs over tokens + max pooling + FC.
-- Kernels: {3,4,5} (default).
+## Model architecture
 
-Common settings:
-- `text_mode=response_prompt`
-- `max_vocab=100000`
-- `batch_size=128`
-- `epochs=5`
+- Embedding layer (random init unless pretrained vectors are supplied).
+- 1D convs over embeddings, ReLU, max-over-time pooling.
+- Concatenate pooled features, apply dropout, then a 2-way linear classifier.
+- Default kernel sizes: `3,4,5` (sweeped, not fixed).
 
-Outputs:
-- `metrics.json` and `model.pt` under the run output directory.
+## Training setup
 
-## Hyperparameter sweep (current)
+- Optimizer: AdamW.
+- Loss: cross-entropy over GOOD/BAD.
+- Batch size: 128.
+- Epochs: 5.
+- Learning rate: swept (see below).
+- Metrics: accuracy/precision/recall/f1 on the validation split each epoch.
+- Outputs: `metrics.json` + `model.pt` per run.
+
+## Hyperparameter sweep
 
 Script:
 - `minerva-judge/classifier/scripts/run_all_textcnn_parallel.sh`
@@ -95,12 +102,24 @@ RUN_TAG=jan22_textcnn_v1 GPU_LIST=0,1,2,3 \
   bash minerva-judge/classifier/scripts/run_all_textcnn_parallel.sh
 ```
 
-## Threshold sweep (best TextCNN so far)
-
-Model:
+Best model (used for ACRD ML filtering):
 - `textcnn_lr6e-4_k345_f384_e200_t3072_d0p25`
+- lr=6e-4, kernels=3/4/5, filters=384, embed_dim=200, max_tokens=3072, dropout=0.25
 
-Threshold metrics (val):
+## Threshold sweep + selected threshold
+
+Script:
+- `minerva-judge/classifier/scripts/eval_textcnn_threshold_sweep.py`
+
+Example:
+```bash
+python minerva-judge/classifier/scripts/eval_textcnn_threshold_sweep.py \
+  --model-dir minerva-judge/classifier/outputs/baselines/textcnn_sweep_<RUN_TAG>/<RUN_NAME> \
+  --data-file minerva-judge/classifier/data/val.jsonl \
+  --output minerva-judge/classifier/experiments/threshold_sweep_textcnn.jsonl
+```
+
+Threshold metrics (val) for `textcnn_lr6e-4_k345_f384_e200_t3072_d0p25`:
 ```
 threshold  precision  recall    f1
 0.50       0.7814     0.9113    0.8413
@@ -115,63 +134,8 @@ threshold  precision  recall    f1
 0.95       0.9326     0.2787    0.4292
 ```
 
-Operational note:
-- We currently use `filter_threshold=0.75` for ACRD ML filtering.
-
-## Threshold sweeps
-
-We sweep decision thresholds to tune precision/recall trade-offs:
-- `minerva-judge/classifier/scripts/eval_textcnn_threshold_sweep.py`
-
-Example:
-```bash
-python minerva-judge/classifier/scripts/eval_textcnn_threshold_sweep.py \
-  --model-dir minerva-judge/classifier/outputs/baselines/textcnn_sweep_<RUN_TAG>/<RUN_NAME> \
-  --val-file minerva-judge/classifier/data/val.jsonl \
-  --out minerva-judge/classifier/experiments/threshold_sweep_textcnn.jsonl
-```
-
-## Validation results
-
-Metrics below are from the saved `eval_metrics.json` (HF models) or `metrics.json`
-(TextCNN) in `minerva-judge/classifier/outputs`.
-
-ModernBERT (2k, prompt+response):
-
-| run_tag | max_len | lr | prec | rec | f1 |
-| --- | --- | --- | --- | --- | --- |
-| modernbert-2k-lr1e-06 | 2048 | 1e-06 | 0.7627 | 0.7816 | 0.7720 |
-| modernbert-2k-lr1e-05 | 2048 | 1e-05 | 0.8140 | 0.8934 | 0.8518 |
-| modernbert-2k-lr3e-05 | 2048 | 3e-05 | 0.8232 | 0.9048 | 0.8621 |
-| modernbert-2k-lr5e-05 | 2048 | 5e-05 | 0.8282 | 0.9000 | 0.8626 |
-| modernbert-2k-lr5e-05-focal | 2048 | 5e-05 | 0.8975 | 0.7523 | 0.8185 |
-
-TextCNN (prompt+response unless noted):
-
-| run_tag | max_tokens | notes | prec | rec | f1 |
-| --- | --- | --- | --- | --- | --- |
-| textcnn_lr5e-4 | 3072 | default (k=3,4,5; 256 filters; 200d) | 0.8122 | 0.9041 | 0.8557 |
-| textcnn_lr5e-4_pretrained | 3072 | pretrained word vecs | 0.8483 | 0.8030 | 0.8250 |
-| textcnn_k2345 | 2048 | k=2,3,4,5 | 0.8153 | 0.8889 | 0.8505 |
-| textcnn_wide | 2048 | 300d, 384 filters | 0.7970 | 0.9086 | 0.8492 |
-| textcnn_lr1e-3 | 2048 | lr=1e-3 | 0.8469 | 0.8194 | 0.8329 |
-| textcnn_lr3e-3 | 2048 | lr=3e-3 | 0.8369 | 0.8073 | 0.8219 |
-| textcnn_response_only | 1024 | response-only | 0.8220 | 0.8366 | 0.8292 |
-
-TextCNN threshold sweep (default `textcnn_lr5e-4`):
-
-| threshold | prec | rec | f1 |
-| --- | --- | --- | --- |
-| 0.50 | 0.8122 | 0.9041 | 0.8557 |
-| 0.55 | 0.8209 | 0.8892 | 0.8537 |
-| 0.60 | 0.8286 | 0.8647 | 0.8462 |
-| 0.65 | 0.8392 | 0.8398 | 0.8395 |
-| 0.70 | 0.8545 | 0.8059 | 0.8295 |
-| 0.75 | 0.8688 | 0.7588 | 0.8101 |
-| 0.80 | 0.8839 | 0.7009 | 0.7819 |
-| 0.85 | 0.8996 | 0.6162 | 0.7315 |
-| 0.90 | 0.9235 | 0.5053 | 0.6532 |
-| 0.95 | 0.9512 | 0.3259 | 0.4855 |
+Selected threshold:
+- We use `filter_threshold=0.75` for ACRD ML filtering.
 
 ## Notes
 
