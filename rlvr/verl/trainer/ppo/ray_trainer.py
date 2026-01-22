@@ -73,6 +73,30 @@ from verl.workers.reward_manager.naive import NaiveRewardManager
 
 ZERO_SOLVE_THRESH = 1e-3
 ALL_SOLVE_THRESH = 0.95
+_TEXTCNN_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
+
+
+class _TextCNNModel(torch.nn.Module):
+    def __init__(self, vocab_size: int, embed_dim: int, kernel_sizes: list[int], num_filters: int):
+        super().__init__()
+        self.embed = torch.nn.Embedding(vocab_size, embed_dim, padding_idx=0)
+        self.convs = torch.nn.ModuleList(
+            [torch.nn.Conv1d(embed_dim, num_filters, kernel_size) for kernel_size in kernel_sizes]
+        )
+        self.dropout = torch.nn.Dropout(0.0)
+        self.fc = torch.nn.Linear(num_filters * len(kernel_sizes), 2)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        emb = self.embed(x)  # (batch, seq, dim)
+        emb = emb.transpose(1, 2)  # (batch, dim, seq)
+        feats = []
+        for conv in self.convs:
+            y = torch.relu(conv(emb))
+            y = torch.max(y, dim=2).values
+            feats.append(y)
+        out = torch.cat(feats, dim=1)
+        out = self.dropout(out)
+        return self.fc(out)
 
 
 @dataclass
@@ -1421,6 +1445,17 @@ class RayPPOTrainer:
             "drop_last": True,
             "dedup_by_uid": True,
             "buffer_mode": "rolling",
+            "filter_mode": "ml",
+            "filter_model": "xashru/textcnn-lr5e-4",
+            "filter_model_type": "textcnn",
+            "filter_threshold": 0.8,
+            "filter_batch_size": None,
+            "filter_max_length": 2048,
+            "filter_text_mode": "response_prompt",
+            "filter_device": "auto",
+            "filter_dtype": "auto",
+            "filter_tokenizer": None,
+            "filter_trust_remote_code": False,
         }
         if distill_source == "acr":
             defaults["interval"] = 10
@@ -1461,6 +1496,12 @@ class RayPPOTrainer:
             dpo_cfg.setdefault(key, value)
         distill_cfg["dpo"] = dpo_cfg
 
+        if distill_cfg.get("filter_batch_size") in (None, 0):
+            default_filter_bsz = self.config.data.get("gen_batch_size", self.config.data.train_batch_size)
+            if not default_filter_bsz:
+                default_filter_bsz = distill_cfg.get("batch_size") or 64
+            distill_cfg["filter_batch_size"] = int(default_filter_bsz)
+
         if distill_method == "dpo" and distill_source == "acr" and not dedup_by_uid_present:
             distill_cfg["dedup_by_uid"] = False
 
@@ -1489,6 +1530,8 @@ class RayPPOTrainer:
         self._acr_judge_backend_requested = None
         self._acr_reward_kwargs = {}
         self._acr_judge_model = None
+        self._acr_filter_state = None
+        self._acr_filter_disabled = False
         self._acr_skip_task_keys: set[str] = set()
         self.judge_wg = None
         self._acr_reward_fn_key = self.config.data.get("reward_fn_key", "data_source")
@@ -2654,6 +2697,288 @@ class RayPPOTrainer:
         except Exception:
             return None
 
+    def _acr_filter_mode(self, disable_filters: bool) -> str:
+        mode = str(self._distill_cfg.get("filter_mode", "heuristic")).lower().strip()
+        if mode not in {"off", "heuristic", "ml"}:
+            mode = "heuristic"
+        if mode == "heuristic" and disable_filters:
+            mode = "off"
+        return mode
+
+    def _render_prompt_payload(self, payload: Any) -> str:
+        if isinstance(payload, str):
+            return payload
+        if not isinstance(payload, list):
+            return ""
+        for msg in reversed(payload):
+            if not isinstance(msg, dict):
+                continue
+            role = str(msg.get("role") or "").lower()
+            content = msg.get("content")
+            if role == "user" and isinstance(content, str):
+                return content
+        contents = []
+        for msg in payload:
+            if not isinstance(msg, dict):
+                continue
+            content = msg.get("content")
+            if isinstance(content, str):
+                contents.append(content)
+        return "\n".join(contents).strip()
+
+    def _extract_prompt_text(self, extra_info: Any) -> str:
+        if not isinstance(extra_info, dict):
+            return ""
+        for key in ("acr_orig_prompt", "orig_prompt", "raw_prompt", "prompt"):
+            payload = extra_info.get(key)
+            text = self._render_prompt_payload(payload)
+            if text:
+                return text
+        return ""
+
+    def _maybe_init_acr_filter_model(self) -> None:
+        if self._acr_filter_state is not None or self._acr_filter_disabled:
+            return
+        cfg = self._distill_cfg
+        model_name = cfg.get("filter_model")
+        if not model_name:
+            print("ACR distill filter mode 'ml' requested but filter_model is not set; disabling filter.")
+            self._acr_filter_disabled = True
+            return
+        model_type = str(cfg.get("filter_model_type", "auto")).lower().strip()
+        if model_type == "modernbert":
+            model_type = "hf"
+        if model_type not in {"auto", "hf", "textcnn"}:
+            model_type = "auto"
+        if model_type == "auto":
+            model_type = "textcnn" if "textcnn" in str(model_name).lower() else "hf"
+
+        device_cfg = str(cfg.get("filter_device", "auto")).lower().strip()
+        if device_cfg == "auto":
+            device_cfg = "cuda" if torch.cuda.is_available() else "cpu"
+        device = torch.device(device_cfg)
+        batch_size = int(cfg.get("filter_batch_size") or 64)
+
+        try:
+            if model_type == "textcnn":
+                state = self._load_textcnn_filter_model(model_name, device, cfg)
+            else:
+                from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+                tokenizer_name = cfg.get("filter_tokenizer") or model_name
+                trust_remote_code = bool(cfg.get("filter_trust_remote_code", False))
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, trust_remote_code=trust_remote_code)
+                if tokenizer.pad_token_id is None:
+                    tokenizer.pad_token_id = tokenizer.eos_token_id
+                max_length = int(cfg.get("filter_max_length") or 0)
+                if max_length <= 0:
+                    max_length = int(getattr(tokenizer, "model_max_length", 2048) or 2048)
+                tokenizer_max = getattr(tokenizer, "model_max_length", None)
+                if tokenizer_max and isinstance(tokenizer_max, int) and tokenizer_max > 0 and tokenizer_max < max_length:
+                    max_length = tokenizer_max
+
+                dtype_name = str(cfg.get("filter_dtype", "auto")).lower().strip()
+                torch_dtype = None
+                if dtype_name and dtype_name != "auto":
+                    if dtype_name in {"bf16", "bfloat16"}:
+                        torch_dtype = torch.bfloat16
+                    elif dtype_name in {"fp16", "float16"}:
+                        torch_dtype = torch.float16
+                    else:
+                        torch_dtype = getattr(torch, dtype_name, None)
+                model_kwargs = {"trust_remote_code": trust_remote_code}
+                if torch_dtype is not None:
+                    model_kwargs["torch_dtype"] = torch_dtype
+                model = AutoModelForSequenceClassification.from_pretrained(model_name, **model_kwargs)
+                model.eval()
+                if device.type != "cpu":
+                    model.to(device)
+
+                good_id = 1
+                label2id = getattr(model.config, "label2id", {}) or {}
+                for label, idx in label2id.items():
+                    if str(label).upper() == "GOOD":
+                        good_id = int(idx)
+                        break
+                state = {
+                    "type": "hf",
+                    "model": model,
+                    "tokenizer": tokenizer,
+                    "device": device,
+                    "max_length": max_length,
+                    "good_id": good_id,
+                }
+        except Exception as exc:
+            print(f"ACR filter model init failed: {exc}")
+            state = None
+
+        if state is None:
+            self._acr_filter_disabled = True
+            return
+        state["batch_size"] = batch_size
+        self._acr_filter_state = state
+
+    def _load_textcnn_filter_model(self, model_name: str, device: torch.device, cfg: dict) -> Optional[dict]:
+        try:
+            if os.path.isdir(model_name):
+                model_path = os.path.join(model_name, "model.pt")
+                metrics_path = os.path.join(model_name, "metrics.json")
+            else:
+                from huggingface_hub import hf_hub_download
+
+                model_path = hf_hub_download(model_name, "model.pt")
+                try:
+                    metrics_path = hf_hub_download(model_name, "metrics.json")
+                except Exception:
+                    metrics_path = None
+
+            payload = torch.load(model_path, map_location="cpu", weights_only=False)
+            state_dict = payload.get("state_dict")
+            vocab = payload.get("vocab") or {}
+            if state_dict is None or not vocab:
+                raise ValueError("textcnn model.pt missing state_dict or vocab")
+
+            metrics = {}
+            if metrics_path and os.path.exists(metrics_path):
+                with open(metrics_path, "r", encoding="utf-8") as f:
+                    metrics = json.load(f)
+
+            embed_dim = int(metrics.get("embed_dim", 200))
+            kernel_sizes = metrics.get("kernel_sizes", [3, 4, 5])
+            if isinstance(kernel_sizes, str):
+                kernel_sizes = [int(x) for x in kernel_sizes.split(",") if x.strip()]
+            num_filters = int(metrics.get("num_filters", 256))
+            model = _TextCNNModel(len(vocab), embed_dim, kernel_sizes, num_filters)
+            model.load_state_dict(state_dict)
+            model.eval()
+            model.to(device)
+
+            max_tokens = cfg.get("filter_max_tokens")
+            if not max_tokens:
+                max_tokens = cfg.get("filter_max_length")
+            if not max_tokens and "max_tokens" in metrics:
+                max_tokens = metrics.get("max_tokens")
+            if max_tokens is not None:
+                max_tokens = int(max_tokens)
+                if max_tokens <= 0:
+                    max_tokens = None
+
+            text_mode = str(cfg.get("filter_text_mode", "response_prompt")).lower().strip()
+            if text_mode not in {"response_prompt", "response", "prompt"}:
+                text_mode = "response_prompt"
+
+            return {
+                "type": "textcnn",
+                "model": model,
+                "device": device,
+                "vocab": vocab,
+                "max_tokens": max_tokens,
+                "text_mode": text_mode,
+            }
+        except Exception as exc:
+            print(f"ACR filter textcnn init failed: {exc}")
+            return None
+
+    def _acr_filter_score_pairs(self, prompt_texts: list[str], response_texts: list[str]) -> Optional[list[float]]:
+        state = self._acr_filter_state
+        if state is None:
+            return None
+        if state.get("type") == "textcnn":
+            return self._acr_filter_score_textcnn(prompt_texts, response_texts, state)
+        return self._acr_filter_score_hf(prompt_texts, response_texts, state)
+
+    def _acr_filter_score_hf(self, prompt_texts: list[str], response_texts: list[str], state: dict) -> list[float]:
+        model = state["model"]
+        tokenizer = state["tokenizer"]
+        device = state["device"]
+        max_length = state["max_length"]
+        good_id = int(state.get("good_id", 1))
+        batch_size = int(state.get("batch_size") or 64)
+        scores: list[float] = []
+        model.eval()
+
+        for start in range(0, len(prompt_texts), batch_size):
+            batch_prompts = prompt_texts[start : start + batch_size]
+            batch_responses = response_texts[start : start + batch_size]
+            enc = tokenizer(
+                batch_prompts,
+                batch_responses,
+                truncation="only_first",
+                max_length=max_length,
+                padding=True,
+                return_tensors="pt",
+            )
+            enc = {k: v.to(device) for k, v in enc.items()}
+            with torch.no_grad():
+                logits = model(**enc).logits
+                probs = torch.softmax(logits, dim=-1)
+                scores.extend(probs[:, good_id].detach().cpu().tolist())
+        return scores
+
+    def _textcnn_build_tokens(
+        self,
+        prompt: str,
+        response: str,
+        text_mode: str,
+        max_tokens: Optional[int],
+    ) -> list[str]:
+        prompt_tokens = _TEXTCNN_TOKEN_RE.findall((prompt or "").lower())
+        response_tokens = _TEXTCNN_TOKEN_RE.findall((response or "").lower())
+        if text_mode == "response":
+            tokens = response_tokens
+            return tokens[:max_tokens] if max_tokens else tokens
+        if text_mode == "prompt":
+            tokens = prompt_tokens
+            return tokens[:max_tokens] if max_tokens else tokens
+
+        if max_tokens is not None:
+            if len(response_tokens) >= max_tokens:
+                response_tokens = response_tokens[:max_tokens]
+                prompt_tokens = []
+            else:
+                budget = max_tokens - len(response_tokens)
+                prompt_tokens = prompt_tokens[:budget]
+        return response_tokens + ["sep"] + prompt_tokens
+
+    def _acr_filter_score_textcnn(self, prompt_texts: list[str], response_texts: list[str], state: dict) -> list[float]:
+        model = state["model"]
+        device = state["device"]
+        vocab = state["vocab"]
+        max_tokens = state.get("max_tokens")
+        text_mode = state.get("text_mode", "response_prompt")
+        batch_size = int(state.get("batch_size") or 64)
+        scores: list[float] = []
+        model.eval()
+
+        for start in range(0, len(prompt_texts), batch_size):
+            batch_prompts = prompt_texts[start : start + batch_size]
+            batch_responses = response_texts[start : start + batch_size]
+            seqs: list[list[int]] = []
+            for prompt, response in zip(batch_prompts, batch_responses):
+                tokens = self._textcnn_build_tokens(prompt, response, text_mode, max_tokens)
+                if not tokens:
+                    tokens = ["<unk>"]
+                seqs.append([vocab.get(tok, 1) for tok in tokens])
+            if not seqs:
+                continue
+            max_len = max(len(seq) for seq in seqs)
+            if max_tokens:
+                max_len = min(max_len, int(max_tokens))
+            if max_len <= 0:
+                max_len = 1
+            padded = []
+            for seq in seqs:
+                if len(seq) >= max_len:
+                    padded.append(seq[:max_len])
+                else:
+                    padded.append(seq + [0] * (max_len - len(seq)))
+            x = torch.tensor(padded, dtype=torch.long, device=device)
+            with torch.no_grad():
+                logits = model(x)
+                probs = torch.softmax(logits, dim=-1)
+                scores.extend(probs[:, 1].detach().cpu().tolist())
+        return scores
+
     def _collect_distill_candidates(
         self,
         batch: Optional[DataProto],
@@ -2794,10 +3119,13 @@ class RayPPOTrainer:
                 return 0
             return int(non_pad[-1].item() + 1)
 
-        degenerate_filter = bool(cfg.get("degenerate_filter", False))
         disable_filters = bool(cfg.get("disable_filters", False))
-        if self._distill_source == "acr" and disable_filters:
-            degenerate_filter = False
+        filter_mode = (
+            self._acr_filter_mode(disable_filters) if self._distill_source == "acr" else "heuristic"
+        )
+        use_heuristics = filter_mode == "heuristic"
+
+        degenerate_filter = bool(cfg.get("degenerate_filter", False)) if use_heuristics else False
         degenerate_min_tokens = int(cfg.get("degenerate_min_tokens", 0) or 0)
         try:
             degenerate_rep_3_max = float(cfg.get("degenerate_rep_3_max", 1.0))
@@ -2911,6 +3239,61 @@ class RayPPOTrainer:
                 continue
             grouped.setdefault(uid_str, []).append(idx)
 
+        ml_scores_by_idx: dict[int, float] = {}
+        ml_checked = 0
+        ml_kept = 0
+        filter_threshold = float(cfg.get("filter_threshold", 0.5))
+        if self._distill_source == "acr" and filter_mode == "ml":
+            self._maybe_init_acr_filter_model()
+            if self._acr_filter_state is None:
+                if disable_filters:
+                    filter_mode = "off"
+                    use_heuristics = False
+                else:
+                    filter_mode = "heuristic"
+                    use_heuristics = True
+                    degenerate_filter = bool(cfg.get("degenerate_filter", False))
+            else:
+                idxs_to_score: list[int] = []
+                prompt_texts: list[str] = []
+                response_texts: list[str] = []
+                for idxs in grouped.values():
+                    for i in idxs:
+                        base_score = reward_threshold_list[i]
+                        if base_scores_list is not None:
+                            base_score = base_scores_list[i]
+                        if base_score is None or base_score < threshold:
+                            continue
+                        response_text = extract_response_text(i)
+                        if not response_text:
+                            continue
+                        prompt_texts.append(self._extract_prompt_text(extra_list[i]))
+                        response_texts.append(response_text)
+                        idxs_to_score.append(i)
+                if idxs_to_score:
+                    scores = self._acr_filter_score_pairs(prompt_texts, response_texts)
+                    if scores is None or len(scores) != len(idxs_to_score):
+                        print("ACR filter model returned invalid scores; disabling filter.")
+                        if disable_filters:
+                            filter_mode = "off"
+                            use_heuristics = False
+                        else:
+                            filter_mode = "heuristic"
+                            use_heuristics = True
+                            degenerate_filter = bool(cfg.get("degenerate_filter", False))
+                    else:
+                        for idx, score in zip(idxs_to_score, scores):
+                            try:
+                                score_val = float(score)
+                            except (TypeError, ValueError):
+                                score_val = float("nan")
+                            if not math.isfinite(score_val):
+                                score_val = -1.0
+                            ml_scores_by_idx[idx] = score_val
+                            ml_checked += 1
+                            if score_val >= filter_threshold:
+                                ml_kept += 1
+
         total_groups = len(grouped)
         selected_groups = 0
         selected_rewards: list[float] = []
@@ -2948,7 +3331,11 @@ class RayPPOTrainer:
                         continue
                     if base_score < threshold:
                         continue
-                    if not disable_filters:
+                    if filter_mode == "ml":
+                        score_val = ml_scores_by_idx.get(i)
+                        if score_val is None or score_val < filter_threshold:
+                            continue
+                    elif use_heuristics:
                         if leak_hits_list is not None and bool(leak_hits_list[i]):
                             continue
                         if degenerate_filter:
@@ -3090,6 +3477,12 @@ class RayPPOTrainer:
         if degenerate_filter and degenerate_checked > 0:
             metrics["distill/degenerate_filtered"] = float(degenerate_filtered)
             metrics["distill/degenerate_filtered_frac"] = float(degenerate_filtered / max(1, degenerate_checked))
+        if filter_mode == "ml":
+            metrics["distill/ml_filter_checked"] = float(ml_checked)
+            metrics["distill/ml_filter_kept"] = float(ml_kept)
+            if ml_checked > 0:
+                metrics["distill/ml_filter_kept_frac"] = float(ml_kept / max(1, ml_checked))
+            metrics["distill/ml_filter_threshold"] = float(filter_threshold)
         if selected_rewards:
             metrics["distill/selected_reward_mean"] = float(np.mean(selected_rewards))
         if selected_tiebreak:

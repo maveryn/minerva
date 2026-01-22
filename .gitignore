@@ -220,6 +220,9 @@ dataset/detection_cache/
 # Minerva analysis outputs
 minerva/analysis/results/
 
+# Minerva-judge classifier embeddings
+minerva-judge/classifier/embeddings/
+
 # RLVR local datasets (keep converters + curated CTI outputs tracked)
 rlvr/mydata/**
 !rlvr/mydata/cti/
