@@ -99,6 +99,13 @@ def _extract_mcq(text: str) -> str:
     return _extract_from_lines(text, r"\b([A-E])\b", lambda s: s.upper())
 
 
+def _normalize_seceval(text: str) -> str:
+    letters = re.findall(r"[A-D]", text or "", re.IGNORECASE)
+    if not letters:
+        return ""
+    return "".join(sorted({letter.upper() for letter in letters}))
+
+
 ATHENA_EXTRACTORS = {
     "athena-cti-rcm": _extract_rcm,
     "athena-cti-vsp": _extract_vsp,
@@ -354,6 +361,10 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
     if data_source in {"athena-cti-mcq", "athena-cti-mcq-3k", "athena-cti-ckt"}:
         truth = _clean_freeform(str(_get_truth(ground_truth))).upper()
         return finalize(1.0 if pred.upper() == truth and truth else 0.0)
+    if data_source in {"seceval", "seceval-mini"}:
+        truth = _normalize_seceval(str(_get_truth(ground_truth)))
+        pred_norm = _normalize_seceval(solution_str or "")
+        return finalize(1.0 if pred_norm == truth and truth else 0.0)
 
     # Minerva tasks: use reward_fn names
     if minerva_reward and data_source:

@@ -818,7 +818,8 @@ class RayPPOTrainer:
                 data_sources_arr = np.array([str(ds) for ds in data_sources])
                 athena_mask = np.array([ds.startswith("athena-cti-") for ds in data_sources_arr])
                 ifeval_mask = data_sources_arr == "reward_instruction_following"
-                minerva_mask = (~athena_mask) & (~ifeval_mask)
+                seceval_mask = np.array([ds in {"seceval", "seceval-mini"} for ds in data_sources_arr])
+                minerva_mask = (~athena_mask) & (~ifeval_mask) & (~seceval_mask)
                 if "val-core/minerva-dev/reward/mean" not in metric_dict and minerva_mask.any():
                     metric_dict["val-core/minerva-dev/reward/mean"] = float(rewards[minerva_mask].mean())
                 if "val-core/athena-bench/reward/mean" not in metric_dict and athena_mask.any():
@@ -1541,6 +1542,9 @@ class RayPPOTrainer:
         self._acr_details_debug_samples = max(0, int(os.getenv("ACRD_DETAILS_DEBUG_SAMPLES", "2")))
         self._acr_filter_debug_samples = max(0, int(os.getenv("ACRD_ML_DEBUG_SAMPLES", "0")))
         self._acr_filter_debug_remaining = 0
+        self._acr_rollout_sampling: dict = {}
+        self._acr_defer_generation = False
+        self._acr_prompt_buffer_local = []
 
         acr_cfg = self.config.data.get("acr", {}) if self.config is not None else {}
         if isinstance(acr_cfg, DictConfig):
@@ -1650,8 +1654,39 @@ class RayPPOTrainer:
             acr_cfg.get("max_prompt_length", self.config.data.get("max_prompt_length", 1024))
         )
         self._acr_rollout_n = max(1, int(acr_cfg.get("rollout_n", 4)))
+        rollout_sampling = acr_cfg.get("rollout_sampling", {})
+        if isinstance(rollout_sampling, DictConfig):
+            rollout_sampling = OmegaConf.to_container(rollout_sampling, resolve=True)
+        if not isinstance(rollout_sampling, dict):
+            rollout_sampling = {}
+        cleaned_sampling = {}
+        for key, value in rollout_sampling.items():
+            key_str = str(key or "").strip()
+            if not key_str or value is None:
+                continue
+            cleaned_sampling[key_str] = value
+        self._acr_rollout_sampling = cleaned_sampling
         self._acr_weight = float(acr_cfg.get("rl_weight", 0.3))
         self._acr_update_actor = bool(acr_cfg.get("update_actor", False))
+        defer_generation = bool(acr_cfg.get("defer_generation", False))
+        if defer_generation:
+            distill_method = str(self._distill_cfg.get("method", "sft")).lower().strip()
+            buffer_mode = str(self._distill_cfg.get("buffer_mode", "rolling")).lower().strip()
+            distill_enabled = bool(self._distill_cfg.get("enabled", False))
+            interval = int(self._distill_cfg.get("interval", 0) or 0)
+            if self._distill_source != "acr" or distill_method != "sft" or not distill_enabled:
+                print("ACR defer_generation disabled: requires ACR SFT distillation.")
+                defer_generation = False
+            elif buffer_mode == "buffer":
+                print("ACR defer_generation disabled: buffer_mode=buffer is not supported.")
+                defer_generation = False
+            elif interval <= 0:
+                print("ACR defer_generation disabled: distill interval must be > 0.")
+                defer_generation = False
+            elif self._acr_update_actor or bool(acr_cfg.get("update_critic", False)):
+                print("ACR defer_generation disabled: update_actor/update_critic enabled.")
+                defer_generation = False
+        self._acr_defer_generation = defer_generation
         hard_reward_threshold = acr_cfg.get("hard_reward_threshold", None)
         hard_reward_threshold_set = "hard_reward_threshold" in acr_cfg and hard_reward_threshold is not None
         if hard_reward_threshold_set:
@@ -4233,7 +4268,7 @@ class RayPPOTrainer:
             interval = int(cfg.get("interval", 0) or 0)
             if interval <= 0:
                 return {}
-            if (global_step + 1) % interval != 0:
+            if global_step % interval != 0:
                 return {}
             if global_step == self._distill_last_run_step:
                 return {}
@@ -4381,10 +4416,10 @@ class RayPPOTrainer:
         interval = int(cfg.get("interval", 0) or 0)
         if interval <= 0:
             return {}
-        if (global_step + 1) % interval != 0:
-            return {}
-        if global_step == self._distill_last_run_step:
-            return {}
+            if global_step % interval != 0:
+                return {}
+            if global_step == self._distill_last_run_step:
+                return {}
 
         local_records = list(self._distill_buffer_local)
         if not local_records:
@@ -4592,6 +4627,12 @@ class RayPPOTrainer:
 
         acr_gen_batch = self._get_gen_batch(acr_batch)
         acr_gen_batch.meta_info["global_steps"] = self.global_steps
+        sampling_kwargs = dict(self._acr_rollout_sampling) if self._acr_rollout_sampling else {}
+        if sampling_kwargs:
+            for key, value in sampling_kwargs.items():
+                if value is None:
+                    continue
+                acr_gen_batch.meta_info[key] = value
         acr_gen_batch = acr_gen_batch.repeat(repeat_times=self._acr_rollout_n, interleave=True)
 
         with marked_timer("acr_gen", timing_raw, color="magenta"):
@@ -5208,15 +5249,52 @@ class RayPPOTrainer:
                                     )
                                     if acr_hard_filter_metrics:
                                         metrics.update(acr_hard_filter_metrics)
-                            acr_metrics = self._run_acr_phase(
-                                acr_batch,
-                                timing_raw,
-                                rollout_batch=batch,
-                                rollout_reward_scalar=reward_scalar,
-                                rollout_uid_max_rewards=acr_uid_max_rewards,
+                            defer_acr = (
+                                self._acr_defer_generation
+                                and self._distill_source == "acr"
+                                and distill_method == "sft"
                             )
-                            if acr_metrics:
-                                metrics.update(acr_metrics)
+                            if defer_acr:
+                                if acr_batch is not None and len(acr_batch) > 0:
+                                    self._acr_prompt_buffer_local.append(acr_batch)
+                                buffer_batches = len(self._acr_prompt_buffer_local)
+                                buffer_size = sum(len(buf) for buf in self._acr_prompt_buffer_local)
+                                metrics["acr/defer_buffer_batches"] = float(buffer_batches)
+                                metrics["acr/defer_buffer_size"] = float(buffer_size)
+                                interval = int(self._distill_cfg.get("interval", 0) or 0)
+                                buffer_mode = str(self._distill_cfg.get("buffer_mode", "rolling")).lower().strip()
+                                flush_now = bool(interval > 0 and buffer_mode != "buffer")
+                                if flush_now:
+                                    flush_now = (self.global_steps % interval) == 0
+                                if flush_now and buffer_batches > 0:
+                                    metrics["acr/defer_flush"] = 1.0
+                                    metrics["acr/defer_flush_size"] = float(buffer_size)
+                                    if buffer_batches == 1:
+                                        acr_flush_batch = self._acr_prompt_buffer_local[0]
+                                    else:
+                                        acr_flush_batch = DataProto.concat(self._acr_prompt_buffer_local)
+                                    self._acr_prompt_buffer_local = []
+                                    acr_metrics = self._run_acr_phase(
+                                        acr_flush_batch,
+                                        timing_raw,
+                                        rollout_batch=batch,
+                                        rollout_reward_scalar=reward_scalar,
+                                        rollout_uid_max_rewards=acr_uid_max_rewards,
+                                    )
+                                    if acr_metrics:
+                                        metrics.update(acr_metrics)
+                                else:
+                                    metrics["acr/defer_flush"] = 0.0
+                            else:
+                                acr_metrics = self._run_acr_phase(
+                                    acr_batch,
+                                    timing_raw,
+                                    rollout_batch=batch,
+                                    rollout_reward_scalar=reward_scalar,
+                                    rollout_uid_max_rewards=acr_uid_max_rewards,
+                                )
+                                if acr_metrics:
+                                    metrics.update(acr_metrics)
 
                     # Log rollout generations if enabled
                     rollout_data_dir = self.config.trainer.get("rollout_data_dir", None)

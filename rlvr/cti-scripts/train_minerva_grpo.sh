@@ -28,7 +28,7 @@ VAL_PATHS=(
   "${GRPO_VAL_PATH_5:-$DATA_DIR/athena/athena_cti_rms.parquet}"
   "${GRPO_VAL_PATH_6:-$DATA_DIR/athena/athena_cti_taa.parquet}"
   "${GRPO_VAL_PATH_7:-$DATA_DIR/athena/athena_cti_vsp.parquet}"
-  "${GRPO_VAL_PATH_8:-$DATA_DIR/ifeval/ifeval_dev.parquet}"
+  "${GRPO_VAL_PATH_8:-$DATA_DIR/seceval/seceval_mini.parquet}"
 )
 
 TRAIN_FILES="['$TRAIN_PATH']"
@@ -37,7 +37,7 @@ VAL_FILES="['${VAL_PATHS[0]}','${VAL_PATHS[1]}','${VAL_PATHS[2]}','${VAL_PATHS[3
 OUTPUT_ROOT="${GRPO_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 
 TRAIN_BATCH_SIZE="${GRPO_TRAIN_BATCH_SIZE:-128}"
-VAL_BATCH_SIZE="${GRPO_VAL_BATCH_SIZE:-2500}"
+VAL_BATCH_SIZE="${GRPO_VAL_BATCH_SIZE:-3000}"
 MAX_PROMPT_LEN="${GRPO_MAX_PROMPT_LEN:-2048}"
 MAX_RESPONSE_LEN="${GRPO_MAX_RESPONSE_LEN:-1024}"
 ROLLOUT_N="${GRPO_ROLLOUT_N:-8}"
