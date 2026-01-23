@@ -1051,6 +1051,7 @@ class RayPPOTrainer:
             self.judge_wg.init_model()
 
         self._maybe_init_acr_judge_runner()
+        self._maybe_init_acr_ema_teacher()
 
         # create async rollout manager and request scheduler
         self.async_rollout_mode = False
@@ -1100,6 +1101,27 @@ class RayPPOTrainer:
         reward_kwargs["judge_runner"] = self._acr_judge_runner
         self._acr_reward_fn.compute_score = partial(reward_acr_batch, **reward_kwargs)
         self._acr_judge_backend_requested = None
+
+    def _maybe_init_acr_ema_teacher(self) -> None:
+        if not getattr(self, "_acr_ema_enabled", False):
+            return
+        if not hasattr(self, "actor_rollout_wg") or self.actor_rollout_wg is None:
+            return
+        try:
+            self.actor_rollout_wg.init_ema_teacher(self._acr_ema_alpha)
+        except Exception as exc:
+            print(f"ACR ema_teacher init failed: {exc}")
+            self._acr_ema_enabled = False
+
+    def _maybe_reset_acr_ema_teacher(self) -> None:
+        if not getattr(self, "_acr_ema_enabled", False):
+            return
+        if not hasattr(self, "actor_rollout_wg") or self.actor_rollout_wg is None:
+            return
+        try:
+            self.actor_rollout_wg.reset_ema_teacher()
+        except Exception as exc:
+            print(f"ACR ema_teacher reset failed: {exc}")
 
     def _save_checkpoint(
         self,
@@ -1232,6 +1254,8 @@ class RayPPOTrainer:
             self.critic_wg.load_checkpoint(
                 critic_path, del_local_after_load=self.config.trainer.del_local_ckpt_after_load
             )
+
+        self._maybe_reset_acr_ema_teacher()
 
         # load dataloader,
         # TODO: from remote not implemented yet
@@ -1545,6 +1569,9 @@ class RayPPOTrainer:
         self._acr_rollout_sampling: dict = {}
         self._acr_defer_generation = False
         self._acr_prompt_buffer_local = []
+        self._acr_ema_enabled = False
+        self._acr_ema_alpha = None
+        self._acr_ema_warned_async = False
 
         acr_cfg = self.config.data.get("acr", {}) if self.config is not None else {}
         if isinstance(acr_cfg, DictConfig):
@@ -1687,6 +1714,32 @@ class RayPPOTrainer:
                 print("ACR defer_generation disabled: update_actor/update_critic enabled.")
                 defer_generation = False
         self._acr_defer_generation = defer_generation
+
+        ema_cfg = acr_cfg.get("ema_teacher", {})
+        if isinstance(ema_cfg, DictConfig):
+            ema_cfg = OmegaConf.to_container(ema_cfg, resolve=True)
+        if isinstance(ema_cfg, dict):
+            ema_enabled = bool(ema_cfg.get("enabled", False))
+            if ema_enabled:
+                distill_method = str(self._distill_cfg.get("method", "sft")).lower().strip()
+                distill_enabled = bool(self._distill_cfg.get("enabled", False))
+                try:
+                    ema_alpha = float(ema_cfg.get("alpha", 0.995))
+                except (TypeError, ValueError):
+                    ema_alpha = 0.995
+                if ema_alpha <= 0.0 or ema_alpha >= 1.0:
+                    ema_alpha = 0.995
+                if self._distill_source != "acr" or distill_method != "sft" or not distill_enabled:
+                    print("ACR ema_teacher disabled: requires ACR SFT distillation.")
+                    ema_enabled = False
+                elif self._acr_update_actor or bool(acr_cfg.get("update_critic", False)):
+                    print("ACR ema_teacher disabled: update_actor/update_critic enabled.")
+                    ema_enabled = False
+                else:
+                    self._acr_ema_alpha = ema_alpha
+            if ema_enabled:
+                self._acr_ema_enabled = True
+
         hard_reward_threshold = acr_cfg.get("hard_reward_threshold", None)
         hard_reward_threshold_set = "hard_reward_threshold" in acr_cfg and hard_reward_threshold is not None
         if hard_reward_threshold_set:
@@ -4627,6 +4680,13 @@ class RayPPOTrainer:
 
         acr_gen_batch = self._get_gen_batch(acr_batch)
         acr_gen_batch.meta_info["global_steps"] = self.global_steps
+        if self._acr_ema_enabled:
+            if self.async_rollout_mode:
+                if not self._acr_ema_warned_async:
+                    print("ACR ema_teacher disabled for async rollout; using actor weights.")
+                    self._acr_ema_warned_async = True
+            else:
+                acr_gen_batch.meta_info["acr_use_ema_teacher"] = True
         sampling_kwargs = dict(self._acr_rollout_sampling) if self._acr_rollout_sampling else {}
         if sampling_kwargs:
             for key, value in sampling_kwargs.items():
@@ -4835,6 +4895,7 @@ class RayPPOTrainer:
 
         # load checkpoint before doing anything
         self._load_checkpoint()
+        self._maybe_reset_acr_ema_teacher()
 
         # perform validation before training
         # currently, we only support validation using the reward_function.

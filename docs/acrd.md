@@ -40,6 +40,12 @@ option text and uses that text (or its extracted ID) to fetch label details.
 ACR rollouts use the same actor as RLVR but a separate repeat count:
 `data.acr.rollout_n` (default 4). No PPO update is run by default; the ACR score is
 used only for filtering/ranking traces before distillation.
+Optional EMA teacher (SFT only): set `data.acr.ema_teacher.enabled=true` and
+`data.acr.ema_teacher.alpha` (default 0.995) to generate ACR traces from an
+exponential-moving-average copy of the actor. The student actor is still updated
+by GRPO + SFT; the EMA model is inference-only and updated after each actor step.
+EMA teacher is disabled when `data.acr.update_actor=true`, `data.acr.update_critic=true`,
+or `data.acr.distill.method=dpo`. Async rollout uses actor weights (EMA ignored).
 ACR generation can be deferred to the distill interval (SFT only) to avoid mixing traces
 from older policy checkpoints; see the distillation section below.
 Hard-example gating (SFT only): per-batch ACR runs according to `data.acr.hard_reward_mode`:

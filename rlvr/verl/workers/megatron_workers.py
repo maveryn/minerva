@@ -216,6 +216,12 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
         self._is_actor = self.role in ["actor", "actor_rollout", "actor_rollout_ref"]
         self._is_rollout = self.role in ["rollout", "actor_rollout", "actor_rollout_ref"]
         self._is_ref = self.role in ["ref", "actor_rollout_ref"]
+        self._ema_teacher_enabled = False
+        self._ema_teacher_initialized = False
+        self._ema_teacher_alpha = None
+        self._ema_actor_module = None
+        self._ema_param_pairs = []
+        self._ema_buffer_pairs = []
 
         if self._is_actor:
             omega_profiler_config = config.actor.get("profiler", {})
@@ -582,6 +588,104 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
         get_torch_device().empty_cache()
         log_gpu_memory_usage("After init_model finish", logger=logger)
 
+    def _ema_teacher_build_pairs(self) -> None:
+        self._ema_param_pairs = []
+        self._ema_buffer_pairs = []
+        if self._ema_actor_module is None or self.actor_module is None:
+            return
+        actor_params = dict(self.actor_module.named_parameters())
+        for name, ema_param in self._ema_actor_module.named_parameters():
+            actor_param = actor_params.get(name)
+            if actor_param is None:
+                continue
+            self._ema_param_pairs.append((ema_param, actor_param))
+        actor_buffers = dict(self.actor_module.named_buffers())
+        for name, ema_buf in self._ema_actor_module.named_buffers():
+            actor_buf = actor_buffers.get(name)
+            if actor_buf is None:
+                continue
+            self._ema_buffer_pairs.append((ema_buf, actor_buf))
+
+    def _ema_teacher_copy_from_actor(self) -> None:
+        if not self._ema_param_pairs:
+            self._ema_teacher_build_pairs()
+        if not self._ema_param_pairs:
+            return
+        with torch.no_grad():
+            for ema_param, param in self._ema_param_pairs:
+                ema_param.data.copy_(param.data)
+            for ema_buf, buf in self._ema_buffer_pairs:
+                ema_buf.data.copy_(buf.data)
+
+    def _ema_teacher_update(self) -> None:
+        if not self._ema_param_pairs:
+            self._ema_teacher_build_pairs()
+        if not self._ema_param_pairs:
+            return
+        alpha = float(self._ema_teacher_alpha or 0.0)
+        with torch.no_grad():
+            for ema_param, param in self._ema_param_pairs:
+                ema_param.data.mul_(alpha).add_(param.data, alpha=1.0 - alpha)
+            for ema_buf, buf in self._ema_buffer_pairs:
+                ema_buf.data.copy_(buf.data)
+
+    @register(dispatch_mode=Dispatch.ONE_TO_ALL)
+    def init_ema_teacher(self, alpha: float = 0.995):
+        if not self._is_actor:
+            raise RuntimeError("EMA teacher requires actor role.")
+        if self.actor_module is None:
+            raise RuntimeError("EMA teacher init requires actor model initialization.")
+        try:
+            alpha = float(alpha)
+        except (TypeError, ValueError):
+            alpha = 0.995
+        if alpha <= 0.0 or alpha >= 1.0:
+            alpha = 0.995
+        self._ema_teacher_alpha = alpha
+        if self._ema_teacher_initialized and self._ema_actor_module is not None:
+            self._ema_teacher_enabled = True
+            self._ema_teacher_copy_from_actor()
+            return True
+
+        from verl.utils.megatron_utils import McoreModuleWrapperConfig, make_megatron_module
+
+        override_model_config = OmegaConf.to_container(OmegaConf.create(self.config.model.get("override_config", {})))
+        override_ddp_config = OmegaConf.to_container(
+            OmegaConf.create(self.config.actor.megatron.get("override_ddp_config", {}))
+        )
+        wrap_config = McoreModuleWrapperConfig(
+            is_value_model=False,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
+            wrap_with_ddp=True,
+            use_distributed_optimizer=self.config.actor.megatron.use_distributed_optimizer,
+        )
+        ema_actor_module = make_megatron_module(
+            wrap_config=wrap_config,
+            tf_config=self.tf_config,
+            hf_config=self.hf_config,
+            bridge=self.bridge,
+            override_model_config=override_model_config,
+            override_ddp_config=override_ddp_config,
+        )
+        self._ema_actor_module = ema_actor_module
+        for param in self._ema_actor_module.parameters():
+            param.requires_grad_(False)
+        self._ema_actor_module.eval()
+        if self._is_offload_param:
+            offload_megatron_model_to_cpu(self._ema_actor_module)
+        self._ema_teacher_enabled = True
+        self._ema_teacher_initialized = True
+        self._ema_teacher_build_pairs()
+        self._ema_teacher_copy_from_actor()
+        return True
+
+    @register(dispatch_mode=Dispatch.ONE_TO_ALL)
+    def reset_ema_teacher(self):
+        if not self._ema_teacher_enabled or self._ema_actor_module is None:
+            return False
+        self._ema_teacher_copy_from_actor()
+        return True
+
     @register(dispatch_mode=make_nd_compute_dataproto_dispatch_fn(mesh_name="actor"))
     @GPUMemoryLogger(role="update_actor", logger=logger)
     @DistProfiler.annotate(color="red")
@@ -645,6 +749,11 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
             offload_megatron_optimizer(self.actor_optimizer)
             log_gpu_memory_usage("After offload actor optimizer during update_actor", logger=logger)
 
+        if self._ema_teacher_enabled and self._ema_actor_module is not None:
+            if self._is_offload_param:
+                offload_megatron_model_to_cpu(self._ema_actor_module)
+            self._ema_teacher_update()
+
         aggressive_empty_cache(force_sync=True)
         return output
 
@@ -666,12 +775,23 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
         if self._is_offload_optimizer:
             offload_megatron_optimizer(self.actor_optimizer)
 
+        use_ema_teacher = bool(prompts.meta_info.get("acr_use_ema_teacher", False))
+        swap_module = use_ema_teacher and self._ema_teacher_enabled and self._ema_actor_module is not None
+        orig_module = None
+
         timing_generate = {}
-        with self.sharding_manager:
-            log_gpu_memory_usage("After entering sharding manager", logger=logger)
-            with simple_timer("generate_sequences", timing_generate):
-                output = self.rollout.generate_sequences(prompts=prompts)
-            log_gpu_memory_usage("After rollout generation", logger=logger)
+        if swap_module:
+            orig_module = self.sharding_manager.actor_module
+            self.sharding_manager.actor_module = self._ema_actor_module
+        try:
+            with self.sharding_manager:
+                log_gpu_memory_usage("After entering sharding manager", logger=logger)
+                with simple_timer("generate_sequences", timing_generate):
+                    output = self.rollout.generate_sequences(prompts=prompts)
+                log_gpu_memory_usage("After rollout generation", logger=logger)
+        finally:
+            if orig_module is not None:
+                self.sharding_manager.actor_module = orig_module
 
         timing_generate.update(self.sharding_manager.timing)
         # We calculate the average timing across all ranks
