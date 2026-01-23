@@ -237,6 +237,8 @@ rlvr/mydata/**
 !rlvr/mydata/athena/**
 !rlvr/mydata/ifeval/
 !rlvr/mydata/ifeval/**
+!rlvr/mydata/seceval/
+!rlvr/mydata/seceval/**
 !rlvr/mydata/data_prepare/
 !rlvr/mydata/data_prepare/**
 rlvr/mydata/data_prepare/**/__pycache__/

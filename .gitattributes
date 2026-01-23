@@ -10,3 +10,4 @@ minerva-judge/data/*.jsonl filter=lfs diff=lfs merge=lfs -text
 minerva-judge/judge_data/** filter=lfs diff=lfs merge=lfs -text
 minerva-judge/classifier/data/** filter=lfs diff=lfs merge=lfs -text
 minerva-judge/classifier/data/* filter=lfs diff=lfs merge=lfs -text
+rlvr/mydata/seceval/*.parquet filter=lfs diff=lfs merge=lfs -text
