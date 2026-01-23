@@ -100,7 +100,10 @@ def _extract_mcq(text: str) -> str:
 
 
 def _normalize_seceval(text: str) -> str:
-    letters = re.findall(r"[A-D]", text or "", re.IGNORECASE)
+    candidate = _extract_from_lines(text or "", r"([A-D](?:[^A-D]*[A-D])*)", lambda s: s)
+    if not candidate:
+        candidate = text or ""
+    letters = re.findall(r"[A-D]", candidate.upper())
     if not letters:
         return ""
     return "".join(sorted({letter.upper() for letter in letters}))
