@@ -66,6 +66,8 @@ class NaiveRollout(BaseRollout):
         prev_attention_mask = torch.ones(size=(batch_size, 1), dtype=attention_mask.dtype, device=attention_mask.device)
 
         logits_lst = []
+        temperature = float(prompts.meta_info.get("temperature", self.config.temperature))
+        top_k = prompts.meta_info.get("top_k", self.config.top_k)
         for _ in range(self.config.response_length):
             # if the sequence context is growing too long we must crop it at block_size
             # idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
@@ -75,10 +77,10 @@ class NaiveRollout(BaseRollout):
             output = self.module(input_ids=idx_cond, attention_mask=attention_mask, position_ids=position_ids)
             logits = output.logits
             # pluck the logits at the final step and scale by desired temperature
-            logits = logits[:, -1, :] / self.config.temperature  # (bs, vocab_size)
+            logits = logits[:, -1, :] / temperature  # (bs, vocab_size)
             # optionally crop the logits to only the top k options
-            if self.config.top_k is not None:
-                v, _ = torch.topk(logits, min(self.config.top_k, logits.size(-1)))
+            if top_k is not None:
+                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, [-1]]] = -float("Inf")
             # apply softmax to convert logits to (normalized) probabilities
             probs = F.softmax(logits, dim=-1)

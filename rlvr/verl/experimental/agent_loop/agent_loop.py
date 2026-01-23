@@ -372,6 +372,12 @@ class AgentLoopWorker:
             repetition_penalty=1.0,
             logprobs=config.calculate_log_probs,
         )
+        do_sample = batch.meta_info.get("do_sample", True)
+        is_validate = batch.meta_info.get("validate", False)
+        if do_sample and not is_validate:
+            for key in ("temperature", "top_p", "top_k"):
+                if key in batch.meta_info and batch.meta_info[key] is not None:
+                    sampling_params[key] = batch.meta_info[key]
 
         # override sampling params for validation
         if batch.meta_info.get("validate", False):
@@ -393,8 +399,8 @@ class AgentLoopWorker:
 
         tasks = []
         for i in range(len(batch)):
-            kwargs = {k: v[i] for k, v in batch.non_tensor_batch.items()}
-            tasks.append(asyncio.create_task(self._run_agent_loop(sampling_params, trajectory_info[i], **kwargs)))
+            sample_kwargs = {k: v[i] for k, v in batch.non_tensor_batch.items()}
+            tasks.append(asyncio.create_task(self._run_agent_loop(sampling_params, trajectory_info[i], **sample_kwargs)))
         outputs = await asyncio.gather(*tasks)
 
         output = self._postprocess(outputs)

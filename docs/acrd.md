@@ -40,6 +40,8 @@ option text and uses that text (or its extracted ID) to fetch label details.
 ACR rollouts use the same actor as RLVR but a separate repeat count:
 `data.acr.rollout_n` (default 4). No PPO update is run by default; the ACR score is
 used only for filtering/ranking traces before distillation.
+ACR generation can be deferred to the distill interval (SFT only) to avoid mixing traces
+from older policy checkpoints; see the distillation section below.
 Hard-example gating (SFT only): per-batch ACR runs according to `data.acr.hard_reward_mode`:
 - `no_perfect` (default): run ACR only when the UID has no rollout with reward >= 1.0 (max reward < 1.0).
 - `mean_reward`: run ACR only when mean RLVR reward across rollouts is below
@@ -106,6 +108,17 @@ Buffer behavior is controlled by `data.acr.distill.buffer_mode`:
 - `buffer`: ignore `interval`, run only when the global buffer reaches `data.acr.distill.min_buffer`
   (default 256); use all buffered records, then clear.
 `buffer_mode` applies to SFT; DPO remains interval-based.
+
+Deferred ACR generation (SFT only):
+- Default behavior: generate ACR traces every step and append accepted traces to the buffer.
+- With `data.acr.defer_generation=true`, the trainer buffers ACR prompts each step and
+  runs ACR generation + filtering only when the distill interval fires. This makes SFT
+  traces come from the current policy weights and reduces mixing across updates.
+- Supported only when `data.acr.distill.method=sft`, `data.acr.update_actor=false`,
+  `data.acr.update_critic=false`, and `data.acr.distill.buffer_mode != buffer`.
+  DPO ignores `defer_generation`.
+- Metrics: `acr/defer_buffer_batches`, `acr/defer_buffer_size`, `acr/defer_flush`,
+  `acr/defer_flush_size`.
 
 For `method=dpo`, we consider every UID in the batch (no hard-threshold filtering) and build a
 preference pair from a pool of size `data.acr.rollout_n`:
@@ -385,6 +398,7 @@ rlvr/cti-scripts/train_minerva_noctua.sh
 Key env overrides:
 - `ACRD_ACR_RL_WEIGHT` (scales the ACR PPO update; only used if `data.acr.update_actor=true`)
 - `ACRD_ACR_ROLLOUT_N` (number of ACR samples per prompt; default 4)
+- `ACRD_ACR_DEFER_GENERATION` (SFT only; buffer ACR prompts and generate traces only on the distill interval; default false)
 - `ACRD_ACR_DISTILL_METHOD` (`sft` or `dpo`; default `sft`)
 - `ACRD_ACR_DISTILL_INTERVAL` (distill interval in steps; default 10)
 - `ACRD_ACR_DISTILL_LR_SCALE` (distill LR scale vs RLVR; default 1.0)

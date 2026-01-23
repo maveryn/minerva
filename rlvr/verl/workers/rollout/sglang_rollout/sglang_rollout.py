@@ -822,6 +822,11 @@ class SGLangRollout(BaseRollout):
                 if val_max_new_tokens is not None and val_max_new_tokens > 0:
                     request_sampling_params["max_new_tokens"] = val_max_new_tokens
 
+        if do_sample and not is_validate:
+            for key in ("temperature", "top_p", "top_k"):
+                if key in prompts.meta_info and prompts.meta_info[key] is not None:
+                    request_sampling_params[key] = prompts.meta_info[key]
+
         # Update with any additional kwargs
         request_sampling_params.update(kwargs)
 
@@ -1287,6 +1292,10 @@ class SGLangRollout(BaseRollout):
         # Async rollout with tools support
         do_sample = prompts.meta_info.get("do_sample", True)
         is_validate = prompts.meta_info.get("validate", False)
+        if do_sample and not is_validate:
+            for key in ("temperature", "top_p", "top_k"):
+                if key in prompts.meta_info and prompts.meta_info[key] is not None:
+                    kwargs.setdefault(key, prompts.meta_info[key])
         tgt_device = prompts.batch["input_ids"].device
 
         if self._tp_rank == 0:

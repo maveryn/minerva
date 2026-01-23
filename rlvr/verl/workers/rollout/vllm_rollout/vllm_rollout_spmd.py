@@ -303,8 +303,9 @@ class vLLMRollout(BaseRollout):
 
         do_sample = prompts.meta_info.get("do_sample", True)
         is_validate = prompts.meta_info.get("validate", False)
+        sampling_kwargs = {}
         if not do_sample:
-            kwargs = {
+            sampling_kwargs = {
                 "best_of": 1,
                 "top_p": 1.0,
                 "top_k": -1,
@@ -314,12 +315,18 @@ class vLLMRollout(BaseRollout):
             }
         elif is_validate:
             # TODO: try **
-            kwargs = {
+            sampling_kwargs = {
                 "top_k": self.config.val_kwargs.top_k,
                 "top_p": self.config.val_kwargs.top_p,
                 "temperature": self.config.val_kwargs.temperature,
                 "n": 1,  # if validate, already repeat in ray_trainer
             }
+        if do_sample and not is_validate:
+            for key in ("temperature", "top_p", "top_k", "min_p"):
+                if key in prompts.meta_info and prompts.meta_info[key] is not None:
+                    sampling_kwargs[key] = prompts.meta_info[key]
+        if kwargs:
+            sampling_kwargs.update(kwargs)
 
         lora_requests = None
         if self.lora_kwargs:
@@ -331,7 +338,7 @@ class vLLMRollout(BaseRollout):
                 ] * batch_size
 
         # users can customize different sampling_params at different run
-        with self.update_sampling_params(**kwargs):
+        with self.update_sampling_params(**sampling_kwargs):
             outputs = self.inference_engine.generate(
                 prompts=vllm_inputs,  # because we have already convert it to prompt token id
                 sampling_params=self.sampling_params,

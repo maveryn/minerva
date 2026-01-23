@@ -38,7 +38,7 @@ VAL_PATHS=(
   "${ACRD_VAL_PATH_5:-$DATA_DIR/athena/athena_cti_rms.parquet}"
   "${ACRD_VAL_PATH_6:-$DATA_DIR/athena/athena_cti_taa.parquet}"
   "${ACRD_VAL_PATH_7:-$DATA_DIR/athena/athena_cti_vsp.parquet}"
-  "${ACRD_VAL_PATH_8:-$DATA_DIR/ifeval/ifeval_dev.parquet}"
+  "${ACRD_VAL_PATH_8:-$DATA_DIR/seceval/seceval_mini.parquet}"
 )
 
 TRAIN_FILES="['$TRAIN_PATH']"
@@ -52,6 +52,10 @@ ACR_MAX_PROMPT_LEN="${ACRD_ACR_MAX_PROMPT_LEN:-4096}"
 MAX_RESPONSE_LEN="${ACRD_MAX_RESPONSE_LEN:-1024}"
 ACR_MAX_DETAILS_CHARS="${ACRD_MAX_DETAILS_CHARS:-8096}"
 ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-4}"
+ACR_ROLLOUT_TEMPERATURE="${ACRD_ACR_ROLLOUT_TEMPERATURE:-}"
+ACR_ROLLOUT_TOP_P="${ACRD_ACR_ROLLOUT_TOP_P:-}"
+ACR_ROLLOUT_TOP_K="${ACRD_ACR_ROLLOUT_TOP_K:-}"
+ACR_DEFER_GENERATION="${ACRD_ACR_DEFER_GENERATION:-false}"
 ACR_RL_WEIGHT="${ACRD_ACR_RL_WEIGHT:-0.3}"
 ACR_HARD_REWARD_MODE="${ACRD_ACR_HARD_REWARD_MODE:-max}"
 ACR_HARD_REWARD_THRESHOLD="${ACRD_ACR_HARD_REWARD_THRESHOLD:-1.0}"
@@ -115,7 +119,7 @@ ACR_JUDGE_DTYPE="${ACRD_JUDGE_DTYPE:-auto}"
 ACR_JUDGE_TRUST_REMOTE_CODE="${ACRD_JUDGE_TRUST_REMOTE_CODE:-true}"
 
 TRAIN_BATCH_SIZE="${ACRD_TRAIN_BATCH_SIZE:-128}"
-VAL_BATCH_SIZE="${ACRD_VAL_BATCH_SIZE:-2500}"
+VAL_BATCH_SIZE="${ACRD_VAL_BATCH_SIZE:-3000}"
 ACR_JUDGE_BATCH_SIZE="${ACRD_JUDGE_BATCH_SIZE:-$TRAIN_BATCH_SIZE}"
 ACR_DISTILL_FILTER_MODE="${ACRD_ACR_DISTILL_FILTER_MODE:-ml}"
 ACR_DISTILL_FILTER_MODEL="${ACRD_ACR_DISTILL_FILTER_MODEL:-xashru/textcnn-response-only-lr6e-4-k345-f384-e300-t1024-d0p25}"
@@ -137,6 +141,17 @@ SAVE_BEST_METRIC="${ACRD_SAVE_BEST_METRIC:-val-core/global-val/reward/mean}"
 SAVE_BEST_MODE="${ACRD_SAVE_BEST_MODE:-max}"
 SAVE_BEST_DIR="${ACRD_SAVE_BEST_DIR:-best}"
 
+ACR_ROLLOUT_ARGS=()
+if [ -n "$ACR_ROLLOUT_TEMPERATURE" ]; then
+  ACR_ROLLOUT_ARGS+=(+data.acr.rollout_sampling.temperature="$ACR_ROLLOUT_TEMPERATURE")
+fi
+if [ -n "$ACR_ROLLOUT_TOP_P" ]; then
+  ACR_ROLLOUT_ARGS+=(+data.acr.rollout_sampling.top_p="$ACR_ROLLOUT_TOP_P")
+fi
+if [ -n "$ACR_ROLLOUT_TOP_K" ]; then
+  ACR_ROLLOUT_ARGS+=(+data.acr.rollout_sampling.top_k="$ACR_ROLLOUT_TOP_K")
+fi
+
 REWARD_FN_PATH="$ROOT_DIR/verl/utils/reward_score/reward_minerva.py"
 
 python3 -m verl.trainer.main_ppo \
@@ -156,6 +171,7 @@ python3 -m verl.trainer.main_ppo \
     +data.acr.max_details_chars="$ACR_MAX_DETAILS_CHARS" \
     +data.acr.max_prompt_length="$ACR_MAX_PROMPT_LEN" \
     +data.acr.rollout_n="$ACR_ROLLOUT_N" \
+    +data.acr.defer_generation="$ACR_DEFER_GENERATION" \
     +data.acr.rl_weight="$ACR_RL_WEIGHT" \
     +data.acr.hard_reward_mode="$ACR_HARD_REWARD_MODE" \
     +data.acr.hard_reward_threshold="$ACR_HARD_REWARD_THRESHOLD" \
@@ -251,4 +267,5 @@ python3 -m verl.trainer.main_ppo \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
     trainer.default_local_dir="$OUTPUT_ROOT" \
+    "${ACR_ROLLOUT_ARGS[@]}" \
     "$@"
