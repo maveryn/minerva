@@ -201,6 +201,75 @@ Training tokenization:
 - We keep the full response and truncate only the prompt when needed.
 - Implemented as `tokenizer(prompt, response, truncation="only_first", max_length=...)`.
 
+## SFT dataset from judge responses
+
+We also build an SFT dataset aligned to the Minerva base train split (32k rows),
+using the `responses_gpt_oss_120b.jsonl` outputs as candidate responses.
+
+### Inputs
+
+- Judge responses (plain + hinted):
+  `minerva-judge/data/responses_gpt_oss_120b.jsonl`
+- Base Minerva train parquet (prompt order + system/user messages):
+  `rlvr/mydata/minerva_base/minerva_base_train.parquet`
+
+Each judge response row includes:
+- `source_index` (row index from the base train split)
+- `hinted` (plain vs hinted)
+- `reward` and `correct` (from `reward_minerva`)
+- `response_final` (clean response text, when present)
+
+### Selection logic (per source_index)
+
+1. If the plain response has `reward == 1.0`, use its `response_final`.
+2. Else if the hinted response has `reward == 1.0`, use its `response_final`.
+3. Else fall back to the ground-truth `answer` wrapped as `\boxed{...}` (unless already boxed).
+
+We only use `response_final` (not `response`) to avoid analysis-heavy outputs.
+If `response_final` is missing, we fall back to the answer.
+
+### Builder script
+
+Script: `minerva-sft/scripts/build_sft_from_judge.py`
+
+Default output:
+- `rlvr/mydata/minerva_base_sft/minerva_base_sft_train.parquet`
+
+Run:
+
+```
+python minerva-sft/scripts/build_sft_from_judge.py \
+  --responses minerva-judge/data/responses_gpt_oss_120b.jsonl \
+  --base-parquet rlvr/mydata/minerva_base/minerva_base_train.parquet \
+  --output rlvr/mydata/minerva_base_sft/minerva_base_sft_train.parquet
+```
+
+### Output schema (SFT parquet)
+
+Each row includes:
+- `messages`: system + user + assistant (selected response)
+- `prompt`: user prompt text (base train)
+- `system_prompt`: CTI system prompt (base train)
+- `response`: selected response text
+- `answer`: ground-truth answer
+- `source_index`: base train index (0..31999)
+- `final_source`: `plain`, `hinted`, or `answer`
+- `final_reward`: reward used for selection
+- `data_source`, `task`, `reward_fn`, `source_file`
+
+### Verl SFT usage
+
+For SFT in VeRL, use multi-turn mode so the system prompt is preserved:
+
+```
+torchrun --standalone --nnodes=1 --nproc_per_node=8 \
+  -m verl.trainer.fsdp_sft_trainer \
+  data.train_files=rlvr/mydata/minerva_base_sft/minerva_base_sft_train.parquet \
+  data.multiturn.enable=true \
+  data.multiturn.messages_key=messages \
+  model.partial_pretrain=...
+```
+
 ## Repro commands
 
 ```
