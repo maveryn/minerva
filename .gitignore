@@ -233,6 +233,8 @@ rlvr/mydata/**
 !rlvr/mydata/minerva_base/**
 !rlvr/mydata/minerva_lhc/
 !rlvr/mydata/minerva_lhc/**
+!rlvr/mydata/minerva_base_sft/
+!rlvr/mydata/minerva_base_sft/**
 !rlvr/mydata/athena/
 !rlvr/mydata/athena/**
 !rlvr/mydata/ifeval/
