@@ -9,6 +9,12 @@ data:
   response_key: answer
   prompt_dict_keys: null
   response_dict_keys: null
+  reward_eval_files: null
+  reward_eval_batch_size: 64
+  reward_eval_max_prompt_length: 2048
+  reward_eval_max_response_length: 1024
+  reward_eval_temperature: 0.0
+  reward_eval_top_p: 1.0
   # Multi-turn settings
   multiturn:
     enable: false  # Set to true to use multi-turn dataset
@@ -61,6 +67,11 @@ trainer:
   seed: 1
   save_freq: -1
   test_freq: -1
+  skip_val_loss: false
+  save_best_only: false
+  save_best_metric: null
+  save_best_mode: max
+  save_best_dir: best
   nnodes: 1
   n_gpus_per_node: 8
   max_ckpt_to_keep: null  # Maximum number of checkpoints to keep, set to null to keep all

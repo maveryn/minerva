@@ -28,12 +28,14 @@ import logging
 import re
 import time
 from contextlib import nullcontext
+from typing import Optional
 
 import hydra
 import torch
 import torch.distributed
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from peft import LoraConfig, TaskType, get_peft_model
+import pyarrow.parquet as pq
 from tensordict import TensorDict
 from torch import nn, optim
 from torch.distributed.device_mesh import DeviceMesh, init_device_mesh
@@ -65,6 +67,7 @@ from verl.utils.fsdp_utils import (
 from verl.utils.logger import log_with_rank
 from verl.utils.profiler import log_gpu_memory_usage
 from verl.utils.py_functional import convert_to_regular_types
+from verl.utils.reward_score import reward_minerva as reward_minerva_mod
 from verl.utils.torch_dtypes import PrecisionType
 from verl.utils.torch_functional import get_cosine_schedule_with_warmup, get_wsd_schedule_with_warmup
 from verl.utils.tracking import Tracking
@@ -99,7 +102,7 @@ class FSDPSFTTrainer:
         ulysses_device_mesh: DeviceMesh,
         tokenizer,
         train_dataset: Dataset,
-        val_dataset: Dataset,
+        val_dataset: Optional[Dataset],
     ):
         self.config = config
         self.device_mesh = device_mesh
@@ -120,6 +123,20 @@ class FSDPSFTTrainer:
             print(f"Using remove padding: {self.use_remove_padding}")
 
         self._build_dataloader(train_dataset, val_dataset)
+
+        self.skip_val_loss = bool(getattr(self.config.trainer, "skip_val_loss", False))
+        self.reward_eval_files = self._normalize_file_list(self.config.data.get("reward_eval_files", None))
+        self.reward_eval_batch_size = int(
+            self.config.data.get("reward_eval_batch_size", self.config.data.micro_batch_size_per_gpu)
+        )
+        self.reward_eval_max_prompt_length = int(self.config.data.get("reward_eval_max_prompt_length", 0))
+        self.reward_eval_max_response_length = int(self.config.data.get("reward_eval_max_response_length", 0))
+        self.reward_eval_temperature = float(self.config.data.get("reward_eval_temperature", 0.0))
+        self.reward_eval_top_p = float(self.config.data.get("reward_eval_top_p", 1.0))
+        self.reward_eval_rows = None
+
+        self.best_metric = None
+        self.best_step = None
 
         # Initialize resume-related variables
         self.resume_global_step = 0
@@ -170,6 +187,9 @@ class FSDPSFTTrainer:
         if self.device_mesh.get_rank() == 0:
             print(f"Using FSDP rank {rank} and size {world_size} for data distribution")
 
+        self.data_rank = rank
+        self.data_world_size = world_size
+
         # Set pin_memory_device when pin_memory is enabled.
         device_name = get_device_name()
 
@@ -186,18 +206,176 @@ class FSDPSFTTrainer:
             pin_memory_device=device_name,
         )
 
-        self.val_sampler = DistributedSampler(
-            self.val_dataset, shuffle=False, num_replicas=world_size, rank=rank, drop_last=True
+        self.val_sampler = None
+        self.val_dataloader = None
+        if self.val_dataset is not None:
+            self.val_sampler = DistributedSampler(
+                self.val_dataset, shuffle=False, num_replicas=world_size, rank=rank, drop_last=True
+            )
+            self.val_dataloader = StatefulDataLoader(
+                dataset=self.val_dataset,
+                batch_size=config.data.micro_batch_size_per_gpu,
+                sampler=self.val_sampler,
+                num_workers=8,
+                pin_memory=True,
+                drop_last=True,
+                pin_memory_device=device_name,
+            )
+
+    def _normalize_file_list(self, files):
+        if files is None:
+            return []
+        if isinstance(files, ListConfig):
+            return [str(p) for p in files]
+        if isinstance(files, (list, tuple)):
+            return [str(p) for p in files]
+        return [str(files)]
+
+    def _load_reward_eval_rows(self):
+        rows = []
+        for path in self.reward_eval_files:
+            if not os.path.exists(path):
+                if self.device_mesh.get_rank() == 0:
+                    print(f"warning: reward eval file not found: {path}")
+                continue
+            table = pq.read_table(path, columns=["prompt", "reward_model", "extra_info", "data_source"])
+            rows.extend(table.to_pylist())
+        return rows
+
+    def _get_reward_eval_rows(self):
+        if self.reward_eval_rows is None:
+            self.reward_eval_rows = self._load_reward_eval_rows()
+        return self.reward_eval_rows
+
+    def _reward_eval_batch(self, batch):
+        tokenizer = self.tokenizer
+        prompts = []
+        answers = []
+        data_sources = []
+        for row in batch:
+            messages = row.get("prompt") or []
+            prompt_text = tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=False, **self.config.data.apply_chat_template_kwargs
+            )
+            prompts.append(prompt_text)
+            reward_model = row.get("reward_model") or {}
+            answers.append(reward_model.get("ground_truth", ""))
+            extra_info = row.get("extra_info") or {}
+            data_sources.append(extra_info.get("reward_fn") or row.get("data_source") or "")
+
+        tokenized = tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            add_special_tokens=False,
         )
-        self.val_dataloader = StatefulDataLoader(
-            dataset=self.val_dataset,
-            batch_size=config.data.micro_batch_size_per_gpu,
-            sampler=self.val_sampler,
-            num_workers=8,
-            pin_memory=True,
-            drop_last=True,
-            pin_memory_device=device_name,
-        )
+        input_ids = tokenized["input_ids"]
+        attention_mask = tokenized["attention_mask"]
+        lengths = attention_mask.sum(dim=1)
+
+        keep = torch.ones(len(prompts), dtype=torch.bool)
+        if self.reward_eval_max_prompt_length > 0:
+            keep = lengths <= self.reward_eval_max_prompt_length
+
+        skipped = int((~keep).sum().item())
+        if keep.sum().item() == 0:
+            return [], [], [], skipped
+
+        input_ids = input_ids[keep]
+        attention_mask = attention_mask[keep]
+        lengths = lengths[keep]
+        kept_answers = [a for a, k in zip(answers, keep.tolist(), strict=True) if k]
+        kept_sources = [s for s, k in zip(data_sources, keep.tolist(), strict=True) if k]
+
+        input_ids = input_ids.to(self.device_name)
+        attention_mask = attention_mask.to(self.device_name)
+
+        pad_token_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
+        gen_kwargs = {
+            "max_new_tokens": self.reward_eval_max_response_length or 1024,
+            "do_sample": self.reward_eval_temperature > 0.0,
+            "temperature": self.reward_eval_temperature if self.reward_eval_temperature > 0.0 else None,
+            "top_p": self.reward_eval_top_p,
+            "pad_token_id": pad_token_id,
+            "eos_token_id": tokenizer.eos_token_id,
+        }
+        if gen_kwargs["temperature"] is None:
+            gen_kwargs.pop("temperature", None)
+
+        with torch.no_grad():
+            outputs = self.fsdp_model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                **gen_kwargs,
+            )
+
+        responses = []
+        for i in range(outputs.size(0)):
+            prompt_len = int(lengths[i].item())
+            gen_ids = outputs[i, prompt_len:]
+            responses.append(tokenizer.decode(gen_ids, skip_special_tokens=True))
+
+        return responses, kept_sources, kept_answers, skipped
+
+    def reward_eval(self):
+        if not self.reward_eval_files:
+            return None
+
+        rows = self._get_reward_eval_rows()
+        if not rows:
+            return None
+
+        self.fsdp_model.eval()
+        local_reward_sum = 0.0
+        local_correct = 0.0
+        local_count = 0.0
+        local_skipped = 0.0
+
+        batch = []
+        for idx, row in enumerate(rows):
+            if idx % self.data_world_size != self.data_rank:
+                continue
+            batch.append(row)
+            if len(batch) >= self.reward_eval_batch_size:
+                responses, sources, answers, skipped = self._reward_eval_batch(batch)
+                local_skipped += skipped
+                for response, data_source, answer in zip(responses, sources, answers, strict=True):
+                    reward = float(reward_minerva_mod.reward_minerva(data_source, response, answer))
+                    local_reward_sum += reward
+                    local_correct += 1.0 if reward >= 0.999 else 0.0
+                    local_count += 1.0
+                batch = []
+
+        if batch:
+            responses, sources, answers, skipped = self._reward_eval_batch(batch)
+            local_skipped += skipped
+            for response, data_source, answer in zip(responses, sources, answers, strict=True):
+                reward = float(reward_minerva_mod.reward_minerva(data_source, response, answer))
+                local_reward_sum += reward
+                local_correct += 1.0 if reward >= 0.999 else 0.0
+                local_count += 1.0
+
+        reward_sum = torch.tensor(local_reward_sum, device=self.device_name)
+        correct_sum = torch.tensor(local_correct, device=self.device_name)
+        count_sum = torch.tensor(local_count, device=self.device_name)
+        skipped_sum = torch.tensor(local_skipped, device=self.device_name)
+        torch.distributed.all_reduce(reward_sum, op=torch.distributed.ReduceOp.SUM)
+        torch.distributed.all_reduce(correct_sum, op=torch.distributed.ReduceOp.SUM)
+        torch.distributed.all_reduce(count_sum, op=torch.distributed.ReduceOp.SUM)
+        torch.distributed.all_reduce(skipped_sum, op=torch.distributed.ReduceOp.SUM)
+
+        if count_sum.item() <= 0:
+            return {"val/reward_mean": 0.0, "val/reward_correct": 0.0, "val/reward_count": 0.0}
+
+        reward_mean = (reward_sum / count_sum).item()
+        correct_rate = (correct_sum / count_sum).item()
+        metric = {
+            "val/reward_mean": reward_mean,
+            "val/reward_correct": correct_rate,
+            "val/reward_count": float(count_sum.item()),
+            "val/reward_skipped_overlong": float(skipped_sum.item()),
+        }
+        return metric
 
     def _build_model_optimizer(self):
         # TODO (zhangchi.usc1992):
@@ -523,12 +701,13 @@ class FSDPSFTTrainer:
                 loss /= self.device_mesh.size(0)
         return loss
 
-    def save_checkpoint(self, step):
+    def save_checkpoint(self, step, root_dir=None, update_tracker=True):
         """Save checkpoint using FSDPCheckpointManager with improved tracking"""
         from verl.utils.fs import local_mkdir_safe
 
         # Determine checkpoint path
-        local_global_step_folder = os.path.join(self.config.trainer.default_local_dir, f"global_step_{step}")
+        base_dir = root_dir or self.config.trainer.default_local_dir
+        local_global_step_folder = os.path.join(base_dir, f"global_step_{step}")
 
         if self.device_mesh.get_rank() == 0:
             print(f"Saving checkpoint to: {local_global_step_folder}")
@@ -542,7 +721,7 @@ class FSDPSFTTrainer:
         )
 
         # Save dataloader state
-        if self.device_mesh.get_rank() == 0:
+        if self.device_mesh.get_rank() == 0 and update_tracker:
             local_mkdir_safe(local_global_step_folder)
             dataloader_local_path = os.path.join(local_global_step_folder, "data.pt")
 
@@ -552,7 +731,7 @@ class FSDPSFTTrainer:
             print(f"Saved dataloader state to: {dataloader_local_path}")
 
             # Update latest checkpoint tracker (atomic write)
-            tracker_file = get_checkpoint_tracker_filename(self.config.trainer.default_local_dir)
+            tracker_file = get_checkpoint_tracker_filename(base_dir)
             temp_tracker_file = tracker_file + ".tmp"
             with open(temp_tracker_file, "w") as f:
                 f.write(str(step))
@@ -760,23 +939,56 @@ class FSDPSFTTrainer:
 
                 # early exit or validation step
                 if is_last_step or (self.config.trainer.test_freq > 0 and is_valid_step):
-                    # Perform validation
-                    val_losses = []
-                    for val_data in self.val_dataloader:
-                        val_data = TensorDict(val_data, batch_size=self.config.data.micro_batch_size_per_gpu).to(
-                            self.device_name
-                        )
-                        val_loss = self.validation_step(val_data)
-                        val_losses.append(val_loss)
-                    if rank == 0:
-                        val_loss = torch.mean(torch.stack(val_losses))
-                        metric = {"val/loss": val_loss.detach().item()}
-                        tracking.log(data=metric, step=global_step)
-                        last_valid_metric = metric
-                    torch.distributed.barrier()
+                    metric = None
+                    if not self.skip_val_loss and self.val_dataloader is not None:
+                        val_losses = []
+                        for val_data in self.val_dataloader:
+                            val_data = TensorDict(
+                                val_data, batch_size=self.config.data.micro_batch_size_per_gpu
+                            ).to(self.device_name)
+                            val_loss = self.validation_step(val_data)
+                            val_losses.append(val_loss)
+                        if rank == 0:
+                            val_loss = torch.mean(torch.stack(val_losses))
+                            metric = {"val/loss": val_loss.detach().item()}
+                            tracking.log(data=metric, step=global_step)
+                            last_valid_metric = metric
+                        torch.distributed.barrier()
+
+                    reward_metric = self.reward_eval()
+                    if reward_metric:
+                        if rank == 0:
+                            tracking.log(data=reward_metric, step=global_step)
+                            last_valid_metric = reward_metric
+                        torch.distributed.barrier()
+
+                        save_best_metric = getattr(self.config.trainer, "save_best_metric", None)
+                        save_best_mode = getattr(self.config.trainer, "save_best_mode", "max").lower()
+                        save_best_only = bool(getattr(self.config.trainer, "save_best_only", False))
+                        save_best_dir = getattr(self.config.trainer, "save_best_dir", "best")
+                        metric_value = reward_metric.get(save_best_metric) if save_best_metric else None
+                        is_better = False
+                        if metric_value is not None:
+                            if self.best_metric is None:
+                                is_better = True
+                            elif save_best_mode == "min":
+                                is_better = metric_value < self.best_metric
+                            else:
+                                is_better = metric_value > self.best_metric
+                        if is_better:
+                            self.best_metric = metric_value
+                            self.best_step = global_step
+                            best_root = os.path.join(self.config.trainer.default_local_dir, save_best_dir)
+                            self.save_checkpoint(step=global_step, root_dir=best_root, update_tracker=False)
+                        if save_best_only and is_better:
+                            if rank == 0:
+                                print(
+                                    f"New best {save_best_metric}={metric_value:.6f} at step {global_step}; saved."
+                                )
 
                 if is_last_step or (self.config.trainer.save_freq > 0 and is_save_step):
-                    self.save_checkpoint(step=global_step)
+                    if not bool(getattr(self.config.trainer, "save_best_only", False)) or is_last_step:
+                        self.save_checkpoint(step=global_step)
 
                 if is_last_step:
                     if rank == 0:
@@ -802,7 +1014,10 @@ def run_sft(config):
     local_model_path = copy_to_local(src=config.model.partial_pretrain, verbose=True)
     tokenizer = hf_tokenizer(local_model_path, trust_remote_code=config.model.trust_remote_code)
     train_dataset = create_sft_dataset(config.data.train_files, config.data, tokenizer)
-    val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer)
+    skip_val_loss = bool(getattr(config.trainer, "skip_val_loss", False))
+    val_dataset = None
+    if not skip_val_loss:
+        val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer)
 
     trainer = FSDPSFTTrainer(
         config=config,
