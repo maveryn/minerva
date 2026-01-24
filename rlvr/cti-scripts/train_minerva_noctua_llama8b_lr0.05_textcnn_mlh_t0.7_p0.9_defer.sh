@@ -6,7 +6,7 @@ set -euo pipefail
 
 export ACRD_MODEL_PATH="${ACRD_MODEL_PATH:-meta-llama/Llama-3.1-8B-Instruct}"
 export ACRD_ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-4}"
-export ACRD_ACR_DISTILL_LR_SCALE="${ACRD_ACR_DISTILL_LR_SCALE:-0.05}"
+export ACRD_ACR_DISTILL_LR_SCALE="${ACRD_ACR_DISTILL_LR_SCALE:-0.1}"
 export ACRD_ACR_DISTILL_BUFFER_MODE="${ACRD_ACR_DISTILL_BUFFER_MODE:-flush}"
 export ACRD_ACR_DISTILL_BATCH_SIZE="${ACRD_ACR_DISTILL_BATCH_SIZE:-256}"
 export ACRD_ACR_DISTILL_DISABLE_FILTERS="${ACRD_ACR_DISTILL_DISABLE_FILTERS:-false}"
@@ -26,6 +26,6 @@ MODEL_SLUG="$(printf "%s" "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a
 if [ -z "$MODEL_SLUG" ]; then
   MODEL_SLUG="model"
 fi
-export ACRD_EXPERIMENT_NAME="${ACRD_EXPERIMENT_NAME:-minerva_noctua_${MODEL_SLUG}_lr0.05_flush_bs256_mlh_t0.7_p0.9_defer}"
+export ACRD_EXPERIMENT_NAME="${ACRD_EXPERIMENT_NAME:-minerva_noctua_${MODEL_SLUG}_lr0.1_flush_bs256_mlh_t0.7_p0.9_defer}"
 
 exec "$(dirname "$0")/train_minerva_noctua.sh" "$@"
