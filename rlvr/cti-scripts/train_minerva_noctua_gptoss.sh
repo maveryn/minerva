@@ -25,6 +25,14 @@ export ACRD_ROLLOUT_GPU_UTIL="${ACRD_ROLLOUT_GPU_UTIL:-0.95}"
 
 export ACRD_N_GPUS_PER_NODE="${ACRD_N_GPUS_PER_NODE:-4}"
 
+# Disable Ray OpenTelemetry/OTLP exporters to avoid gRPC segfaults in some envs.
+export RAY_enable_open_telemetry="${RAY_enable_open_telemetry:-0}"
+export OTEL_SDK_DISABLED="${OTEL_SDK_DISABLED:-true}"
+export OTEL_METRICS_EXPORTER="${OTEL_METRICS_EXPORTER:-none}"
+export OTEL_TRACES_EXPORTER="${OTEL_TRACES_EXPORTER:-none}"
+export OTEL_LOGS_EXPORTER="${OTEL_LOGS_EXPORTER:-none}"
+export RAY_USAGE_STATS_ENABLED="${RAY_USAGE_STATS_ENABLED:-0}"
+
 MODEL_NAME="$(basename "$ACRD_MODEL_PATH")"
 MODEL_SLUG="$(printf "%s" "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_' | sed 's/^_//;s/_$//')"
 if [ -z "$MODEL_SLUG" ]; then
