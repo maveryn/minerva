@@ -3,7 +3,7 @@ accelerate
 codetiming
 datasets
 dill
-# flash-attn --no-build-isolation
+# pip install flash-attn --no-build-isolation
 hydra-core
 liger-kernel
 numpy<2.0.0
