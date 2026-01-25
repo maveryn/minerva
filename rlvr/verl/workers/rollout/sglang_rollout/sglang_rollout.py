@@ -32,21 +32,38 @@ import numpy as np
 import sglang.srt.entrypoints.engine
 import torch
 import torch.distributed as dist
-from sglang.srt.managers.tokenizer_manager import (
-    ReleaseMemoryOccupationReqInput,
-    ResumeMemoryOccupationReqInput,
-    UpdateWeightsFromTensorReqInput,
-)
+try:
+    from sglang.srt.managers.tokenizer_manager import (
+        ReleaseMemoryOccupationReqInput,
+        ResumeMemoryOccupationReqInput,
+        UpdateWeightsFromTensorReqInput,
+    )
+except ImportError:
+    from sglang.srt.managers.io_struct import (
+        ReleaseMemoryOccupationReqInput,
+        ResumeMemoryOccupationReqInput,
+        UpdateWeightsFromTensorReqInput,
+    )
 from sglang.srt.sampling.sampling_params import SamplingParams
 from sglang.srt.server_args import ServerArgs
-from sglang.srt.utils import (
-    assert_pkg_version,
-    get_ip,
-    get_open_port,
-    is_cuda,
-    set_prometheus_multiproc_dir,
-    set_ulimit,
-)
+try:
+    from sglang.srt.utils import (
+        assert_pkg_version,
+        get_ip,
+        get_open_port,
+        is_cuda,
+        set_prometheus_multiproc_dir,
+        set_ulimit,
+    )
+except ImportError:
+    from sglang.srt.utils import (
+        assert_pkg_version,
+        get_local_ip_auto as get_ip,
+        get_open_port,
+        is_cuda,
+        set_prometheus_multiproc_dir,
+        set_ulimit,
+    )
 from tensordict import TensorDict
 from torch.distributed.device_mesh import DeviceMesh, init_device_mesh
 from torch.nn.utils.rnn import pad_sequence
