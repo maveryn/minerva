@@ -377,6 +377,29 @@ class FSDPSFTTrainer:
         }
         return metric
 
+    def _maybe_save_best(self, metric: dict, step: int):
+        save_best_metric = getattr(self.config.trainer, "save_best_metric", None)
+        if not save_best_metric:
+            return False
+        metric_value = metric.get(save_best_metric)
+        if metric_value is None:
+            return False
+        save_best_mode = getattr(self.config.trainer, "save_best_mode", "max").lower()
+        is_better = False
+        if self.best_metric is None:
+            is_better = True
+        elif save_best_mode == "min":
+            is_better = metric_value < self.best_metric
+        else:
+            is_better = metric_value > self.best_metric
+        if is_better:
+            self.best_metric = metric_value
+            self.best_step = step
+            save_best_dir = getattr(self.config.trainer, "save_best_dir", "best")
+            best_root = os.path.join(self.config.trainer.default_local_dir, save_best_dir)
+            self.save_checkpoint(step=step, root_dir=best_root, update_tracker=False)
+        return is_better
+
     def _build_model_optimizer(self):
         # TODO (zhangchi.usc1992):
         # 1. support pretrain from random weights
@@ -954,6 +977,13 @@ class FSDPSFTTrainer:
                             tracking.log(data=metric, step=global_step)
                             last_valid_metric = metric
                         torch.distributed.barrier()
+                        if metric:
+                            is_better = self._maybe_save_best(metric, global_step)
+                            if is_better and rank == 0:
+                                print(
+                                    f"New best {self.config.trainer.save_best_metric}="
+                                    f"{metric[self.config.trainer.save_best_metric]:.6f} at step {global_step}; saved."
+                                )
 
                     reward_metric = self.reward_eval()
                     if reward_metric:
@@ -961,30 +991,13 @@ class FSDPSFTTrainer:
                             tracking.log(data=reward_metric, step=global_step)
                             last_valid_metric = reward_metric
                         torch.distributed.barrier()
-
-                        save_best_metric = getattr(self.config.trainer, "save_best_metric", None)
-                        save_best_mode = getattr(self.config.trainer, "save_best_mode", "max").lower()
-                        save_best_only = bool(getattr(self.config.trainer, "save_best_only", False))
-                        save_best_dir = getattr(self.config.trainer, "save_best_dir", "best")
-                        metric_value = reward_metric.get(save_best_metric) if save_best_metric else None
-                        is_better = False
-                        if metric_value is not None:
-                            if self.best_metric is None:
-                                is_better = True
-                            elif save_best_mode == "min":
-                                is_better = metric_value < self.best_metric
-                            else:
-                                is_better = metric_value > self.best_metric
-                        if is_better:
-                            self.best_metric = metric_value
-                            self.best_step = global_step
-                            best_root = os.path.join(self.config.trainer.default_local_dir, save_best_dir)
-                            self.save_checkpoint(step=global_step, root_dir=best_root, update_tracker=False)
-                        if save_best_only and is_better:
-                            if rank == 0:
-                                print(
-                                    f"New best {save_best_metric}={metric_value:.6f} at step {global_step}; saved."
-                                )
+                        is_better = self._maybe_save_best(reward_metric, global_step)
+                        if is_better and rank == 0:
+                            print(
+                                f"New best {self.config.trainer.save_best_metric}="
+                                f"{reward_metric[self.config.trainer.save_best_metric]:.6f} at step {global_step}; "
+                                "saved."
+                            )
 
                 if is_last_step or (self.config.trainer.save_freq > 0 and is_save_step):
                     if not bool(getattr(self.config.trainer, "save_best_only", False)) or is_last_step:
