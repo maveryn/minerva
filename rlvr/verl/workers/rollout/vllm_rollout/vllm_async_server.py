@@ -24,7 +24,7 @@ from omegaconf import DictConfig, ListConfig
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 from vllm import SamplingParams
-from vllm.config import CompilationConfig, CompilationLevel
+from vllm.config import CUDAGraphMode, CompilationConfig
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.entrypoints.logger import RequestLogger
 from vllm.entrypoints.openai.protocol import ChatCompletionRequest, ChatCompletionResponse, ErrorResponse
@@ -253,7 +253,8 @@ class AsyncvLLMServer(AsyncServerBase):
         if not config.enforce_eager and cudagraph_capture_sizes:
             if isinstance(cudagraph_capture_sizes, ListConfig):
                 compilation_config["compilation_config"] = CompilationConfig(
-                    level=CompilationLevel.PIECEWISE, cudagraph_capture_sizes=cudagraph_capture_sizes
+                    cudagraph_mode=CUDAGraphMode.PIECEWISE,
+                    cudagraph_capture_sizes=cudagraph_capture_sizes,
                 )
             else:
                 logger.warning(f"cudagraph_capture_sizes must be a list, but got {cudagraph_capture_sizes}")
