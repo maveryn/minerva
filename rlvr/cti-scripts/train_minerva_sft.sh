@@ -5,6 +5,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_DIR="$ROOT_DIR/mydata"
+REPO_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
+export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 # Avoid wandb service teardown failures in some environments.
 export WANDB_START_METHOD=thread
@@ -56,17 +58,23 @@ VAL_FILES+="]"
 OUTPUT_ROOT="${SFT_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 
 TRAIN_BATCH_SIZE="${SFT_TRAIN_BATCH_SIZE:-128}"
-MICRO_BATCH_SIZE_PER_GPU="${SFT_MICRO_BATCH_SIZE_PER_GPU:-4}"
-MAX_LENGTH="${SFT_MAX_LENGTH:-3072}"
+MICRO_BATCH_SIZE_PER_GPU="${SFT_MICRO_BATCH_SIZE_PER_GPU:-8}"
+MAX_LENGTH="${SFT_MAX_LENGTH:-4048}"
 REWARD_EVAL_BATCH_SIZE="${SFT_REWARD_EVAL_BATCH_SIZE:-64}"
 REWARD_EVAL_MAX_PROMPT_LEN="${SFT_REWARD_EVAL_MAX_PROMPT_LEN:-2048}"
 REWARD_EVAL_MAX_RESPONSE_LEN="${SFT_REWARD_EVAL_MAX_RESPONSE_LEN:-1024}"
 REWARD_EVAL_TEMPERATURE="${SFT_REWARD_EVAL_TEMPERATURE:-0.0}"
 REWARD_EVAL_TOP_P="${SFT_REWARD_EVAL_TOP_P:-1.0}"
-TOTAL_STEPS="${SFT_TOTAL_STEPS:-500}"
+TOTAL_EPOCHS="${SFT_TOTAL_EPOCHS:-2}"
 SAVE_FREQ="${SFT_SAVE_FREQ:-10}"
 TEST_FREQ="${SFT_TEST_FREQ:-10}"
 N_GPUS="${SFT_N_GPUS_PER_NODE:-2}"
+
+EXTRA_TRAINER_ARGS=()
+EXTRA_TRAINER_ARGS+=(trainer.total_epochs="$TOTAL_EPOCHS")
+if [ -n "${SFT_TOTAL_STEPS:-}" ]; then
+  EXTRA_TRAINER_ARGS+=(trainer.total_training_steps="$SFT_TOTAL_STEPS")
+fi
 
 torchrun --standalone --nnodes=1 --nproc_per_node="$N_GPUS" \
   -m verl.trainer.fsdp_sft_trainer \
@@ -75,7 +83,7 @@ torchrun --standalone --nnodes=1 --nproc_per_node="$N_GPUS" \
   data.train_batch_size="$TRAIN_BATCH_SIZE" \
   data.micro_batch_size_per_gpu="$MICRO_BATCH_SIZE_PER_GPU" \
   data.max_length="$MAX_LENGTH" \
-  data.truncation=error \
+  data.truncation=left \
   data.multiturn.enable=true \
   data.multiturn.messages_key=messages \
   data.reward_eval_files="$VAL_FILES" \
@@ -88,7 +96,6 @@ torchrun --standalone --nnodes=1 --nproc_per_node="$N_GPUS" \
   trainer.default_local_dir="$OUTPUT_ROOT" \
   trainer.project_name='minerva' \
   trainer.experiment_name="$EXPERIMENT_NAME" \
-  trainer.total_training_steps="$TOTAL_STEPS" \
   trainer.save_freq="$SAVE_FREQ" \
   trainer.test_freq="$TEST_FREQ" \
   trainer.skip_val_loss=true \
@@ -99,4 +106,5 @@ torchrun --standalone --nnodes=1 --nproc_per_node="$N_GPUS" \
   trainer.n_gpus_per_node="$N_GPUS" \
   trainer.nnodes=1 \
   trainer.logger='["console", "wandb"]' \
+  "${EXTRA_TRAINER_ARGS[@]}" \
   "$@"

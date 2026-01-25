@@ -5,7 +5,7 @@ set -euo pipefail
 # TextCNN ML+heuristic filter, deferred ACR generation, EMA teacher alpha 0.995,
 # ACR rollout temperature 0.7, top_p 0.9).
 
-export ACRD_MODEL_PATH="${ACRD_MODEL_PATH:-Qwen/Qwen3-4B-Instruct-2507}"
+export ACRD_MODEL_PATH="${ACRD_MODEL_PATH:-Qwen/Qwen3-4B-Base}"
 export ACRD_ACR_ROLLOUT_N="${ACRD_ACR_ROLLOUT_N:-4}"
 export ACRD_ACR_DISTILL_LR_SCALE="${ACRD_ACR_DISTILL_LR_SCALE:-0.05}"
 export ACRD_ACR_DISTILL_BUFFER_MODE="${ACRD_ACR_DISTILL_BUFFER_MODE:-flush}"
