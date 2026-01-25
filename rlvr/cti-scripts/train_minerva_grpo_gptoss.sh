@@ -7,6 +7,7 @@ export GRPO_MODEL_PATH="${GRPO_MODEL_PATH:-lmsys/gpt-oss-20b-bf16}"
 export GRPO_ROLLOUT_GPU_UTIL="${GRPO_ROLLOUT_GPU_UTIL:-0.8}"
 export GRPO_ROLLOUT_N="${GRPO_ROLLOUT_N:-5}"
 export GRPO_MAX_RESPONSE_LEN="${GRPO_MAX_RESPONSE_LEN:-2048}"
+export GRPO_RETURN_RAW_CHAT="${GRPO_RETURN_RAW_CHAT:-true}"
 
 # Disable Ray OpenTelemetry/OTLP exporters to avoid gRPC segfaults in some envs.
 export RAY_enable_open_telemetry="${RAY_enable_open_telemetry:-0}"
@@ -24,6 +25,7 @@ export GRPO_SGLANG_ATTENTION_BACKEND="${GRPO_SGLANG_ATTENTION_BACKEND:-triton}"
 export GRPO_FSDP_MODEL_DTYPE="${GRPO_FSDP_MODEL_DTYPE:-bfloat16}"
 
 EXTRA_ARGS=(
+  "data.return_raw_chat=${GRPO_RETURN_RAW_CHAT}"
   "actor_rollout_ref.rollout.name=${GRPO_ROLLOUT_BACKEND}"
   "actor_rollout_ref.rollout.mode=${GRPO_ROLLOUT_MODE}"
   "actor_rollout_ref.rollout.tensor_model_parallel_size=${GRPO_ROLLOUT_TP_SIZE}"
