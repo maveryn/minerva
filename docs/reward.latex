@@ -9,6 +9,28 @@ For identifier outputs (ATT\&CK, CWE, CAPEC), we normalize by trimming
 whitespace and uppercasing. For threat actor names, we lowercase, strip
 non-alphanumeric characters, and collapse whitespace.
 
+\subsection*{System Prompt and Answer Extraction}
+All Minerva CTI tasks share a single system prompt injected during RLVR
+conversion (see \texttt{rlvr/mydata/data\_prepare/prompt.py}):
+\begin{quote}\ttfamily
+You are given a cyber threat intelligence question. Solve it by reasoning step by step.
+Present the final answer clearly inside \textbackslash boxed\{\}.
+\end{quote}
+
+Answer extraction is handled in \texttt{rlvr/verl/utils/reward\_score/reward\_minerva.py}
+and prioritizes the last \verb|\boxed{...}| span. The behavior differs by split:
+\begin{itemize}
+  \item \textbf{Training (strict):} if no \verb|\boxed{...}| is found, we only
+  parse explicit answer lines (e.g., \texttt{Answer: ...} or \texttt{Final answer: ...}).
+  For single-ID tasks we require a single unambiguous ID; for multi-label tasks
+  we parse IDs from that answer line only. We do \emph{not} fall back to generic
+  free-form extraction on training splits.
+  \item \textbf{Validation/test (lenient):} if no \verb|\boxed{...}| is found, we
+  accept answer-line parsing and then fall back to a generic last-line/free-form
+  extraction (e.g., an \texttt{Answer:} tag or the last non-empty line), with
+  regex-based ID matching across the response.
+\end{itemize}
+
 \subsection*{Single Identifier (Exact Match)}
 Used for CAPEC example $\rightarrow$ CAPEC.
 Let $\mathrm{norm}(x)$ be the normalized identifier. The reward is:

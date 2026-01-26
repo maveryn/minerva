@@ -34,6 +34,12 @@ The pipeline generates per-task JSONL files with standardized `task`, `input`, `
 
 Generation uses deterministic seeds where applicable; prompt text is embedded in each row.
 
+Scenario task anonymization:
+- Scenario -> technique/tactics/mitigations tasks are built from ATT&CK procedure text.
+- Entity names in those procedures are generalized by type to avoid leaking actor identities:
+  intrusion-set -> "A threat actor", campaign -> "A campaign", malware/tool -> "A malware".
+- Leading articles are preserved (e.g., "the" vs. "a") so the text stays fluent after replacement.
+
 Filtering notes:
 - CVE -> CWE drops any CVE whose CWE list includes `NVD-CWE-noinfo` (noinfo-only and mixed).
 - CVE -> CVSS v3.1/v4.0 also skips CVEs with `NVD-CWE-noinfo` to keep label-less rows out of CVE-derived tasks.
