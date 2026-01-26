@@ -1,0 +1,161 @@
+\section{Minerva Noctua: EMA-ACR + SFT Distillation (Flush Buffer)}
+
+This document describes the EMA-ACR + SFT distillation variant used by:
+\texttt{train\_minerva\_noctua\_llama3b.sh},
+\texttt{train\_minerva\_noctua\_llama8b\_lr0.05\_textcnn\_mlh\_t0.7\_p0.9\_defer\_ema.sh},
+and \texttt{train\_minerva\_noctua\_qwen4b.sh}. These wrappers invoke the same
+core script and only change the base model path.
+
+\subsection*{Notation}
+Let the training set be $\mathcal{D}=\{(x_i,y_i^\*)\}$, where $x_i$ is the
+original Minerva prompt and $y_i^\*$ is the ground-truth label (ID, set of IDs,
+or vector depending on the task). The actor policy is $\pi_{\theta}$ and the
+EMA teacher is $\pi_{\phi}$. Rewards are computed by the Minerva verifier
+$R_{\text{minerva}}(\cdot)$, returning $r_{\text{base}}\in[0,1]$.
+
+\subsection*{Step 1: RLVR Rollouts and GRPO Update}
+For each batch $\mathcal{B}_t$, generate $N=8$ rollouts:
+\[
+y_{i,j}^{\text{rlvr}} \sim \pi_{\theta_t}(\cdot \mid x_i), \quad j=1,\dots,N.
+\]
+Score each rollout with the verifier:
+\[
+r_{i,j}^{\text{base}} = R_{\text{minerva}}(x_i, y_{i,j}^{\text{rlvr}}, y_i^\*).
+\]
+Update the actor with GRPO on the RLVR rollouts (standard RLVR objective).
+
+\subsection*{Step 2: Hard-Example Gating}
+Compute the per-UID maximum reward:
+\[
+m_i = \max_{j} r_{i,j}^{\text{base}}.
+\]
+Only ``hard'' UIDs are eligible for ACR:
+\[
+\mathcal{H}_t = \{i \mid m_i < 1.0\}.
+\]
+CVSS tasks are excluded from ACR regardless of $m_i$.
+
+\subsection*{Step 3: ACR Prompt Construction}
+For each $i\in\mathcal{H}_t$, build an answer-conditioned prompt by appending
+an ACR block to the last user message:
+\[
+x_i^{\text{acr}} = x_i \oplus b(y_i^\*, d_i),
+\]
+where $d_i$ is the canonical label-details text (if available). If the prompt
+exceeds the ACR length limit, details are truncated; if still too long, the
+details are omitted; otherwise the sample is skipped.
+
+\subsection*{Step 4: Deferred ACR Generation with EMA Teacher}
+Prompts $x_i^{\text{acr}}$ are buffered each step and only generated on the
+distill interval $I=10$. At those steps:
+\[
+y_{i,k}^{\text{acr}} \sim \pi_{\phi_t}(\cdot \mid x_i^{\text{acr}}), \quad k=1,\dots,K,
+\]
+with $K=4$, temperature $\tau=0.7$, and nucleus sampling $p=0.9$.
+The EMA teacher is initialized by copying the actor parameters and is updated
+after every actor update:
+\[
+\phi_t = \alpha \phi_{t-1} + (1-\alpha)\theta_t, \quad \alpha=0.995.
+\]
+Non-parameter buffers (e.g., normalization statistics) are copied directly:
+\[
+b^{\phi}_t \leftarrow b^{\theta}_t.
+\]
+The EMA model is inference-only (no gradients) and is used only for ACR
+generation; RLVR rollouts always use $\pi_{\theta}$. If EMA is disabled or
+unavailable, ACR generation falls back to the actor weights.
+ACR rollouts are generation-only (no PPO update on these samples).
+
+\subsection*{Step 5: ACR Reward and Filtering}
+Each ACR rollout is scored with the verifier to obtain $r_{i,k}^{\text{base}}$,
+then converted to an ACR score:
+\[
+r_{i,k}^{\text{acr}} = r_{\text{correct}} \cdot r_{i,k}^{\text{base}}
+ - \lambda \cdot \mathbb{1}[\text{leak}],
+\]
+with $r_{\text{correct}}=0.1$ and $\lambda=0.5$. A rollout is eligible if:
+\[
+r_{i,k}^{\text{base}} \ge \tau_{\text{base}} \;\wedge\;
+f_{\text{heur}}(y_{i,k}^{\text{acr}})=1 \;\wedge\;
+s_{i,k} \ge \eta,
+\]
+where $\tau_{\text{base}}=1.0$, $f_{\text{heur}}$ enforces
+minimum reasoning length (100 chars), minimum overlap Jaccard (0.05),
+and degenerate n-gram checks (rep-3 $\le 0.70$, rep-4 $\le 0.75$), and
+$s_{i,k}$ is the ML leak score from a TextCNN classifier with threshold
+$\eta=0.5$.
+
+\subsection*{Step 6: ML-Based Per-UID Selection}
+When ML filtering is enabled, selection is based on the ML score:
+\[
+k^\* = \arg\max_{k \in \mathcal{E}_i} s_{i,k},
+\]
+with uniform random tie-break among the top-scoring candidates. The selected
+pair is $(x_i, y_{i,k^\*}^{\text{acr}})$, where the input is the original
+prompt (no hints).
+
+\subsection*{Step 7: SFT Distillation (Flush Buffer)}
+Selected pairs are appended to a distill buffer $\mathcal{Q}$. At each distill
+interval, sample up to $M=256$ pairs and perform one SFT update:
+\[
+\mathcal{L}_{\text{sft}} = -\sum_{(x,y)\in\mathcal{S}} \sum_t
+\log \pi_{\theta}(y_t \mid x).
+\]
+The distill update uses a scaled learning rate:
+\[
+\text{lr}_{\text{sft}} = \gamma \cdot \text{lr}_{\text{rlvr}}, \quad \gamma=0.05.
+\]
+The buffer is flushed after each distillation step (\texttt{buffer\_mode=flush}).
+
+\subsection*{Hyperparameters (Noctua EMA-SFT)}
+
+\textbf{Data and model}
+\begin{tabular}{ll}
+Base model & Llama-3.2-3B-Instruct, Llama-3.1-8B-Instruct, or Qwen3-4B-Base \\
+Train data & \texttt{rlvr/mydata/minerva\_base/minerva\_base\_train.parquet} \\
+Val data & Minerva dev + Athena CTI parquets + \texttt{seceval\_mini} \\
+Label details & \texttt{dataset/label\_details} \\
+\end{tabular}
+
+\textbf{RLVR baseline (GRPO)}
+\begin{tabular}{ll}
+Advantage estimator & \texttt{grpo} \\
+RLVR rollouts per prompt & 8 \\
+Rollout backend & \texttt{vllm} \\
+Max prompt length & 2048 \\
+Max response length & 1024 \\
+Actor LR & $1\times10^{-6}$ \\
+\end{tabular}
+
+\textbf{ACR prompt and gating}
+\begin{tabular}{ll}
+ACR max prompt length & 4096 \\
+ACR max details chars & 8096 \\
+Hard gating & max reward $<1.0$ \\
+Skip CVSS tasks & true \\
+\end{tabular}
+
+\textbf{ACR generation (EMA)}
+\begin{tabular}{ll}
+ACR rollouts per prompt & 4 \\
+Temperature / top-p & 0.7 / 0.9 \\
+Deferred generation & true \\
+EMA alpha & 0.995 \\
+\end{tabular}
+
+\textbf{ACR reward and filtering}
+\begin{tabular}{ll}
+$r_{\text{correct}}$, $\lambda$ & 0.1, 0.5 \\
+Min reasoning chars & 100 \\
+Min overlap Jaccard & 0.05 \\
+Degenerate rep-3 / rep-4 & 0.70 / 0.75 \\
+ML filter & TextCNN response-only, threshold 0.5 \\
+\end{tabular}
+
+\textbf{SFT distillation}
+\begin{tabular}{ll}
+Distill interval $I$ & 10 steps \\
+Batch size $M$ & 256 \\
+LR scale $\gamma$ & 0.05 \\
+Buffer mode & flush \\
+\end{tabular}

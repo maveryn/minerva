@@ -30,6 +30,6 @@ MODEL_SLUG="$(printf "%s" "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a
 if [ -z "$MODEL_SLUG" ]; then
   MODEL_SLUG="model"
 fi
-export ACRD_EXPERIMENT_NAME="${ACRD_EXPERIMENT_NAME:-minerva_noctua_${MODEL_SLUG}_lr0.05_flush_bs256_mlh_t0.7_p0.9_defer_ema}"
+export ACRD_EXPERIMENT_NAME="${ACRD_EXPERIMENT_NAME:-minerva_noctua_${MODEL_SLUG}_lr0.05_flush_bs256_mlh_t0.7_p0.9_defer_ema_mlfilteroff}"
 
 exec "$(dirname "$0")/train_minerva_noctua.sh" "$@"
