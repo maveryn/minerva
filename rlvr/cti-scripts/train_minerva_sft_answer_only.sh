@@ -29,12 +29,14 @@ VAL_FILES="['$VAL_PATH']"
 
 OUTPUT_ROOT="${SFT_OUTPUT_ROOT:-$ROOT_DIR/checkpoints/minerva/$EXPERIMENT_NAME}"
 
-TRAIN_BATCH_SIZE="${SFT_TRAIN_BATCH_SIZE:-128}"
+TRAIN_BATCH_SIZE="${SFT_TRAIN_BATCH_SIZE:-1024}"
 MICRO_BATCH_SIZE_PER_GPU="${SFT_MICRO_BATCH_SIZE_PER_GPU:-8}"
 MAX_LENGTH="${SFT_MAX_LENGTH:-4048}"
 TOTAL_EPOCHS="${SFT_TOTAL_EPOCHS:-2}"
 SAVE_FREQ="${SFT_SAVE_FREQ:-10}"
-TEST_FREQ="${SFT_TEST_FREQ:-10}"
+TEST_FREQ="${SFT_TEST_FREQ:-5}"
+SAVE_BEST_ONLY="${SFT_SAVE_BEST_ONLY:-false}"
+MAX_CKPT_TO_KEEP="${SFT_MAX_CKPT_TO_KEEP:-1}"
 N_GPUS="${SFT_N_GPUS_PER_NODE:-1}"
 
 EXTRA_TRAINER_ARGS=()
@@ -62,10 +64,11 @@ torchrun --standalone --nnodes=1 --nproc_per_node="$N_GPUS" \
   trainer.save_freq="$SAVE_FREQ" \
   trainer.test_freq="$TEST_FREQ" \
   trainer.skip_val_loss=false \
-  trainer.save_best_only=true \
+  trainer.save_best_only="$SAVE_BEST_ONLY" \
   trainer.save_best_metric='val/loss' \
   trainer.save_best_mode='min' \
   trainer.save_best_dir='best' \
+  trainer.max_ckpt_to_keep="$MAX_CKPT_TO_KEEP" \
   trainer.checkpoint.save_contents='["hf_model"]' \
   trainer.checkpoint.load_contents='[]' \
   trainer.n_gpus_per_node="$N_GPUS" \

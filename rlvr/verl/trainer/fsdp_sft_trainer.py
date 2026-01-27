@@ -26,6 +26,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 import logging
 import re
+import shutil
 import time
 from contextlib import nullcontext
 from typing import Optional
@@ -397,6 +398,10 @@ class FSDPSFTTrainer:
             self.best_step = step
             save_best_dir = getattr(self.config.trainer, "save_best_dir", "best")
             best_root = os.path.join(self.config.trainer.default_local_dir, save_best_dir)
+            if self.device_mesh.get_rank() == 0 and os.path.exists(best_root):
+                for name in os.listdir(best_root):
+                    if name.startswith("global_step_"):
+                        shutil.rmtree(os.path.join(best_root, name), ignore_errors=True)
             self.save_checkpoint(step=step, root_dir=best_root, update_tracker=False)
         return is_better
 
@@ -765,6 +770,22 @@ class FSDPSFTTrainer:
         if self.device_mesh.get_rank() == 0 and getattr(self.config.trainer, "default_hdfs_dir", None):
             hdfs_io.makedirs(self.config.trainer.default_hdfs_dir, exist_ok=True)
             hdfs_io.copy(src=local_global_step_folder, dst=self.config.trainer.default_hdfs_dir, dirs_exist_ok=True)
+
+        if self.device_mesh.get_rank() == 0 and update_tracker:
+            max_ckpt_to_keep = getattr(self.config.trainer, "max_ckpt_to_keep", None)
+            if isinstance(max_ckpt_to_keep, int) and max_ckpt_to_keep > 0 and os.path.exists(base_dir):
+                checkpoints = []
+                for name in os.listdir(base_dir):
+                    if not name.startswith("global_step_"):
+                        continue
+                    step_num = extract_step(name)
+                    if step_num is None:
+                        continue
+                    checkpoints.append((step_num, os.path.join(base_dir, name)))
+                checkpoints.sort(key=lambda item: item[0])
+                if len(checkpoints) > max_ckpt_to_keep:
+                    for _, path in checkpoints[:-max_ckpt_to_keep]:
+                        shutil.rmtree(path, ignore_errors=True)
 
         torch.distributed.barrier()
 
