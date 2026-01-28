@@ -174,7 +174,7 @@ def plot_heatmap(
         use_seaborn = False
 
     n = len(models)
-    fig, ax = plt.subplots(figsize=(max(6, n * 1.2), max(5, n * 1.2)))
+    fig, ax = plt.subplots(figsize=(5, 5))
 
     matrix = np.full((n, n), np.nan, dtype=float)
     for i, model_i in enumerate(models):
