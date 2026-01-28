@@ -1,0 +1,175 @@
+\section{Training the TextCNN Reasoning-Quality Classifier}
+\label{sec:textcnn-judge-training}
+
+This document summarizes how we construct the GOOD/BAD reasoning-quality dataset
+and train the TextCNN classifier used for ACRD ML filtering. It is based on
+\texttt{minerva-judge/DATASET.md} and \texttt{minerva-judge/CLASSIFIER\_TRAINING.md}.
+
+\subsection{Dataset Curation}
+\label{subsec:textcnn-dataset-curation}
+
+\paragraph{Source prompts.}
+We start from the Minerva base train split:
+\texttt{dataset/minerva\_base\_split/minerva-base-train.jsonl}.
+Each row contributes the prompt, answer/ground\_truth, reward\_fn, and task, and
+is assigned a stable UID (hash of prompt) if missing.
+
+\paragraph{Response generation (plain + hinted).}
+We generate model responses in two variants per prompt using
+\texttt{minerva-judge/scripts/generate\_answer\_guided.py}:
+\begin{itemize}
+  \item \textbf{plain}: original prompt only.
+  \item \textbf{hinted}: prompt plus an ACR block containing
+        \texttt{GROUND\_TRUTH\_LABELS}, \texttt{LABEL\_REFERENCE}, and the marker
+        text ``You are generating a reasoning trace for training.''.
+\end{itemize}
+The ACR block is built by \texttt{minerva.acr\_prompt.build\_acr\_block} with
+label details supplied by \texttt{LabelDetailsStore}. Label references are
+truncated to 4048 characters if needed; if the prompt becomes too long, the
+reference is omitted. Unless \texttt{--no-system-prompt} is set, we include the
+CTI system prompt from \texttt{rlvr/mydata/data\_prepare/prompt.py}.
+
+Models used for response generation:
+\begin{itemize}
+  \item \texttt{meta-llama/Llama-3.1-8B-Instruct}
+  \item \texttt{meta-llama/Llama-3.2-3B-Instruct}
+  \item \texttt{Qwen/Qwen3-4B-Instruct-2507}
+  \item \texttt{Qwen/Qwen3-8B}
+  \item \texttt{openai/gpt-oss-20b}
+\end{itemize}
+Typical generation settings: temperature 0.7, max\_new\_tokens 1024, both variants.
+Outputs are written to \texttt{minerva-judge/data/responses\_<model>.jsonl}.
+
+\paragraph{Reward filtering (correct-only).}
+Each response is scored with \texttt{reward\_minerva}. We define
+\texttt{correct = (reward >= 0.999)} and keep only correct responses for
+judge labeling and classifier training, isolating reasoning quality from answer
+correctness.
+
+\paragraph{LLM judge labeling.}
+Correct responses are labeled by a rubric-based LLM judge
+(\texttt{openai/gpt-oss-120b}) via
+\texttt{minerva-judge/scripts/score\_with\_judge.py}. We do not provide a system
+prompt by default. The \textbf{exact} judge prompt template is:
+
+\begin{verbatim}
+You are an expert CTI evaluator. You will be given a Question and a Response.
+The Question may include answer/reference text as hints.
+
+Label the Response as GOOD or BAD. Mark BAD if any single criterion below is present;
+otherwise mark GOOD. Do not grade correctness beyond these checks.
+
+Return exactly one JSON object on a single line and nothing else.
+- GOOD: {"label": "GOOD"}
+- BAD: {"label": "BAD", "category_id": <number>, "category_title": "<title>"}
+
+If multiple BAD criteria apply, choose the lowest-numbered category.
+
+Criteria (one per bullet):
+1. Leakage: says or implies the answer/label/options/reference were provided,
+   or quotes/paraphrases provided reference text instead of reasoning from the prompt.
+2. Incoherent: loops, repeated phrases/lines, templated filler, or gibberish.
+3. Ungrounded: invents concrete details not in the question (extra CVEs,
+   vendors, malware names, IOCs, dates, techniques, etc.).
+4. Mismatch: reasoning supports a different label than the final answer,
+   or directly contradicts it.
+5. Unsupported: provides reasoning but does not use evidence from the prompt to
+   justify the answer (hand-wavy or irrelevant justification), OR provides an
+   answer with no reasoning at all (answer-only).
+6. Other: refusals, policy/meta artifacts, generic CTI tutorials, or prompt copying.
+
+Example outputs:
+{"label": "GOOD"}
+{"label": "BAD", "category_id": 1, "category_title": "Leakage"}
+
+
+QUESTION:
+{QUESTION}
+
+RESPONSE:
+{RESPONSE}
+\end{verbatim}
+
+We exclude \texttt{judged\_gpt\_oss\_120b.jsonl} from classifier training to
+avoid overlap with the judge model itself.
+
+\paragraph{Synthetic BAD augmentation.}
+To increase coverage of BAD categories, we synthesize additional BAD responses
+using \texttt{openai/gpt-oss-120b}. Each synthetic example is conditioned on a
+hinted prompt and a randomly sampled rubric violation criterion. We then re-score
+these responses and keep only reward-correct synthetic rows.
+
+\paragraph{Dataset assembly and split.}
+The builder \texttt{minerva-judge/classifier/build\_dataset.py}:
+\begin{enumerate}
+  \item Joins judged rows back to responses using a stable key.
+  \item Keeps only \texttt{judge\_label} in \{GOOD, BAD\} and \texttt{correct=true}.
+  \item Adds synthetic BADs (correct-only).
+  \item Balances via downsampling to 32k GOOD + 32k BAD (seed 1337).
+  \item Splits 80/20 by class into train/val.
+\end{enumerate}
+Outputs:
+\texttt{minerva-judge/classifier/data/train.jsonl} and
+\texttt{minerva-judge/classifier/data/val.jsonl}.
+
+\paragraph{Row joining and response selection details.}
+Judge rows are joined to response rows by a stable key
+\texttt{uid:model:variant[:attempt]}. For response text, the builder prefers
+\texttt{response\_final} if present; otherwise it strips trailing markers (e.g.,
+\texttt{assistantfinal}) from the raw response and falls back to the raw response.
+This ensures the classifier sees clean response text.
+
+\subsection{TextCNN Training}
+\label{subsec:textcnn-training}
+
+\paragraph{Model input and tokenization.}
+TextCNN uses regex tokenization \texttt{[A-Za-z0-9\_]+} with lowercasing.
+Default text mode is \texttt{response\_prompt}, which concatenates:
+response tokens, a literal \texttt{sep}, then prompt tokens. If a max token
+budget is enforced, response tokens are kept in full when possible and prompt
+tokens are truncated to the remaining budget.
+
+Vocabulary is built from the training split with \texttt{max\_vocab=100000}
+and \texttt{min\_freq=2}. Special tokens are \texttt{<pad>} and \texttt{<unk>}.
+
+\paragraph{Architecture.}
+The TextCNN classifier is a standard 1D CNN over token embeddings:
+\begin{itemize}
+  \item Embedding layer (random init unless pretrained vectors are provided).
+  \item 1D convolutions with kernel sizes (default 3,4,5), ReLU, max-over-time pooling.
+  \item Concatenation, dropout, and a 2-way linear classifier.
+\end{itemize}
+
+\paragraph{Training setup.}
+Training uses AdamW with cross-entropy loss, batch size 128, and 5 epochs. We
+report validation accuracy/precision/recall/F1 after each epoch; the final
+metrics are written to \texttt{metrics.json} in the output directory.
+
+\paragraph{Hyperparameter sweep.}
+We sweep the following grid (run via
+\texttt{minerva-judge/classifier/scripts/run\_all\_textcnn\_parallel.sh}):
+\begin{itemize}
+  \item Learning rate: \{3e-4, 6e-4, 1e-3, 2e-3, 4e-3\}
+  \item Kernel sizes: \{3,4,5\}
+  \item Filters per kernel: \{256, 384\}
+  \item Dropout: \{0, 0.25\}
+  \item Embedding dim: \{200, 300\}
+  \item Max tokens: \{2048, 3072\}
+\end{itemize}
+
+\paragraph{Best model (used for ACRD ML filtering).}
+The best TextCNN model reported in the sweep is:
+\begin{itemize}
+  \item \texttt{textcnn\_lr6e-4\_k345\_f384\_e200\_t3072\_d0p25}
+  \item lr=6e-4, kernels=3/4/5, filters=384, embed\_dim=200,
+        max\_tokens=3072, dropout=0.25
+  \item Validation accuracy: 0.828125
+\end{itemize}
+
+\subsection{Notes}
+\label{subsec:textcnn-notes}
+
+\begin{itemize}
+  \item Classifier labels are derived only from reward-correct responses.
+  \item Synthetic BADs are included only if their extracted answers are reward-correct.
+\end{itemize}

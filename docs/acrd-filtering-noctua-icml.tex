@@ -1,0 +1,137 @@
+\section{ACRD Filtering (Noctua Llama-3B Run)}
+\label{sec:acrd-filtering-noctua}
+
+This section documents the filtering stage (heuristics + ML) used during
+ACRD self-distillation when running:
+\texttt{rlvr/cti-scripts/train\_minerva\_noctua\_llama3b.sh}.
+Implementation details are in:
+\texttt{rlvr/verl/trainer/ppo/ray\_trainer.py} and
+\texttt{rlvr/verl/utils/reward\_score/reward\_acr.py}.
+
+\subsection{Active Filtering Knobs}
+\label{subsec:acrd-filtering-knobs}
+
+\textbf{Enable/disable:}
+\begin{itemize}
+  \item \texttt{ACRD\_ACR\_DISTILL\_DISABLE\_FILTERS=false}
+  \item \texttt{ACRD\_ACR\_DISTILL\_FILTER\_MODE=ml+heuristic}
+\end{itemize}
+
+\textbf{Base eligibility:}
+\begin{itemize}
+  \item \texttt{ACRD\_ACR\_DISTILL\_THRESHOLD=1.0} (applied to
+        \texttt{acr\_base\_score}).
+\end{itemize}
+
+\textbf{Heuristic leakage + degeneracy:}
+\begin{itemize}
+  \item \texttt{ACRD\_ACR\_DISTILL\_DEGENERATE\_FILTER=true}
+  \item \texttt{ACRD\_ACR\_DISTILL\_DEGENERATE\_MIN\_TOKENS=30}
+  \item \texttt{ACRD\_ACR\_DISTILL\_DEGENERATE\_REP3\_MAX=0.70}
+  \item \texttt{ACRD\_ACR\_DISTILL\_DEGENERATE\_REP4\_MAX=0.75}
+  \item \texttt{ACRD\_ACR\_MIN\_REASONING\_CHARS=100}
+  \item \texttt{ACRD\_ACR\_MIN\_OVERLAP\_JACCARD=0.05}
+  \item \texttt{ACRD\_ACR\_MAX\_ID\_MENTIONS=0} (ID-overuse disabled)
+  \item \texttt{ACRD\_ACR\_ENFORCE\_NO\_ID\_IN\_REASONING=false}
+\end{itemize}
+
+\textbf{ML filter:}
+\begin{itemize}
+  \item \texttt{ACRD\_ACR\_DISTILL\_FILTER\_MODEL=}
+        \texttt{xashru/textcnn-response-only-lr6e-4-k345-f384-e300-t1024-d0p25}
+  \item \texttt{ACRD\_ACR\_DISTILL\_FILTER\_MODEL\_TYPE=textcnn}
+  \item \texttt{ACRD\_ACR\_DISTILL\_FILTER\_THRESHOLD=0.5}
+  \item \texttt{ACRD\_ACR\_DISTILL\_FILTER\_TEXT\_MODE=response}
+  \item \texttt{ACRD\_ACR\_DISTILL\_FILTER\_MAX\_LENGTH=1024}
+  \item \texttt{ACRD\_ACR\_DISTILL\_FILTER\_BATCH\_SIZE=128}
+\end{itemize}
+
+\subsection{Filtering Pipeline}
+\label{subsec:acrd-filtering-pipeline}
+
+For each UID, ACR rollouts are filtered and one candidate is selected for
+distillation:
+\begin{enumerate}
+  \item \textbf{Base eligibility:} keep only rollouts with
+        \texttt{acr\_base\_score} $\ge 1.0$.
+  \item \textbf{Heuristic leakage gate:} reject if
+        \texttt{acr\_leak\_hit==true}. In this run, leak hits are triggered by
+        banned phrases/regexes, short reasoning, or low overlap with the task
+        description + label reference.
+  \item \textbf{Degenerate-response gate:} reject if repetition heuristics or
+        near-duplicate windows/sentences trigger.
+  \item \textbf{ML filter:} score remaining rollouts with a TextCNN
+        classifier and keep those with $p_{\text{good}} \ge 0.5$.
+  \item \textbf{Selection:} choose the rollout with the highest ML score
+        (random tie-break). Store the original prompt without hints as input
+        and the chosen ACR response as the target.
+\end{enumerate}
+
+\subsection{ICML-Style Description}
+\label{subsec:acrd-filtering-icml}
+
+For each training prompt UID $i$, we generate $K$ answer-conditioned rollouts
+$\{r_{i,k}\}_{k=1}^K$. Each rollout receives a base verifier score
+$s_{i,k} \in [0,1]$ and a leak indicator $L_{i,k} \in \{0,1\}$ from
+\texttt{reward\_acr}.
+
+\paragraph{Base correctness gate.}
+A rollout is eligible only if
+\[
+s_{i,k} \ge \tau_s,\quad \tau_s = 1.0.
+\]
+
+\paragraph{Leakage gate.}
+$L_{i,k}=1$ if any of the following triggers:
+\begin{enumerate}
+  \item \textbf{Banned phrase/regex leak:} explicit references to label or
+        provided answers (curated phrase list + regexes).
+  \item \textbf{Short reasoning:} reasoning text length
+        $< L_{\min}$, with $L_{\min}=100$ characters.
+  \item \textbf{Low overlap:} Jaccard overlap between reasoning tokens and
+        the combined text of (task description + label reference) is below
+        $J_{\min}=0.05$. Tokens are lowercased alphanumeric words of length
+        $\ge 3$, with ID-like tokens removed.
+\end{enumerate}
+ID-in-reasoning and ID-overuse checks are disabled for this run.
+
+\paragraph{Degenerate-response filter.}
+Let the repetition ratio over token IDs be
+\[
+\text{rep}_n = 1 - \frac{\lvert \text{distinct } n\text{-grams}\rvert}
+{\lvert \text{all } n\text{-grams}\rvert}.
+\]
+A rollout is rejected if any of:
+\begin{itemize}
+  \item $\text{rep}_3 \ge 0.70$ or $\text{rep}_4 \ge 0.75$ (applied when length
+        $\ge 30$ tokens),
+  \item repeated token windows (size 24, stride 12) with exact repeats or
+        3-gram Jaccard $\ge 0.9$ across non-overlapping windows,
+  \item near-duplicate sentences within a 6-sentence window with similarity
+        $\ge 0.75$.
+\end{itemize}
+
+\paragraph{ML filter.}
+We apply a TextCNN classifier $f_{\theta}$ on response-only tokens (regex
+\texttt{[A-Za-z0-9\_]+}, truncated to 1024 tokens), yielding
+$m_{i,k} = f_{\theta}(r_{i,k}) \in [0,1]$. We keep rollouts satisfying
+\[
+m_{i,k} \ge \tau_m,\quad \tau_m = 0.5.
+\]
+
+\paragraph{Final eligibility and selection.}
+The eligible set for UID $i$ is:
+\[
+\mathcal{E}_i =
+\{k \mid s_{i,k}\ge \tau_s,\; L_{i,k}=0,\; D_{i,k}=0,\; m_{i,k}\ge \tau_m\},
+\]
+where $D_{i,k}$ denotes degeneracy. If $\mathcal{E}_i \neq \emptyset$, we select
+\[
+k^\* = \arg\max_{k\in\mathcal{E}_i} m_{i,k},
+\]
+with uniform random tie-break among maxima. The distillation input is the
+original prompt without ACR hints; the target is the selected ACR response.
+
+\paragraph{Fallback.}
+If the ML model fails to load or returns invalid scores, the implementation
+falls back to heuristic-only filtering (unless filters are explicitly disabled).

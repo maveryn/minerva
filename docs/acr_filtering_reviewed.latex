@@ -1,0 +1,19 @@
+In MinervaRL, during answer-conditioned response (ACR) generation, for each training prompt (UID) $i$ we sample $K$ rollouts $\{r_{i,k}\}_{k=1}^K$ and retain at most one rollout as an SFT distillation target. Each rollout is first scored by the task-specific Minerva verifier, yielding a base correctness score $s_{i,k}\in[0,1]$. We only consider rollouts with $s_{i,k}=1$ for distillation, and then apply a two-stage filtering pipeline to select a single high-quality target among the remaining candidates.
+
+\paragraph{Heuristic filtering.}
+We reject rollouts that exhibit leakage or low-quality generation artifacts using four checks:
+(i) \emph{explicit leakage cues}, detected by a curated list of phrases and regex patterns that indicate direct references to labels or provided answers;
+(ii) \emph{insufficient reasoning}, where the reasoning portion (all lines except the final answer line) is shorter than 100 characters;
+(iii) \emph{low semantic grounding}, measured as Jaccard overlap below $0.05$ between reasoning tokens and the combined text of the task description plus label reference (computed over lowercased alphanumeric tokens with ID-like tokens removed);
+and (iv) \emph{degenerate responses}, filtered using repetition heuristics applied only when the response has at least 30 tokens, including $n$-gram repetition thresholds (reject if $\mathrm{rep}_3\ge 0.70$ or $\mathrm{rep}_4\ge 0.75$), repeated-window checks (window size 24, stride 12, reject if 3-gram Jaccard $\ge 0.9$ across non-overlapping windows or exact window repeats), and near-duplicate sentence checks (window size 6, min 6 words per sentence, SequenceMatcher similarity $\ge 0.75$). Candidates that pass all heuristic checks are forwarded to an ML-based quality filter.
+
+\paragraph{ML quality filter and selection.}
+We score the remaining candidates with a lightweight TextCNN classifier that operates on response-only alphanumeric tokens, truncated to at most 1024 tokens, and outputs a ``good'' probability $m_{i,k}\in[0,1]$. We keep candidates with $m_{i,k}\ge \tau_m$ (we use $\tau_m=0.5$), forming the final eligible set
+\[
+\mathcal{E}_i = \{k \mid s_{i,k}=1,\; L_{i,k}=0,\; D_{i,k}=0,\; m_{i,k}\ge \tau_m\},
+\]
+where $L_{i,k}$ denotes heuristic leakage rejection and $D_{i,k}$ denotes degeneracy rejection. If $\mathcal{E}_i=\varnothing$, we do not distill an example for UID $i$; otherwise we select
+\[
+k^\* = \arg\max_{k\in\mathcal{E}_i} m_{i,k},
+\]
+breaking ties uniformly at random. The resulting distillation record pairs the original prompt without ACR hints with the selected rollout response.
