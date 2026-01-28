@@ -1,0 +1,41 @@
+group,term,score
+minerva_win,web,0.02167121046020778
+minerva_win,used,0.019625324973970314
+minerva_win,data,0.019343080718372912
+minerva_win,product,0.01891860284707718
+minerva_win,types,0.018778359120684374
+minerva_win,entity types,0.01753803154864962
+minerva_win,does,0.016422236509454246
+minerva_win,web page,0.015360730852887871
+minerva_win,page,0.01422943269635871
+minerva_win,user controllable,0.01349452427572586
+minerva_win,controllable,0.01349452427572586
+minerva_win,controllable input,0.01349452427572586
+minerva_win,attacker,0.01332376693003768
+minerva_win,correct,0.012846182362962399
+minerva_win,security,0.012431419434619458
+minerva_win,pattern,0.012219617757656813
+minerva_win,key,0.012105163306382467
+minerva_win,weakness,0.011839344026061752
+minerva_win,users,0.011822608710511688
+minerva_win,indicator stix,0.01180363923434413
+grpo_win,description,0.05621527222344527
+grpo_win,description mentions,0.04990292110604732
+grpo_win,mentions,0.04629041852021506
+grpo_win,choose,0.04599703505530987
+grpo_win,triggered,0.04020125744702128
+grpo_win,chosen value,0.040170326938196894
+grpo_win,mentions vulnerability,0.03936245275035508
+grpo_win,chosen,0.03883716313535163
+grpo_win,value,0.03578854878244229
+grpo_win,given,0.03224099640261153
+grpo_win,vulnerability triggered,0.03214797333756643
+grpo_win,vulnerability high,0.026346170445233068
+grpo_win,analysis,0.025615403270456538
+grpo_win,performed,0.024813652913933913
+grpo_win,attack performed,0.024813140499967214
+grpo_win,user input,0.022450828176750807
+grpo_win,confidentiality,0.02204723064200058
+grpo_win,given text,0.02042284081332939
+grpo_win,type,0.0198739776800671
+grpo_win,text passage,0.01975113993054166

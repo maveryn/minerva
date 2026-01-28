@@ -1,0 +1,122 @@
+[
+  {
+    "model_1": "llama-3-8B",
+    "model_2": "llama3-primus",
+    "total_valid": 751,
+    "wins_model_1": 300,
+    "wins_model_2": 209,
+    "ties": 242,
+    "parse_errors": 1,
+    "win_rate_model_1": 0.399467,
+    "win_rate_model_2": 0.278296,
+    "tie_rate": 0.322237
+  },
+  {
+    "model_1": "llama-3-8B",
+    "model_2": "llama3-sec",
+    "total_valid": 752,
+    "wins_model_1": 378,
+    "wins_model_2": 235,
+    "ties": 139,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.50266,
+    "win_rate_model_2": 0.3125,
+    "tie_rate": 0.18484
+  },
+  {
+    "model_1": "llama-3-8B",
+    "model_2": "minerva_llama8b_grpo",
+    "total_valid": 752,
+    "wins_model_1": 498,
+    "wins_model_2": 107,
+    "ties": 147,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.662234,
+    "win_rate_model_2": 0.142287,
+    "tie_rate": 0.195479
+  },
+  {
+    "model_1": "llama-3-8B",
+    "model_2": "minerva_llama8b_noctua",
+    "total_valid": 752,
+    "wins_model_1": 351,
+    "wins_model_2": 185,
+    "ties": 216,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.466755,
+    "win_rate_model_2": 0.246011,
+    "tie_rate": 0.287234
+  },
+  {
+    "model_1": "llama3-primus",
+    "model_2": "llama3-sec",
+    "total_valid": 752,
+    "wins_model_1": 266,
+    "wins_model_2": 209,
+    "ties": 277,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.353723,
+    "win_rate_model_2": 0.277926,
+    "tie_rate": 0.368351
+  },
+  {
+    "model_1": "llama3-primus",
+    "model_2": "minerva_llama8b_grpo",
+    "total_valid": 752,
+    "wins_model_1": 395,
+    "wins_model_2": 139,
+    "ties": 218,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.525266,
+    "win_rate_model_2": 0.18484,
+    "tie_rate": 0.289894
+  },
+  {
+    "model_1": "llama3-primus",
+    "model_2": "minerva_llama8b_noctua",
+    "total_valid": 752,
+    "wins_model_1": 241,
+    "wins_model_2": 261,
+    "ties": 250,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.320479,
+    "win_rate_model_2": 0.347074,
+    "tie_rate": 0.332447
+  },
+  {
+    "model_1": "llama3-sec",
+    "model_2": "minerva_llama8b_grpo",
+    "total_valid": 752,
+    "wins_model_1": 397,
+    "wins_model_2": 215,
+    "ties": 140,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.527926,
+    "win_rate_model_2": 0.285904,
+    "tie_rate": 0.18617
+  },
+  {
+    "model_1": "llama3-sec",
+    "model_2": "minerva_llama8b_noctua",
+    "total_valid": 752,
+    "wins_model_1": 285,
+    "wins_model_2": 337,
+    "ties": 130,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.378989,
+    "win_rate_model_2": 0.448138,
+    "tie_rate": 0.172872
+  },
+  {
+    "model_1": "minerva_llama8b_grpo",
+    "model_2": "minerva_llama8b_noctua",
+    "total_valid": 752,
+    "wins_model_1": 158,
+    "wins_model_2": 407,
+    "ties": 187,
+    "parse_errors": 0,
+    "win_rate_model_1": 0.210106,
+    "win_rate_model_2": 0.541223,
+    "tie_rate": 0.24867
+  }
+]

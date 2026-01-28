@@ -1,0 +1,11 @@
+model_1,model_2,total_valid,wins_model_1,wins_model_2,ties,parse_errors,win_rate_model_1,win_rate_model_2,tie_rate
+llama-3-8B,llama3-primus,751,300,209,242,1,0.399467,0.278296,0.322237
+llama-3-8B,llama3-sec,752,378,235,139,0,0.50266,0.3125,0.18484
+llama-3-8B,minerva_llama8b_grpo,752,498,107,147,0,0.662234,0.142287,0.195479
+llama-3-8B,minerva_llama8b_noctua,752,351,185,216,0,0.466755,0.246011,0.287234
+llama3-primus,llama3-sec,752,266,209,277,0,0.353723,0.277926,0.368351
+llama3-primus,minerva_llama8b_grpo,752,395,139,218,0,0.525266,0.18484,0.289894
+llama3-primus,minerva_llama8b_noctua,752,241,261,250,0,0.320479,0.347074,0.332447
+llama3-sec,minerva_llama8b_grpo,752,397,215,140,0,0.527926,0.285904,0.18617
+llama3-sec,minerva_llama8b_noctua,752,285,337,130,0,0.378989,0.448138,0.172872
+minerva_llama8b_grpo,minerva_llama8b_noctua,752,158,407,187,0,0.210106,0.541223,0.24867

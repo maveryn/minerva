@@ -1,0 +1,10 @@
+{
+  "total_pairs": 752,
+  "wins_minerva": 407,
+  "wins_grpo": 158,
+  "ties": 187,
+  "win_rate_minerva": 0.720353982300885,
+  "win_rate_grpo": 0.27964601769911507,
+  "minerva_words_mean": 133.9122340425532,
+  "grpo_words_mean": 68.04122340425532
+}
