@@ -24,7 +24,7 @@ def main() -> None:
     parser.add_argument(
         "--smooth-window",
         type=int,
-        default=1,
+        default=5,
         help="Smoothing window for time-averaged plot (1 = no smoothing)",
     )
     parser.add_argument(
@@ -71,7 +71,7 @@ def main() -> None:
     except Exception as exc:
         raise RuntimeError("matplotlib/seaborn is required to plot") from exc
 
-    fig, ax = plt.subplots(figsize=(6, 3.2))
+    fig, ax = plt.subplots(figsize=(6, 2.3))
 
     smooth_window = max(1, int(args.smooth_window))
     style_map = {
