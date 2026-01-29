@@ -74,13 +74,18 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=(6, 3.2))
 
     smooth_window = max(1, int(args.smooth_window))
+    style_map = {
+        "MinervaRL": "-",
+        "GRPO": "--",
+        "GRPO - 12 rollout": ":",
+    }
     for label, values in series.items():
         if smooth_window > 1:
             if args.smooth_method == "ema":
                 values = values.ewm(span=smooth_window, adjust=False).mean()
             else:
                 values = values.rolling(window=smooth_window, min_periods=1).mean()
-        ax.plot(df["Step"], values, label=label, linewidth=2.0)
+        ax.plot(df["Step"], values, label=label, linewidth=2.0, linestyle=style_map.get(label, "-"))
 
     ax.set_xlabel("Step", fontsize=12)
     ax.set_ylabel("Zero-solve fraction", fontsize=12)
