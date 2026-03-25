@@ -10,8 +10,8 @@ Implement an offline STaR baseline that:
 - scores them with the existing verifier
 - keeps the original trace if correct, otherwise keeps the rationalization trace
   only if the original failed and the rationalization is correct
-- builds or updates an SFT dataset from the kept traces
-- fine-tunes with the existing SFT trainer
+- builds a per-round SFT dataset from the kept traces
+- fine-tunes a fresh copy of the base model with the existing SFT trainer
 - repeats for multiple rounds
 
 The implementation should stay outside the current PPO trainer. STaR is a separate
@@ -216,6 +216,11 @@ It should mirror:
 
 but with STaR-specific train parquet paths and checkpoint naming.
 
+Important rule:
+
+- each round must initialize training from the fixed base pretrained model
+- do not continue finetuning from the previous STaR round checkpoint
+
 ### 9. Multi-round controller
 
 Create a controller that runs:
@@ -225,10 +230,10 @@ Create a controller that runs:
 3. rationalization generation
 4. rationalization scoring
 5. trace selection
-6. SFT dataset build or update
-7. one SFT training run or continued training
+6. per-round SFT dataset build
+7. one SFT training run from the fixed base model
 8. save checkpoint
-9. evaluate on the combined validation set
+9. evaluate on the RL-matched validation set
 10. advance to next round using the newly trained checkpoint
 
 Suggested file:
@@ -240,17 +245,30 @@ This is the main entrypoint for the baseline.
 ### 10. Evaluation wrapper
 
 Add an evaluation script that scores each round checkpoint on the same validation
-suite used by MinervaRL.
+target used for MinervaRL checkpoint selection.
 
 Suggested file:
 
 - `star/eval.py`
 
-Use the same reward-eval setup already used by:
+Use the same reward parser and the same checkpoint-selection aggregation already
+used by:
 
-- `rlvr/cti-scripts/train_minerva_sft.sh`
 - `rlvr/cti-scripts/train_minerva_grpo.sh`
 - `rlvr/cti-scripts/train_minerva_noctua.sh`
+
+Specifically:
+
+- validation files:
+  - `minerva_base_dev`
+  - `athena_cti_ate`
+  - `athena_cti_ckt`
+  - `athena_cti_rcm`
+  - `athena_cti_rms`
+  - `athena_cti_taa`
+  - `athena_cti_vsp`
+- best-round metric:
+  - `rl_global_val_mean_score = (minerva_dev_mean + athena_bench_mean) / 2`
 
 ## Minimal file map
 

@@ -35,10 +35,10 @@ For each round on the full train set:
 4. Otherwise keep the rationalization trace if the original failed and the
    rationalization is verifier-correct.
 5. Otherwise keep nothing for that example.
-6. Build or update the STaR SFT dataset.
-7. Train or continue training.
+6. Build that round's STaR SFT dataset only from the kept traces.
+7. Train a fresh copy of the base pretrained model on that round's dataset.
 8. Save a checkpoint.
-9. Evaluate on the combined validation set.
+9. Evaluate on the RL-matched validation set.
 
 Repeat iteratively across rounds.
 
@@ -52,9 +52,9 @@ For reporting:
 Use the same metrics already reported for MinervaRL:
 
 - Minerva dev reward mean
-- per-task reward means
 - Athena CTI reward means
-- aggregate validation reward
+- RL global validation reward:
+  - `0.5 * minerva_dev_mean + 0.5 * athena_bench_mean`
 
 Also log STaR-specific diagnostics:
 
