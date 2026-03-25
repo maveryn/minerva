@@ -238,6 +238,11 @@ rlvr/mydata/**
 !rlvr/mydata/athena/
 !rlvr/mydata/athena/**
 !rlvr/mydata/ifeval/
+
+# STaR local artifacts / experiment outputs
+star/artifacts/
+star-artifacts/
+wandb/
 !rlvr/mydata/ifeval/**
 !rlvr/mydata/seceval/
 !rlvr/mydata/seceval/**
