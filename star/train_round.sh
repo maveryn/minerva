@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 export PYTHONPATH="$ROOT_DIR:$ROOT_DIR/rlvr${PYTHONPATH:+:$PYTHONPATH}"
-export WANDB_MODE=disabled
 
 : "${SFT_MODEL_PATH:?SFT_MODEL_PATH must be set}"
 : "${SFT_TRAIN_PATH:?SFT_TRAIN_PATH must be set}"
@@ -30,7 +29,7 @@ exec "$ROOT_DIR/rlvr/cti-scripts/train_minerva_sft.sh" \
   model.strategy="$SFT_MODEL_STRATEGY" \
   model.fsdp_config.model_dtype="$SFT_MODEL_DTYPE" \
   model.enable_gradient_checkpointing="$SFT_ENABLE_GRADIENT_CHECKPOINTING" \
-  trainer.logger='["console"]' \
+  trainer.logger='["console", "wandb"]' \
   trainer.max_ckpt_to_keep=1 \
   trainer.checkpoint.save_contents='["hf_model"]' \
   trainer.checkpoint.load_contents='[]'

@@ -243,8 +243,9 @@ def _log_wandb_round(wandb_run, summary: Dict[str, Any]) -> None:
     if wandb_run is None:
         return
     eval_info = summary.get("eval") or {}
+    round_id = int(summary.get("round_id", 0))
     payload: Dict[str, Any] = {
-        "star/round": int(summary.get("round_id", 0)),
+        "star/round": round_id,
         "star/selected_count": int(summary.get("selected_count", 0)),
         "star/round_sft_rows": int(summary.get("round_sft_rows", 0)),
         "star/original_success_count": int((summary.get("original") or {}).get("success_count", 0)),
@@ -261,7 +262,13 @@ def _log_wandb_round(wandb_run, summary: Dict[str, Any]) -> None:
         mean_score = dataset_info.get("mean_score")
         if mean_score is not None:
             payload[f"val/{dataset_name}/reward/mean"] = float(mean_score)
-    wandb_run.log(payload, step=int(summary.get("round_id", 0)))
+    wandb_run.log(payload, step=round_id)
+
+    # Mirror the key round metrics into the run summary so they remain visible
+    # even if the run exits before the UI finishes aggregating history panels.
+    for key, value in payload.items():
+        if isinstance(value, (int, float)):
+            wandb_run.summary[key] = value
 
 
 def run_round(cfg: Dict[str, Any], *, round_id: int, model_path: str, skip_train: bool, skip_eval: bool) -> Dict[str, Any]:
