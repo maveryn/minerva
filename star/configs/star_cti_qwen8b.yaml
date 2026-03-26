@@ -1,0 +1,51 @@
+experiment_name: star_cti_qwen3_8b_base
+model_path: Qwen/Qwen3-8B-Base
+train_path: rlvr/mydata/minerva_base/minerva_base_train.parquet
+val_paths:
+  - rlvr/mydata/minerva_base/minerva_base_dev.parquet
+  - rlvr/mydata/athena/athena_cti_ate.parquet
+  - rlvr/mydata/athena/athena_cti_ckt.parquet
+  - rlvr/mydata/athena/athena_cti_rcm.parquet
+  - rlvr/mydata/athena/athena_cti_rms.parquet
+  - rlvr/mydata/athena/athena_cti_taa.parquet
+  - rlvr/mydata/athena/athena_cti_vsp.parquet
+output_root: star-artifacts/star_cti_qwen3_8b_base
+num_rounds: 5
+success_threshold: 1.0
+wandb:
+  enabled: true
+  project: minerva
+  name: star_cti_qwen3_8b_base
+  job_type: star
+generation:
+  backend: vllm
+  batch_size: 2048
+  max_new_tokens: 2048
+  max_prompt_length: 0
+  temperature: 0.7
+  top_p: 0.95
+  gpu_memory_utilization: 0.95
+  trust_remote_code: false
+evaluation:
+  backend: vllm
+  batch_size: 128
+  max_new_tokens: 2048
+  max_prompt_length: 0
+  gpu_memory_utilization: 0.95
+training:
+  backend: verl
+  total_epochs: 1
+  train_batch_size: 128
+  micro_batch_size_per_gpu: 8
+  max_length: 3072
+  response_max_tokens: 2048
+  model_dtype: bfloat16
+  model_strategy: fsdp
+  enable_gradient_checkpointing: true
+  reward_eval_batch_size: 8
+  reward_eval_max_prompt_length: 2048
+  reward_eval_max_response_length: 2048
+  n_gpus: 1
+  save_freq: 250
+  test_freq: 250
+  save_best_only: true
