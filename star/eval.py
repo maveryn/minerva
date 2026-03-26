@@ -7,7 +7,9 @@ from pathlib import Path
 import subprocess
 from typing import Any, Dict, Iterable, List
 
-from star.common import ensure_dir, iter_jsonl, write_jsonl
+import pandas as pd
+
+from star.common import ensure_dir, iter_jsonl, make_uid, write_jsonl
 from star.score import score_rows
 
 
@@ -26,47 +28,72 @@ def evaluate_model(
     gpu_memory_utilization: float = 0.9,
 ) -> Dict[str, Any]:
     output_dir = ensure_dir(output_dir)
-    all_scored: List[Dict[str, Any]] = []
+    combined_rows: List[Dict[str, Any]] = []
+    uid_to_dataset: Dict[str, str] = {}
     per_dataset: Dict[str, Dict[str, Any]] = {}
-    for idx, val_path in enumerate(val_paths):
+    dataset_order: List[str] = []
+    for val_path in val_paths:
         dataset_name = Path(val_path).stem
-        generated_path = output_dir / f"{idx:02d}_{dataset_name}_generated.jsonl"
-        command = [
-            "python",
-            "-m",
-            "star.generate",
-            "--parquet",
-            str(val_path),
-            "--model-path",
-            model_path,
-            "--mode",
-            "original",
-            "--output",
-            str(generated_path),
-            "--round-id",
-            str(round_id),
-            "--batch-size",
-            str(batch_size),
-            "--max-new-tokens",
-            str(max_new_tokens),
-            "--temperature",
-            "0.0",
-            "--top-p",
-            "1.0",
-            "--max-prompt-length",
-            str(max_prompt_length),
-            "--backend",
-            str(backend),
-            "--gpu-memory-utilization",
-            str(gpu_memory_utilization),
-        ]
-        if trust_remote_code:
-            command.append("--trust-remote-code")
+        dataset_order.append(dataset_name)
+        df = pd.read_parquet(val_path)
         if limit_per_val_path is not None:
-            command.extend(["--limit", str(limit_per_val_path)])
-        subprocess.run(command, check=True, cwd=Path(__file__).resolve().parents[1])
-        generated = list(iter_jsonl(generated_path))
-        scored = score_rows(generated, success_threshold=1.0)
+            df = df.head(limit_per_val_path)
+        rows = df.to_dict(orient="records")
+        for row_idx, row in enumerate(rows):
+            uid = make_uid(row, fallback_index=row_idx)
+            uid_to_dataset[uid] = dataset_name
+            combined_rows.append(row)
+
+    combined_parquet = output_dir / "combined_eval_input.parquet"
+    pd.DataFrame(combined_rows).to_parquet(combined_parquet, index=False)
+
+    generated_path = output_dir / "combined_generated.jsonl"
+    command = [
+        "python",
+        "-m",
+        "star.generate",
+        "--parquet",
+        str(combined_parquet),
+        "--model-path",
+        model_path,
+        "--mode",
+        "original",
+        "--output",
+        str(generated_path),
+        "--round-id",
+        str(round_id),
+        "--batch-size",
+        str(batch_size),
+        "--max-new-tokens",
+        str(max_new_tokens),
+        "--temperature",
+        "0.0",
+        "--top-p",
+        "1.0",
+        "--max-prompt-length",
+        str(max_prompt_length),
+        "--backend",
+        str(backend),
+        "--gpu-memory-utilization",
+        str(gpu_memory_utilization),
+    ]
+    if trust_remote_code:
+        command.append("--trust-remote-code")
+    subprocess.run(command, check=True, cwd=Path(__file__).resolve().parents[1])
+
+    generated = list(iter_jsonl(generated_path))
+    scored_all = score_rows(generated, success_threshold=1.0)
+    scored_by_dataset: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for row in scored_all:
+        dataset_name = uid_to_dataset.get(str(row.get("uid") or ""))
+        if dataset_name is None:
+            continue
+        scored_by_dataset[dataset_name].append(row)
+
+    all_scored: List[Dict[str, Any]] = []
+    for idx, val_path in enumerate(val_paths):
+        dataset_name = dataset_order[idx]
+        scored = scored_by_dataset.get(dataset_name, [])
         all_scored.extend(scored)
         write_jsonl(output_dir / f"{idx:02d}_{dataset_name}_scored.jsonl", scored)
         dataset_mean = (
