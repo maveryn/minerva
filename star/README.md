@@ -74,6 +74,8 @@ bootstrapping and supervised fine-tuning."
   Concrete implementation plan and file map
 - `star/EXPERIMENT_PLAN.md`
   Main comparison protocol, metrics, and reporting rules
+- `star/RESULTS.md`
+  Completed run summaries from `star-artifacts/`
 - future:
   - generation scripts
   - rationalization-prompt builder
