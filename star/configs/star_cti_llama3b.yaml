@@ -19,7 +19,7 @@ wandb:
   job_type: star
 generation:
   backend: vllm
-  batch_size: 512
+  batch_size: 2048
   max_new_tokens: 2048
   max_prompt_length: 0
   temperature: 0.7
