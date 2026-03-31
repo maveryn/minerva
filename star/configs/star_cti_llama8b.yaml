@@ -19,24 +19,24 @@ wandb:
   job_type: star
 generation:
   backend: vllm
-  batch_size: 128
+  batch_size: 2048
   max_new_tokens: 2048
   max_prompt_length: 0
   temperature: 0.7
   top_p: 0.95
-  gpu_memory_utilization: 0.92
+  gpu_memory_utilization: 0.95
   trust_remote_code: false
 evaluation:
   backend: vllm
   batch_size: 128
   max_new_tokens: 2048
   max_prompt_length: 0
-  gpu_memory_utilization: 0.92
+  gpu_memory_utilization: 0.95
 training:
   backend: verl
   total_epochs: 1
   train_batch_size: 128
-  micro_batch_size_per_gpu: 2
+  micro_batch_size_per_gpu: 8
   max_length: 3072
   response_max_tokens: 2048
   model_dtype: bfloat16

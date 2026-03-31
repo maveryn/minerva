@@ -1,0 +1,45 @@
+experiment_name: star_cti_llama31_8b_smoke_local
+model_path: meta-llama/Llama-3.1-8B-Instruct
+train_path: rlvr/mydata/minerva_base/minerva_base_train.parquet
+val_paths:
+  - rlvr/mydata/minerva_base/minerva_base_dev.parquet
+output_root: star-artifacts/star_cti_llama31_8b_smoke_local
+num_rounds: 1
+limit_train_rows: 16
+success_threshold: 0.0
+wandb:
+  enabled: false
+generation:
+  backend: vllm
+  batch_size: 4
+  max_new_tokens: 256
+  max_prompt_length: 0
+  temperature: 0.7
+  top_p: 0.95
+  gpu_memory_utilization: 0.95
+  trust_remote_code: false
+evaluation:
+  backend: vllm
+  batch_size: 4
+  max_new_tokens: 256
+  max_prompt_length: 0
+  limit_per_val_path: 4
+  gpu_memory_utilization: 0.95
+training:
+  backend: verl
+  total_epochs: 2
+  total_steps: 2
+  train_batch_size: 128
+  micro_batch_size_per_gpu: 4
+  max_length: 3072
+  response_max_tokens: 256
+  model_dtype: bfloat16
+  model_strategy: fsdp
+  enable_gradient_checkpointing: true
+  reward_eval_batch_size: 8
+  reward_eval_max_prompt_length: 2048
+  reward_eval_max_response_length: 256
+  n_gpus: 1
+  save_freq: 1
+  test_freq: 1
+  save_best_only: true
