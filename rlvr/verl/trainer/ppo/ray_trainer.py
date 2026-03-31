@@ -4865,9 +4865,11 @@ class RayPPOTrainer:
 
         if self._distill_source == "acr":
             if distill_method == "dpo":
-                distill_metrics = self._maybe_run_distill_dpo(self.global_steps)
+                with marked_timer("acr_distill_dpo", timing_raw, color="green"):
+                    distill_metrics = self._maybe_run_distill_dpo(self.global_steps)
             else:
-                distill_metrics = self._maybe_run_distill_sft(self.global_steps)
+                with marked_timer("acr_distill_sft", timing_raw, color="green"):
+                    distill_metrics = self._maybe_run_distill_sft(self.global_steps)
             if distill_metrics:
                 metrics.update({f"acr_{k}": float(v) for k, v in distill_metrics.items()})
 
@@ -4934,6 +4936,7 @@ class RayPPOTrainer:
             for batch_dict in self.train_dataloader:
                 metrics = {}
                 timing_raw = {}
+                step_full_start = time.perf_counter()
 
                 with marked_timer("start_profile", timing_raw):
                     self._start_profiling(
@@ -4951,7 +4954,8 @@ class RayPPOTrainer:
                 )
                 acr_batch = None
                 if self._acr_enabled:
-                    acr_batch, acr_build_metrics = self._build_acr_batch(batch)
+                    with marked_timer("acr_build", timing_raw, color="magenta"):
+                        acr_batch, acr_build_metrics = self._build_acr_batch(batch)
                     if acr_build_metrics:
                         metrics.update(acr_build_metrics)
                 acr_hard_uids = None
@@ -5490,6 +5494,7 @@ class RayPPOTrainer:
                     )
                     prev_step_profile = curr_step_profile
                     curr_step_profile = next_step_profile
+                timing_raw["step_full"] = time.perf_counter() - step_full_start
 
                 steps_duration = timing_raw["step"]
                 self.max_steps_duration = max(self.max_steps_duration, steps_duration)

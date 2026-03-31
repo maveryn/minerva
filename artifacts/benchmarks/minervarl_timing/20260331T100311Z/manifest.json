@@ -1,0 +1,6 @@
+{
+  "generated_at": "2026-03-31T10:03:11.044528+00:00",
+  "gpus_per_node": 4,
+  "repo_root": "/home/jovyan/work/minerva",
+  "steps": 10
+}

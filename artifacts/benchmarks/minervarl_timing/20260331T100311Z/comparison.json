@@ -1,0 +1,19 @@
+{
+  "grpo_process_wall_s": 469.8172477989997,
+  "grpo_startup_and_nonstep_overhead_s": 131.91485906499975,
+  "grpo_training_wall_s": 337.90238873399994,
+  "noctua_components_s": {
+    "timing_s/acr_build": 2.890674489001867,
+    "timing_s/acr_distill_sft": 9.306622817999596,
+    "timing_s/acr_gen": 36.38033902300049,
+    "timing_s/acr_reward": 5.883327374000146,
+    "timing_s/gen": 110.28169776300001,
+    "timing_s/reward": 2.3079477419996692,
+    "timing_s/update_actor": 191.80490410399943
+  },
+  "noctua_minus_grpo_s": 143.59068272299828,
+  "noctua_over_grpo_pct": 42.49472259162816,
+  "noctua_process_wall_s": 654.5328690780002,
+  "noctua_startup_and_nonstep_overhead_s": 173.03979762100198,
+  "noctua_training_wall_s": 481.4930714569982
+}
