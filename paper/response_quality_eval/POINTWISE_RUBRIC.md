@@ -1,0 +1,1 @@
+/home/jovyan/work/minerva/minerva-judge/human-judge/POINTWISE_RUBRIC.md
