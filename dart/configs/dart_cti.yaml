@@ -1,0 +1,86 @@
+experiment_name: dart_cti
+output_root: dart-artifacts/dart_cti
+
+teacher:
+  model_path: openai/gpt-oss-120b
+  backend: vllm
+  batch_size: 1024
+  max_new_tokens: 1024
+  temperature: 0.7
+  top_p: 0.95
+  max_prompt_length: 0
+  trust_remote_code: false
+  gpu_memory_utilization: 0.95
+  vllm_kwargs: {}
+
+dataset:
+  train_paths:
+    - rlvr/mydata/minerva_base/minerva_base_train.parquet
+  target_accepted: 2
+  max_attempts: 100
+  response_max_tokens: 2048
+
+guided_fill:
+  enabled: true
+  label_details_dir: dataset/label_details
+  max_details_chars: 8096
+  max_prompt_length: 4096
+  enforce_no_id: false
+  max_attempts_per_question: 0
+  acr_filters:
+    enabled: true
+    filter_mode: ml+heuristic
+    reward_threshold: 1.0
+    disable_filters: false
+    degenerate_filter: true
+    degenerate_min_tokens: 30
+    degenerate_rep_3_max: 0.70
+    degenerate_rep_4_max: 0.75
+    filter_model: xashru/textcnn-response-only-lr6e-4-k345-f384-e300-t1024-d0p25
+    filter_model_type: textcnn
+    filter_threshold: 0.5
+    filter_batch_size: 128
+    filter_max_length: 1024
+    filter_text_mode: response
+    filter_device: auto
+    filter_dtype: auto
+    filter_tokenizer:
+    filter_trust_remote_code: false
+    reward_kwargs:
+      r_correct: 0.1
+      leak_penalty: 0.5
+      multilabel_match: exact
+      enforce_no_id_in_reasoning: false
+      max_id_mentions: 0
+      min_reasoning_chars: 100
+      min_overlap_jaccard: 0.05
+
+validation:
+  every_n_steps: 10
+  sources:
+    minerva_dev:
+      paths:
+        - rlvr/mydata/minerva_base/minerva_base_dev.parquet
+    athena_bench:
+      paths:
+        - rlvr/mydata/athena/athena_cti_ate.parquet
+        - rlvr/mydata/athena/athena_cti_ckt.parquet
+        - rlvr/mydata/athena/athena_cti_rcm.parquet
+        - rlvr/mydata/athena/athena_cti_rms.parquet
+        - rlvr/mydata/athena/athena_cti_taa.parquet
+        - rlvr/mydata/athena/athena_cti_vsp.parquet
+
+final_eval_paths:
+  - rlvr/mydata/minerva_base/minerva_base_dev.parquet
+  - rlvr/mydata/athena/athena_cti_ate.parquet
+  - rlvr/mydata/athena/athena_cti_ckt.parquet
+  - rlvr/mydata/athena/athena_cti_rcm.parquet
+  - rlvr/mydata/athena/athena_cti_rms.parquet
+  - rlvr/mydata/athena/athena_cti_taa.parquet
+  - rlvr/mydata/athena/athena_cti_vsp.parquet
+
+students:
+  - meta-llama/Llama-3.2-3B-Instruct
+  - meta-llama/Llama-3.1-8B-Instruct
+  - Qwen/Qwen3-4B-Base
+  - Qwen/Qwen3-8B-Base
