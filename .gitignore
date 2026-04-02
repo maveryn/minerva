@@ -239,6 +239,39 @@ rlvr/mydata/**
 !rlvr/mydata/athena/**
 !rlvr/mydata/ifeval/
 
+# Local secrets / scratch
+api_keys
+tmp/
+
+# DART generated artifacts
+dart-artifacts/
+
+# Human-judge: keep code/docs/scripts, ignore generated subsets, bundles, and annotations
+minerva-judge/human-judge/**
+!minerva-judge/human-judge/
+!minerva-judge/human-judge/**/*.py
+!minerva-judge/human-judge/**/*.md
+!minerva-judge/human-judge/**/*.sh
+!minerva-judge/human-judge/**/*.bat
+minerva-judge/human-judge/dist/
+minerva-judge/human-judge/annotations/
+minerva-judge/human-judge/**/__pycache__/
+
+# Paper workspace: keep scripts/docs only; treat figures, tables, json/csv/jsonl, and bundles as generated
+paper/**
+!paper/**/
+!paper/**/*.py
+!paper/**/*.md
+!paper/**/*.sh
+!paper/**/*.bat
+paper/**/__pycache__/
+paper/**/.ipynb_checkpoints/
+paper/human-annotation/
+paper/human-annotation-qwk50-80/
+paper/human-annotation-2-3-qwk55/
+paper/human-annotation-211-3-qwk60/
+paper/human-annotator-minerva-100/
+
 # STaR local artifacts / experiment outputs
 star/artifacts/
 wandb/
