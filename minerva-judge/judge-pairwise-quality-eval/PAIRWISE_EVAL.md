@@ -1,6 +1,9 @@
 # Pairwise CTI Preference Evaluation
 
-This folder contains a script that runs pairwise preference judging over prompts where **all five models answered correctly**. The judge compares two LLM responses at a time and selects which is preferable for **cyber threat intelligence (CTI) analysis**.
+This folder contains a script that runs pairwise preference judging over prompts
+where **all configured models answered correctly**. The judge compares two LLM
+responses at a time and selects which is preferable for **cyber threat
+intelligence (CTI) analysis**.
 
 ## Input
 
@@ -8,14 +11,15 @@ This folder contains a script that runs pairwise preference judging over prompts
   - `task`, `subtask`, `prompt`
 - `responses`: map of model name -> response text
 
-The current file includes five models, so there are **10 unordered pairs** per prompt.
+If the input file includes `N` models, there are `N choose 2` unordered pairs per
+prompt.
 
 ## What the script does
 
 `run_pairwise_judge.py`:
 
 1. Loads `all_models_correct_samples.json`.
-2. Enumerates all 10 model pairs per prompt.
+2. Enumerates all model pairs per prompt.
 3. Randomizes the A/B order per pair **deterministically** using a hash of `(seed, sample_key, model_a, model_b)` so runs are reproducible.
 4. Builds a judge prompt using the template below.
 5. Calls the judge LLM (default: **gpt-5.2**).

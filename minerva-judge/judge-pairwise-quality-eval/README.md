@@ -1,12 +1,14 @@
 # Response Quality Judge Sampling
 
-This folder contains a script that samples prompts where five specified models all answered correctly on a filtered set of evalall tasks.
+This folder contains a script that samples prompts where the configured model set
+all answered correctly on a filtered set of evalall tasks.
 
 ## What it does
 - Uses scored JSONL files in `runs/` for:
   - llama-3-8B
   - llama3-primus
   - llama3-sec
+  - llama3-sec-reasoning
   - minerva_llama8b_grpo
   - minerva_llama8b_noctua
 - Tasks included (12 total):
@@ -39,10 +41,11 @@ Each entry contains:
 - `prompt`
 - `responses`: a map of model name to response text
 
-## Sample set size (current)
+## Sample set size
 
-As of January 28, 2026, `all_models_correct_samples.json` contains:
-- 752 total questions
+`all_models_correct_samples.json` depends on the current configured model set in
+[generate_all_correct_samples.py](/home/jovyan/work/llmbench/response-quality-judge/generate_all_correct_samples.py).
+Regenerate it after any model-list change.
 
 ## Pairwise judge prompt template (exact)
 
