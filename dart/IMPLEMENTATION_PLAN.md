@@ -7,28 +7,30 @@ Implement a DART-style offline rejection-tuning baseline for Minerva-CTI that:
 - uses a stronger teacher model to generate candidate reasoning traces
 - scores each trace with the existing Minerva verifier
 - retains only verifier-correct traces
-- constructs one fixed SFT dataset using either:
-  - Uniform allocation
-  - Prop2Diff allocation
+- constructs a fixed Uniform dataset with `k_u = 2`
+- supports two dataset variants:
+  - `v1`: plain original-prompt rejection tuning with a safety cap
+  - `v2`: `v1` plus answer-guided fill for missing traces
 - reuses that same fixed dataset to fine-tune multiple student models
-- evaluates student checkpoints on the same RL-matched validation target used elsewhere in this repo
+- selects student checkpoints by synthetic validation loss
+- evaluates final student checkpoints on the same RL-matched validation target used elsewhere in this repo
 
 The implementation should stay separate from PPO / GRPO / Noctua. This is a standalone baseline.
 
 ## High-level method
 
-The CTI adaptation should follow a bounded rejection-tuning workflow:
+The CTI adaptation should follow a target-correct-count workflow for Uniform:
 
 1. Choose a teacher model.
 2. Generate candidate reasoning traces from the teacher on the Minerva train set.
 3. Score each candidate with the existing Minerva reward / verifier.
 4. Keep only verifier-correct traces.
-5. Allocate accepted traces per question using either:
-   - Uniform
-   - Prop2Diff
-6. Build one fixed SFT dataset from the accepted traces.
-7. Reuse that same dataset to fine-tune each target student model.
-8. Evaluate each student model on the RL-matched validation set.
+5. For each question, keep generating until it reaches `k_u = 2` accepted traces or hits the safety cap.
+6. Build `v1` from these accepted traces.
+7. Optionally build `v2` by filling any missing accepted traces with answer-guided generation.
+8. Reuse the same fixed dataset variant to fine-tune each target student model.
+9. Select checkpoints by synthetic validation loss.
+10. Evaluate each student model on the RL-matched validation set.
 
 ## Important adaptation rule
 
@@ -41,6 +43,11 @@ Reason:
 - the primary DART-CTI baseline should stay faithful to rejection-tuning behavior
 
 If answer-conditioned rescue is ever added, it should be treated as a separate variant, not the main DART baseline.
+
+This is now the intended interpretation for CTI:
+
+- `v1` is the main DART-style baseline
+- `v2` is a separate follow-up variant that fills missing traces using answer guidance
 
 ## Proposed teacher model
 
@@ -59,8 +66,8 @@ Use the same four target models already used in Minerva baselines:
 
 - `meta-llama/Llama-3.2-3B-Instruct`
 - `meta-llama/Llama-3.1-8B-Instruct`
-- Qwen 4B baseline model used in Minerva RL runs
-- Qwen 8B baseline model used in Minerva RL runs
+- `Qwen/Qwen3-4B-Base`
+- `Qwen/Qwen3-8B-Base`
 
 Important rule:
 
@@ -74,7 +81,7 @@ Use the existing Minerva training parquet:
 
 - `rlvr/mydata/minerva_base/minerva_base_train.parquet`
 
-Validation should use the same RL-matched checkpoint-selection target:
+Final evaluation should use the same RL-matched target used by Minerva RL:
 
 - `rlvr/mydata/minerva_base/minerva_base_dev.parquet`
 - `rlvr/mydata/athena/athena_cti_ate.parquet`
@@ -83,6 +90,13 @@ Validation should use the same RL-matched checkpoint-selection target:
 - `rlvr/mydata/athena/athena_cti_rms.parquet`
 - `rlvr/mydata/athena/athena_cti_taa.parquet`
 - `rlvr/mydata/athena/athena_cti_vsp.parquet`
+
+Checkpoint selection during SFT should not use online reward evaluation. Instead, build synthetic validation trace sets from:
+
+- Minerva dev
+- Athena bench
+
+and select the best checkpoint by the mean validation loss across those two held-out synthetic datasets, evaluated every 10 training steps.
 
 ## Core implementation decisions
 
@@ -105,57 +119,65 @@ Use the same extraction and reward path already used in Minerva RL / STaR:
 
 Do not introduce a new correctness heuristic.
 
-### 3. Bounded generation budget
+### 3. Uniform target and safety cap
 
-Do not generate forever until success.
+Uniform mode should be target-correct-count driven:
 
-Use a bounded queue-based rejection-tuning loop:
+- target accepted traces per question: `k_u = 2`
+- generation uses the original prompt only
+- accepted traces are verifier-correct outputs only
 
-- maintain an active queue of questions that have not yet reached their accepted-trace target
+Use a bounded active-queue loop as an engineering guard:
+
+- maintain an active queue of questions that have not yet reached 2 accepted traces
 - generate batched traces only for active questions
 - remove a question once:
-  - it has enough accepted traces, or
-  - it reaches its max-attempt cap
+  - it reaches 2 accepted traces, or
+  - it reaches the safety cap
 
-Recommended initial cap:
-
-- `B_max = 50`
-
-Optional higher-cap fallback:
+Chosen safety cap:
 
 - `B_max = 100`
 
-The cap must be logged and reported.
+The cap is not the main definition of the algorithm. It is a practical stop condition and must be logged and reported.
 
-### 4. Uniform mode
+### 4. Dataset variants
 
-Uniform mode should use:
+The implementation should produce two explicit dataset versions.
 
-- target accepted traces per question: `k = 2`
-- bounded queue-based sampling
-- accepted traces only from verifier-correct outputs
+`v1`:
 
-For each question:
+- plain original-prompt rejection tuning only
+- stop each question at `accepted == 2` or `attempts == 100`
+- keep whatever accepted traces were found
+- resulting dataset may have fewer than 2 traces for some questions
 
-- stop when accepted count reaches 2
-- or when attempts reach `B_max`
+`v2`:
 
-Questions that fail to reach 2 accepted traces should still contribute any accepted traces they do have.
+- start from `v1`
+- for questions with fewer than 2 accepted traces, fill only the missing slots
+- use answer-guided generation with the exact same ACR prompt block already used in Minerva
+- keep generating guided traces until each question has exactly 2 accepted traces
+- do not replace plain accepted traces with guided ones
 
-### 5. Prop2Diff mode
+Important rule:
 
-Prop2Diff mode should allocate accepted traces proportionally to estimated difficulty.
+- `v2` is a separate variant, not the main DART-style baseline
+- each accepted trace should record whether it came from the plain stage or the guided fill stage
 
-Implementation concept:
+### 5. Validation policy for SFT
 
-1. Estimate question difficulty from teacher success rate under a small probe budget.
-2. Convert difficulty estimates into target accepted counts and/or attempt budgets.
-3. Run the same bounded queue-based rejection-tuning loop with those per-question targets.
+Checkpoint selection should use validation loss, not online reward evaluation.
 
-Important fairness rule:
+Implementation plan:
 
-- keep the total generation budget comparable to Uniform
-- report the total generated samples, accepted samples, and per-question coverage
+- synthesize a held-out DART validation set from Minerva dev
+- synthesize a held-out DART validation set from Athena bench
+- evaluate every 10 training steps
+- compute validation loss on both synthetic validation datasets
+- select the checkpoint using the mean of the two validation losses
+
+This keeps SFT checkpointing lightweight while preserving a Minerva-dev / Athena-bench split that is comparable to RLVR at a high level.
 
 ## Step-by-step implementation plan
 
@@ -165,17 +187,22 @@ Create a YAML config that specifies:
 
 - teacher model path
 - train parquet path
-- validation parquet paths
-- mode:
-  - `uniform`
-  - `prop2diff`
-- target accepted traces
-- max attempts
+- synthetic validation source parquet paths:
+  - Minerva dev
+  - Athena bench
+- dataset variant:
+  - `v1_plain_cap100`
+  - `v2_plain_cap100_plus_guided_fill`
+- target accepted traces:
+  - `k_u = 2`
+- max attempts:
+  - `B_max = 100`
 - generation batch size
 - max response length
 - prompt truncation settings
 - output root
 - dataset-build settings
+- validation-build settings
 - student model list
 - per-model SFT settings
 - W&B settings
@@ -193,6 +220,7 @@ Requirements:
 - use the original CTI prompt
 - request reasoning plus a final answer in the verifier-compatible format
 - do not use answer-conditioned prompting
+- separately expose the existing ACR answer-guided block for `v2` fill generation only
 
 Suggested file:
 
@@ -221,6 +249,8 @@ Artifacts should record:
 - response text
 - generation config
 
+For the fill stage, the same runner should also support answer-guided generation using the existing Minerva ACR prompt block.
+
 ### Step 4. Add verifier scoring
 
 Create an offline scorer that:
@@ -235,9 +265,9 @@ Suggested file:
 
 - `dart/score.py`
 
-### Step 5. Add bounded queue-based sampler
+### Step 5. Add bounded Uniform collector
 
-Implement the queue logic for accepted-trace collection.
+Implement the queue logic for accepted-trace collection for `v1`.
 
 Uniform mode:
 
@@ -250,41 +280,32 @@ Uniform mode:
   - `accepted >= 2`, or
   - `attempts >= B_max`
 
-Prop2Diff mode:
-
-- use the same loop
-- but with per-question targets and/or budgets derived from difficulty
-
 Suggested file:
 
 - `dart/collect.py`
 
-This should be the core of the DART pipeline.
+This should be the core of the `v1` pipeline.
 
-### Step 6. Add difficulty estimation for Prop2Diff
+### Step 6. Add guided fill collector for `v2`
 
-Implement a difficulty-estimation pass.
+Implement a second pass that fills only missing accepted traces.
 
-Possible approach:
+Rules:
 
-- run a small probe generation budget per question
-- compute estimated teacher success probability
-- derive difficulty as:
-  - lower success probability = higher difficulty
-
-Then map difficulty to:
-
-- target accepted count `k_i`, or
-- max attempts `B_i`, or
-- both
+- input is the `v1` accepted-trace state
+- identify questions with `accepted < 2`
+- generate only the missing number of traces
+- use the exact same answer-guided ACR prompt block already used in Minerva
+- keep generating guided traces until each question reaches exactly 2 accepted traces
+- record fill-stage metadata separately from plain-stage metadata
 
 Suggested file:
 
-- `dart/difficulty.py`
+- `dart/fill.py`
 
 ### Step 7. Add accepted-trace dataset builder
 
-Build the accepted traces into one fixed SFT parquet that will be reused for all target student models.
+Build the accepted traces into fixed SFT parquets that will be reused for all target student models.
 
 Suggested file:
 
@@ -298,9 +319,21 @@ Expected contents:
 - metadata:
   - uid
   - source question
-  - mode
+  - dataset version
+  - trace source:
+    - `plain`
+    - `guided_fill`
   - attempt count
   - teacher model
+
+Expected outputs:
+
+- `dart_train_v1.parquet`
+- `dart_train_v2.parquet`
+- `dart_val_minerva_v1.parquet`
+- `dart_val_athena_v1.parquet`
+- `dart_val_minerva_v2.parquet`
+- `dart_val_athena_v2.parquet`
 
 ### Step 8. Add SFT training wrapper
 
@@ -313,7 +346,11 @@ Suggested file:
 Requirements:
 
 - standard full fine-tuning
-- same validation target as Minerva RL checkpoint selection
+- validate every 10 training steps
+- use synthetic DART validation trace datasets, not online reward evaluation
+- select the best checkpoint by the mean validation loss across:
+  - Minerva dev synthetic validation set
+  - Athena bench synthetic validation set
 - W&B enabled
 - save final student checkpoint
 
@@ -356,20 +393,21 @@ The teacher-side controller should:
 
 1. Load config.
 2. Load train parquet.
-3. Run teacher candidate generation with bounded rejection tuning.
+3. Run teacher candidate generation for plain original-prompt rejection tuning.
 4. Score all candidates.
-5. Collect accepted traces according to:
-   - Uniform, or
-   - Prop2Diff
-6. Build one fixed DART SFT parquet.
-7. Save dataset-level summaries and coverage statistics.
+5. Collect accepted traces for `v1` with `k_u = 2` and `B_max = 100`.
+6. Build `v1`.
+7. Optionally run guided fill to build `v2`.
+8. Build synthetic validation trace datasets for Minerva dev and Athena bench.
+9. Save dataset-level summaries and coverage statistics.
 
 Then the student-side driver should:
 
-1. Load the fixed DART dataset.
+1. Load a fixed DART dataset variant.
 2. Train each target student model on that same dataset.
-3. Evaluate each trained model.
-4. Save per-model summaries.
+3. Select the checkpoint by mean validation loss on the two synthetic validation datasets.
+4. Evaluate the selected checkpoint on the RL-matched final evaluation target.
+5. Save per-model summaries.
 
 ## Metrics to log
 
@@ -378,13 +416,19 @@ At minimum log:
 - total teacher samples generated
 - accepted traces total
 - accepted traces per question
+- coverage after the plain stage
+- coverage after the guided fill stage
 - fraction of questions with:
   - 0 accepted traces
   - 1 accepted trace
   - 2 accepted traces
-  - more than 2 if Prop2Diff allows it
 - average attempts per question
 - attempts distribution
+- plain-stage accepted traces
+- guided-fill accepted traces
+- mean validation loss on synthetic Minerva dev
+- mean validation loss on synthetic Athena bench
+- mean of the two synthetic validation losses
 - Minerva dev score
 - Athena bench score
 - RL global validation score
@@ -393,17 +437,18 @@ At minimum log:
 
 Implement in this order:
 
-1. Uniform DART-CTI
-2. Fixed DART dataset build and dataset-level reporting
-3. Student training for the four Minerva baseline models
-4. Full evaluation and logging
-5. Prop2Diff DART-CTI
+1. Uniform `v1` DART-CTI
+2. Fixed `v1` dataset build and dataset-level reporting
+3. Uniform `v2` guided-fill dataset build
+4. Student training for the four Minerva baseline models
+5. Full evaluation and logging
 
 Reason:
 
 - Uniform is simpler and cleaner
-- it provides a direct first comparison against STaR and plain SFT
-- Prop2Diff can then be added as the stronger DART variant
+- `v1` provides the plain DART-style baseline
+- `v2` provides a separate completed-coverage variant
+- both provide direct comparisons against STaR and plain SFT
 
 ## Open decisions to confirm before implementation
 
@@ -417,20 +462,23 @@ The following should be confirmed before coding:
      - Llama 8B
      - Qwen 4B
      - Qwen 8B
-3. Uniform cap:
-   - use `B_max = 50` or `B_max = 100`?
-4. Prop2Diff allocation:
-   - scale accepted-trace targets, attempt budgets, or both?
-5. Total target dataset size:
+3. Validation trace construction:
+   - use one held-out synthetic Minerva dev set and one held-out synthetic Athena bench set?
+4. Total target dataset size:
    - keep approximately `64k` accepted traces for the first Uniform run?
 
 ## Non-goals for the first version
 
 Do not add these in the first implementation:
 
-- answer-conditioned rescue prompting
+- Prop2Diff
 - DPO or PPO updates
 - mixed-method hybrid baselines
 - retrieval augmentation
 
-First make the core DART-CTI rejection-tuning baseline correct and auditable.
+For the first version:
+
+- `v1` should be the main plain DART-style baseline
+- `v2` may use answer-guided fill, but only as a separate variant built after `v1`
+
+First make the core DART-CTI baseline correct and auditable.

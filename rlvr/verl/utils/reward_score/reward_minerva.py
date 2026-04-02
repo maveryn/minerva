@@ -511,13 +511,13 @@ def reward_minerva(data_source: str, solution_str: str, ground_truth, extra_info
                         pred = matches[0].strip() if len(matches) == 1 else ""
                 return finalize(fn(pred, truth_val, None))
             if data_source == "reward_capec_id":
-                match = re.search(r"CAPEC-\\d+", pred or "", re.IGNORECASE) if pred else None
+                match = re.search(r"CAPEC-\d+", pred or "", re.IGNORECASE) if pred else None
                 if not match and solution_str and allow_fallback:
-                    match = re.search(r"CAPEC-\\d+", solution_str, re.IGNORECASE)
+                    match = re.search(r"CAPEC-\d+", solution_str, re.IGNORECASE)
                 if not match and solution_str and not allow_fallback:
                     answer_line = _extract_answer_line(solution_str)
-                    matches = re.findall(r"CAPEC-\\d+", answer_line or "", re.IGNORECASE)
-                    match = re.search(r"CAPEC-\\d+", answer_line, re.IGNORECASE) if len(matches) == 1 else None
+                    matches = re.findall(r"CAPEC-\d+", answer_line or "", re.IGNORECASE)
+                    match = re.search(r"CAPEC-\d+", answer_line, re.IGNORECASE) if len(matches) == 1 else None
                 if not match and not allow_fallback:
                     pred_val = ""
                 else:
