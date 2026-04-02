@@ -76,6 +76,8 @@ bootstrapping and supervised fine-tuning."
   Main comparison protocol, metrics, and reporting rules
 - `star/RESULTS.md`
   Completed run summaries from `star-artifacts/`
+- `star/PAPER_EXPERIMENT_DETAILS.md`
+  Full implementation and reproducibility notes for paper write-up
 - future:
   - generation scripts
   - rationalization-prompt builder

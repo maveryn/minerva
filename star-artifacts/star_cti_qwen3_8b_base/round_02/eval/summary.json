@@ -1,0 +1,198 @@
+{
+  "model_path": "star-artifacts/star_cti_qwen3_8b_base/round_02/checkpoint/hf_model",
+  "round_id": 2,
+  "global_mean_score": 0.288384705954375,
+  "rl_minerva_dev_mean_score": 0.19041814560327633,
+  "rl_athena_bench_mean_score": 0.28190371032476297,
+  "rl_global_val_mean_score": 0.23616092796401966,
+  "count": 2150,
+  "per_dataset": {
+    "minerva_base_dev": {
+      "path": "rlvr/mydata/minerva_base/minerva_base_dev.parquet",
+      "count": 1200,
+      "mean_score": 0.19041814560327633,
+      "per_data_source": {
+        "reward_capec_id": {
+          "count": 40,
+          "mean_score": 0.0
+        },
+        "reward_cvss_v31": {
+          "count": 100,
+          "mean_score": 0.17850000000000002
+        },
+        "reward_cwe_ids": {
+          "count": 240,
+          "mean_score": 0.24416666666666667
+        },
+        "reward_mitigation_ids": {
+          "count": 220,
+          "mean_score": 0.06911075036075036
+        },
+        "reward_tactic_ids": {
+          "count": 100,
+          "mean_score": 0.15847409644566524
+        },
+        "reward_technique_detection_art": {
+          "count": 50,
+          "mean_score": 0.25
+        },
+        "reward_technique_detection_sentinel": {
+          "count": 50,
+          "mean_score": 0.14
+        },
+        "reward_technique_detection_sigma": {
+          "count": 50,
+          "mean_score": 0.16
+        },
+        "reward_technique_detection_splunk": {
+          "count": 20,
+          "mean_score": 0.125
+        },
+        "reward_technique_id": {
+          "count": 270,
+          "mean_score": 0.3333333333333333
+        },
+        "reward_threat_actor_name": {
+          "count": 60,
+          "mean_score": 0.016666666666666666
+        }
+      }
+    },
+    "athena_cti_ate": {
+      "path": "rlvr/mydata/athena/athena_cti_ate.parquet",
+      "count": 100,
+      "mean_score": 0.17,
+      "per_data_source": {
+        "athena-cti-ate": {
+          "count": 100,
+          "mean_score": 0.17
+        }
+      }
+    },
+    "athena_cti_ckt": {
+      "path": "rlvr/mydata/athena/athena_cti_ckt.parquet",
+      "count": 300,
+      "mean_score": 0.73,
+      "per_data_source": {
+        "athena-cti-ckt": {
+          "count": 300,
+          "mean_score": 0.73
+        }
+      }
+    },
+    "athena_cti_rcm": {
+      "path": "rlvr/mydata/athena/athena_cti_rcm.parquet",
+      "count": 200,
+      "mean_score": 0.36,
+      "per_data_source": {
+        "athena-cti-rcm": {
+          "count": 200,
+          "mean_score": 0.36
+        }
+      }
+    },
+    "athena_cti_rms": {
+      "path": "rlvr/mydata/athena/athena_cti_rms.parquet",
+      "count": 100,
+      "mean_score": 0.027591093117408906,
+      "per_data_source": {
+        "athena-cti-rms": {
+          "count": 100,
+          "mean_score": 0.027591093117408906
+        }
+      }
+    },
+    "athena_cti_taa": {
+      "path": "rlvr/mydata/athena/athena_cti_taa.parquet",
+      "count": 50,
+      "mean_score": 0.0,
+      "per_data_source": {
+        "athena-cti-taa": {
+          "count": 50,
+          "mean_score": 0.0
+        }
+      }
+    },
+    "athena_cti_vsp": {
+      "path": "rlvr/mydata/athena/athena_cti_vsp.parquet",
+      "count": 200,
+      "mean_score": 0.40383116883116876,
+      "per_data_source": {
+        "athena-cti-vsp": {
+          "count": 200,
+          "mean_score": 0.40383116883116876
+        }
+      }
+    }
+  },
+  "per_data_source": {
+    "athena-cti-ate": {
+      "count": 100,
+      "mean_score": 0.17
+    },
+    "athena-cti-ckt": {
+      "count": 300,
+      "mean_score": 0.73
+    },
+    "athena-cti-rcm": {
+      "count": 200,
+      "mean_score": 0.36
+    },
+    "athena-cti-rms": {
+      "count": 100,
+      "mean_score": 0.027591093117408906
+    },
+    "athena-cti-taa": {
+      "count": 50,
+      "mean_score": 0.0
+    },
+    "athena-cti-vsp": {
+      "count": 200,
+      "mean_score": 0.40383116883116876
+    },
+    "reward_capec_id": {
+      "count": 40,
+      "mean_score": 0.0
+    },
+    "reward_cvss_v31": {
+      "count": 100,
+      "mean_score": 0.17850000000000002
+    },
+    "reward_cwe_ids": {
+      "count": 240,
+      "mean_score": 0.24416666666666667
+    },
+    "reward_mitigation_ids": {
+      "count": 220,
+      "mean_score": 0.06911075036075036
+    },
+    "reward_tactic_ids": {
+      "count": 100,
+      "mean_score": 0.15847409644566524
+    },
+    "reward_technique_detection_art": {
+      "count": 50,
+      "mean_score": 0.25
+    },
+    "reward_technique_detection_sentinel": {
+      "count": 50,
+      "mean_score": 0.14
+    },
+    "reward_technique_detection_sigma": {
+      "count": 50,
+      "mean_score": 0.16
+    },
+    "reward_technique_detection_splunk": {
+      "count": 20,
+      "mean_score": 0.125
+    },
+    "reward_technique_id": {
+      "count": 270,
+      "mean_score": 0.3333333333333333
+    },
+    "reward_threat_actor_name": {
+      "count": 60,
+      "mean_score": 0.016666666666666666
+    }
+  }
+}
