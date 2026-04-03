@@ -2,22 +2,48 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_VENV_PY="$ROOT_DIR/../.venv-luffy/bin/python"
 
-supports_sm120() {
+supports_visible_gpu_arch() {
   local py_bin="$1"
   "$py_bin" - <<'PY' >/dev/null 2>&1
 import torch
+if not torch.cuda.is_available():
+    raise SystemExit(1)
+major, minor = torch.cuda.get_device_capability(0)
+target = f"sm_{major}{minor}"
 archs = set(torch.cuda.get_arch_list())
-raise SystemExit(0 if "sm_120" in archs else 1)
+raise SystemExit(0 if target in archs else 1)
 PY
 }
 
-PYTHON_BIN="${PYTHON_BIN:-$(command -v python3 || command -v python)}"
-if ! supports_sm120 "$PYTHON_BIN"; then
-  if supports_sm120 /opt/conda/bin/python; then
+detect_attention_backend() {
+  local py_bin="$1"
+  "$py_bin" - <<'PY'
+import torch
+if not torch.cuda.is_available():
+    print("FLASH_ATTN")
+    raise SystemExit(0)
+major, _ = torch.cuda.get_device_capability(0)
+print("XFORMERS" if major < 9 else "FLASH_ATTN")
+PY
+}
+
+if [ -z "${PYTHON_BIN:-}" ]; then
+  if [ -x "$REPO_VENV_PY" ]; then
+    PYTHON_BIN="$REPO_VENV_PY"
+  else
+    PYTHON_BIN="$(command -v python3 || command -v python)"
+  fi
+fi
+
+if ! supports_visible_gpu_arch "$PYTHON_BIN"; then
+  if [ -x "$REPO_VENV_PY" ] && supports_visible_gpu_arch "$REPO_VENV_PY"; then
+    PYTHON_BIN="$REPO_VENV_PY"
+  elif [ -x /opt/conda/bin/python ] && supports_visible_gpu_arch /opt/conda/bin/python; then
     PYTHON_BIN="/opt/conda/bin/python"
   else
-    echo "No compatible Python/PyTorch runtime with sm_120 support was found." >&2
+    echo "No compatible Python/PyTorch runtime was found for the visible GPU architecture." >&2
     exit 1
   fi
 fi
@@ -28,7 +54,7 @@ DATA_DIR="${MINERVA_DATA_DIR:-$ROOT_DIR/data}"
 
 export no_proxy="127.0.0.1,localhost"
 export NO_PROXY="127.0.0.1,localhost"
-export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-FLASH_ATTN}"
+export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-$(detect_attention_backend "$PYTHON_BIN")}"
 export PYTHONPATH="$ROOT_DIR/luffy:$ROOT_DIR/luffy/verl${PYTHONPATH:+:$PYTHONPATH}"
 
 MODEL_PATH="${MINERVA_MODEL_PATH:-meta-llama/Llama-3.2-3B-Instruct}"

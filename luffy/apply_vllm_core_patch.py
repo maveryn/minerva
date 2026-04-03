@@ -10,9 +10,16 @@ def main() -> None:
     if not source.exists():
         raise FileNotFoundError(f"Missing source patch file: {source}")
 
+    import importlib.metadata as md
     import vllm  # noqa: F401
 
-    import vllm.v1.engine.core as core_mod
+    try:
+        import vllm.v1.engine.core as core_mod
+    except ModuleNotFoundError as exc:
+        if exc.name == "vllm.v1" or exc.name.startswith("vllm.v1."):
+            print(f"Skipping vLLM core patch for vllm=={md.version('vllm')} (no v1 engine module)")
+            return
+        raise
 
     target = Path(core_mod.__file__).resolve()
     backup = target.with_suffix(target.suffix + ".bak")
