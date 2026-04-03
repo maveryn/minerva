@@ -1,0 +1,68 @@
+{
+  "minerva_base_train.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/minerva_base/minerva_base_train.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/minerva_base_train.parquet",
+    "size_bytes": 7419258,
+    "action": "copied"
+  },
+  "minerva_base_dev.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/minerva_base/minerva_base_dev.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/minerva_base_dev.parquet",
+    "size_bytes": 359144,
+    "action": "copied"
+  },
+  "threat_actor_lookup.json": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/minerva_base/threat_actor_lookup.json",
+    "destination": "/home/jovyan/work/LUFFY/data/threat_actor_lookup.json",
+    "size_bytes": 43165,
+    "action": "copied"
+  },
+  "athena_cti_ate.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/athena/athena_cti_ate.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/athena_cti_ate.parquet",
+    "size_bytes": 70624,
+    "action": "copied"
+  },
+  "athena_cti_ckt.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/athena/athena_cti_ckt.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/athena_cti_ckt.parquet",
+    "size_bytes": 254930,
+    "action": "copied"
+  },
+  "athena_cti_rcm.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/athena/athena_cti_rcm.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/athena_cti_rcm.parquet",
+    "size_bytes": 113488,
+    "action": "copied"
+  },
+  "athena_cti_rms.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/athena/athena_cti_rms.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/athena_cti_rms.parquet",
+    "size_bytes": 71035,
+    "action": "copied"
+  },
+  "athena_cti_taa.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/athena/athena_cti_taa.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/athena_cti_taa.parquet",
+    "size_bytes": 147934,
+    "action": "copied"
+  },
+  "athena_cti_vsp.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/athena/athena_cti_vsp.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/athena_cti_vsp.parquet",
+    "size_bytes": 157571,
+    "action": "copied"
+  },
+  "seceval_mini.parquet": {
+    "source": "/home/jovyan/work/minerva/rlvr/mydata/seceval/seceval_mini.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/seceval_mini.parquet",
+    "size_bytes": 391715,
+    "action": "copied"
+  },
+  "minerva_train_dart32k_offpolicy.parquet": {
+    "source": "/home/jovyan/work/LUFFY/data/minerva_train_dart32k_offpolicy.parquet",
+    "destination": "/home/jovyan/work/LUFFY/data/minerva_train_dart32k_offpolicy.parquet",
+    "size_bytes": 35180061,
+    "action": "present"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "seed": 20260402,
+  "base_train_path": "/home/jovyan/work/minerva/rlvr/mydata/minerva_base/minerva_base_train.parquet",
+  "stage_paths": {
+    "stage1_plain": "/home/jovyan/work/minerva/dart-artifacts/dart_cti_llama8b/datasets/train/accepted_v1.jsonl",
+    "stage2_guided_filtered": "/home/jovyan/work/minerva/dart-artifacts/dart_cti_llama8b/datasets/train/accepted_llama8b_v2_cap32_seed.jsonl",
+    "stage3_guided_verifier_only": "/home/jovyan/work/minerva/dart-artifacts/dart_cti_llama8b/datasets/train/accepted_llama8b_v3_cap200_seed.jsonl",
+    "stage4_direct_fill": "/home/jovyan/work/minerva/dart-artifacts/dart_cti_llama8b/datasets/train/accepted_v2_from_llama8b_direct_from_v3_cap200_seed.jsonl"
+  },
+  "output_path": "/home/jovyan/work/LUFFY/data/minerva_train_dart32k_offpolicy.parquet",
+  "total_rows": 32000,
+  "unique_uids": 32000,
+  "stage_counts": {
+    "stage2_guided_filtered": 19215,
+    "stage1_plain": 9820,
+    "stage3_guided_verifier_only": 2955,
+    "stage4_direct_fill": 10
+  },
+  "trace_source_counts": {
+    "guided_fill": 22170,
+    "plain": 9820,
+    "direct_answer_gold": 10
+  },
+  "candidate_count_distribution": {
+    "1": 5067,
+    "2": 26933
+  },
+  "prompt_alignment_checks": 32000,
+  "stage_uid_coverage": {
+    "stage1_plain": 9820,
+    "stage2_guided_filtered_only": 19215,
+    "stage3_guided_verifier_only": 2955,
+    "stage4_direct_fill_only": 10
+  }
+}
