@@ -6,13 +6,54 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_DIR="$ROOT_DIR/mydata"
 
+# Resolve the in-repo verl package without requiring an editable install.
+export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+
 # Avoid wandb service teardown failures in some environments.
 export WANDB_START_METHOD=thread
 export WANDB_DISABLE_SERVICE=true
 export PYTHONUNBUFFERED=1
 
-MODEL_PATH="${GRPO_MODEL_PATH:-meta-llama/Llama-3.2-3B-Instruct}"
-MODEL_NAME="$(basename "$MODEL_PATH")"
+resolve_hf_snapshot_path() {
+  local model_ref="$1"
+  local hf_cache_root repo_cache_dir snapshot ref_name ref_path
+
+  if [ -z "$model_ref" ] || [ -d "$model_ref" ] || [[ "$model_ref" != */* ]]; then
+    printf '%s' "$model_ref"
+    return
+  fi
+
+  hf_cache_root="${HF_HOME:-$HOME/.cache/huggingface}"
+  repo_cache_dir="$hf_cache_root/hub/models--${model_ref//\//--}"
+  snapshot=""
+
+  for ref_name in main master; do
+    ref_path="$repo_cache_dir/refs/$ref_name"
+    if [ -f "$ref_path" ]; then
+      snapshot="$repo_cache_dir/snapshots/$(tr -d '\r\n' < "$ref_path")"
+      if [ -d "$snapshot" ]; then
+        printf '%s' "$snapshot"
+        return
+      fi
+    fi
+  done
+
+  if [ -d "$repo_cache_dir/snapshots" ]; then
+    snapshot="$(find "$repo_cache_dir/snapshots" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
+    if [ -n "$snapshot" ]; then
+      printf '%s' "$snapshot"
+      return
+    fi
+  fi
+
+  printf '%s' "$model_ref"
+}
+
+MODEL_SOURCE="${GRPO_MODEL_PATH:-meta-llama/Llama-3.2-3B-Instruct}"
+TOKENIZER_SOURCE="${GRPO_TOKENIZER_PATH:-$MODEL_SOURCE}"
+MODEL_PATH="$(resolve_hf_snapshot_path "$MODEL_SOURCE")"
+TOKENIZER_PATH="$(resolve_hf_snapshot_path "$TOKENIZER_SOURCE")"
+MODEL_NAME="$(basename "$MODEL_SOURCE")"
 MODEL_SLUG="$(printf "%s" "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_' | sed 's/^_//;s/_$//')"
 if [ -z "$MODEL_SLUG" ]; then
   MODEL_SLUG="model"
@@ -73,6 +114,7 @@ python3 -m verl.trainer.main_ppo \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
     actor_rollout_ref.model.path="$MODEL_PATH" \
+    +actor_rollout_ref.model.tokenizer_path="$TOKENIZER_PATH" \
     actor_rollout_ref.actor.optim.lr="$ACTOR_LR" \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size="$TRAIN_BATCH_SIZE" \

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from importlib.metadata import PackageNotFoundError, version
+import warnings
 
 from packaging import version as vs
 
@@ -38,18 +39,18 @@ if package_version is None:
             f"vllm version {package_version} not supported and SGLang also not Found. Currently supported "
             f"vllm versions are 0.7.0+"
         )
-elif vs.parse(package_version) >= vs.parse("0.7.0"):
+elif vs.parse(package_version) >= vs.parse("0.5.4"):
     vllm_version = package_version
     if vs.parse(package_version) >= vs.parse("0.8.5"):
         VLLM_SLEEP_LEVEL = 2
+    elif vs.parse(package_version) < vs.parse("0.7.0"):
+        warnings.warn(
+            f"Running with older vLLM {package_version}. Some newer rollout features will be disabled.",
+            stacklevel=1,
+        )
     from vllm import LLM
     from vllm.distributed import parallel_state
 else:
-    if vs.parse(package_version) in [vs.parse("0.5.4"), vs.parse("0.6.3")]:
-        raise ValueError(
-            f"vLLM version {package_version} support has been removed. vLLM 0.5.4 and 0.6.3 are no longer "
-            f"supported. Please use vLLM 0.7.0 or later."
-        )
     if not is_sglang_available():
         raise ValueError(
             f"vllm version {package_version} not supported and SGLang also not Found. Currently supported "

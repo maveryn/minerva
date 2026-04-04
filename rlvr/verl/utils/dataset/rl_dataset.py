@@ -19,7 +19,7 @@ import copy
 import logging
 import os
 import re
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from typing import Optional
 
 import datasets
@@ -135,12 +135,63 @@ class RLHFDataset(Dataset):
             # read parquet files and cache
             dataframe = datasets.load_dataset("parquet", data_files=parquet_file)["train"]
             dataframes.append(dataframe)
+        dataframes = self._normalize_struct_features(dataframes)
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
 
         print(f"dataset len: {len(self.dataframe)}")
 
         self.dataframe = self._maybe_exclude_cvss_train(self.dataframe)
         self.dataframe = self.maybe_filter_out_long_prompts(self.dataframe)
+
+    def _normalize_struct_features(self, dataframes: list[datasets.Dataset]) -> list[datasets.Dataset]:
+        if len(dataframes) <= 1:
+            return dataframes
+
+        union_struct_features: OrderedDict[str, OrderedDict[str, object]] = OrderedDict()
+        for dataframe in dataframes:
+            for column_name, feature in dataframe.features.items():
+                if not isinstance(feature, dict):
+                    continue
+                union_fields = union_struct_features.setdefault(column_name, OrderedDict())
+                for field_name, field_feature in feature.items():
+                    union_fields.setdefault(field_name, field_feature)
+
+        if not union_struct_features:
+            return dataframes
+
+        normalized = []
+        for dataframe in dataframes:
+            normalize_columns: dict[str, list[str]] = {}
+            target_features = datasets.Features(dict(dataframe.features))
+
+            for column_name, union_fields in union_struct_features.items():
+                feature = dataframe.features.get(column_name)
+                if not isinstance(feature, dict):
+                    continue
+                if list(feature.keys()) == list(union_fields.keys()):
+                    continue
+                normalize_columns[column_name] = list(union_fields.keys())
+                target_features[column_name] = datasets.Features(dict(union_fields))
+
+            if not normalize_columns:
+                normalized.append(dataframe)
+                continue
+
+            def normalize_example(example, normalize_columns=normalize_columns):
+                for column_name, field_names in normalize_columns.items():
+                    struct_value = example.get(column_name) or {}
+                    example[column_name] = {field_name: struct_value.get(field_name, None) for field_name in field_names}
+                return example
+
+            dataframe = dataframe.map(
+                normalize_example,
+                features=target_features,
+                load_from_cache_file=False,
+                desc="Normalizing struct features for dataset concatenation",
+            )
+            normalized.append(dataframe)
+
+        return normalized
 
     def _should_exclude_cvss_train(self) -> bool:
         return bool(self.config.get("exclude_cvss_train", False)) and bool(self.config.get("is_train", False))

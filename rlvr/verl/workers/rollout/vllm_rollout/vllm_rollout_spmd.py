@@ -29,11 +29,13 @@ When working with Megatron:
 
 import asyncio
 import getpass
+import inspect
 import logging
 import os
 import pickle
 import socket
 from contextlib import contextmanager
+from importlib.metadata import PackageNotFoundError, version
 from types import MethodType
 from typing import Any
 
@@ -45,9 +47,15 @@ import zmq
 import zmq.asyncio
 from filelock import FileLock
 from omegaconf import DictConfig, ListConfig
+from packaging import version as package_version
 from tensordict import TensorDict
 from vllm import LLM, SamplingParams
-from vllm.config import CompilationConfig, CompilationLevel
+from vllm.engine.arg_utils import EngineArgs
+try:
+    from vllm.config import CompilationConfig, CompilationLevel
+except ImportError:
+    CompilationConfig = None
+    CompilationLevel = None
 from vllm.distributed import parallel_state as vllm_ps
 from vllm.lora.request import LoRARequest
 from vllm.model_executor.sampling_metadata import SamplingMetadata
@@ -68,6 +76,48 @@ logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 # 1. support pp in vllm
 # 2. passing tokenizer is not necessary? no encoding/decoding is happending here
 # 3. simplify init logics
+
+
+def _build_compilation_kwargs(config: RolloutConfig) -> dict[str, Any]:
+    compilation_kwargs = {}
+    cudagraph_capture_sizes = config.get("cudagraph_capture_sizes")
+    # enforce_eager must be False to use cudagraph
+    if not config.enforce_eager and cudagraph_capture_sizes:
+        if not isinstance(cudagraph_capture_sizes, ListConfig):
+            logger.warning(f"cudagraph_capture_sizes must be a list, but got {cudagraph_capture_sizes}")
+        elif CompilationConfig is None or CompilationLevel is None:
+            logger.warning("Installed vLLM does not expose CompilationConfig; skipping cudagraph capture settings.")
+        else:
+            compilation_kwargs["compilation_config"] = CompilationConfig(
+                level=CompilationLevel.PIECEWISE, cudagraph_capture_sizes=cudagraph_capture_sizes
+            )
+
+    return compilation_kwargs
+
+
+def _filter_llm_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
+    llm_params = inspect.signature(LLM.__init__).parameters
+    engine_args_params = inspect.signature(EngineArgs.__init__).parameters
+    allowed_kwargs = {
+        key: value
+        for key, value in kwargs.items()
+        if key in llm_params or key in engine_args_params
+    }
+    dropped_kwargs = sorted(set(kwargs) - set(allowed_kwargs))
+    if dropped_kwargs:
+        logger.warning(f"Skipping unsupported vLLM init kwargs for this version: {', '.join(dropped_kwargs)}")
+    return allowed_kwargs
+
+
+def _supports_engine_sleep(engine: Any) -> bool:
+    return hasattr(engine, "sleep") and hasattr(engine, "wake_up")
+
+
+def _supports_external_launcher_backend() -> bool:
+    try:
+        return package_version.parse(version("vllm")) >= package_version.parse("0.7.0")
+    except PackageNotFoundError:
+        return False
 
 
 # NOTE(sgm): add for verl. We can optimize it by making the dataloader yield List[int] without padding.
@@ -165,23 +215,22 @@ class vLLMRollout(BaseRollout):
         if config.get("limit_images", None):  # support for multi-image data
             engine_kwargs["limit_mm_per_prompt"] = {"image": config.get("limit_images")}
 
-        compilation_config = {}
+        compilation_config = _build_compilation_kwargs(config)
 
-        cudagraph_capture_sizes = config.get("cudagraph_capture_sizes")
-        # enforce_eager must be False to use cudagraph
-        if not config.enforce_eager and cudagraph_capture_sizes:
-            if isinstance(cudagraph_capture_sizes, ListConfig):
-                compilation_config["compilation_config"] = CompilationConfig(
-                    level=CompilationLevel.PIECEWISE, cudagraph_capture_sizes=cudagraph_capture_sizes
+        distributed_executor_backend = "external_launcher"
+        if not _supports_external_launcher_backend():
+            if tensor_parallel_size > 1:
+                raise RuntimeError(
+                    "Installed vLLM does not support external_launcher with tensor parallelism. "
+                    "Use vLLM >= 0.7.0 or keep tensor_model_parallel_size=1."
                 )
-            else:
-                logger.warning(f"cudagraph_capture_sizes must be a list, but got {cudagraph_capture_sizes}")
+            distributed_executor_backend = None
 
-        self.inference_engine = LLM(
+        llm_kwargs = dict(
             model=model_path,
             enable_sleep_mode=config.free_cache_engine,
             tensor_parallel_size=tensor_parallel_size,
-            distributed_executor_backend="external_launcher",
+            distributed_executor_backend=distributed_executor_backend,
             dtype=config.dtype,
             enforce_eager=config.enforce_eager,
             gpu_memory_utilization=config.gpu_memory_utilization,
@@ -200,10 +249,13 @@ class vLLMRollout(BaseRollout):
             **lora_kwargs,
             **engine_kwargs,
         )
+        self.inference_engine = LLM(**_filter_llm_kwargs(llm_kwargs))
 
         # Offload vllm model to reduce peak memory usage
-        if config.free_cache_engine:
+        if config.free_cache_engine and _supports_engine_sleep(self.inference_engine):
             self.inference_engine.sleep(level=VLLM_SLEEP_LEVEL)
+        elif config.free_cache_engine:
+            logger.warning("Installed vLLM does not expose sleep/wake APIs; disabling rollout engine cache offload.")
 
         kwargs = dict(
             n=1,

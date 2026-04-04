@@ -24,7 +24,11 @@ from omegaconf import DictConfig, ListConfig
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 from vllm import SamplingParams
-from vllm.config import CompilationConfig, CompilationLevel
+try:
+    from vllm.config import CompilationConfig, CompilationLevel
+except ImportError:
+    CompilationConfig = None
+    CompilationLevel = None
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.entrypoints.logger import RequestLogger
 from vllm.entrypoints.openai.protocol import ChatCompletionRequest, ChatCompletionResponse, ErrorResponse
@@ -42,6 +46,23 @@ from verl.utils.fs import copy_to_local
 from verl.workers.rollout.async_server import AsyncServerBase, TokenOutput
 
 logger = logging.getLogger(__file__)
+
+
+def _build_compilation_kwargs(config: DictConfig) -> dict[str, Any]:
+    compilation_kwargs = {}
+    cudagraph_capture_sizes = config.get("cudagraph_capture_sizes")
+    # enforce_eager must be False to use cudagraph
+    if not config.enforce_eager and cudagraph_capture_sizes:
+        if not isinstance(cudagraph_capture_sizes, ListConfig):
+            logger.warning(f"cudagraph_capture_sizes must be a list, but got {cudagraph_capture_sizes}")
+        elif CompilationConfig is None or CompilationLevel is None:
+            logger.warning("Installed vLLM does not expose CompilationConfig; skipping cudagraph capture settings.")
+        else:
+            compilation_kwargs["compilation_config"] = CompilationConfig(
+                level=CompilationLevel.PIECEWISE, cudagraph_capture_sizes=cudagraph_capture_sizes
+            )
+
+    return compilation_kwargs
 
 
 def _get_model_runner_workers(vllm_config, init_ray: bool = True):
@@ -246,17 +267,7 @@ class AsyncvLLMServer(AsyncServerBase):
         else:
             distributed_executor_backend = None
 
-        compilation_config = {}
-
-        cudagraph_capture_sizes = config.get("cudagraph_capture_sizes")
-        # enforce_eager must be False to use cudagraph
-        if not config.enforce_eager and cudagraph_capture_sizes:
-            if isinstance(cudagraph_capture_sizes, ListConfig):
-                compilation_config["compilation_config"] = CompilationConfig(
-                    level=CompilationLevel.PIECEWISE, cudagraph_capture_sizes=cudagraph_capture_sizes
-                )
-            else:
-                logger.warning(f"cudagraph_capture_sizes must be a list, but got {cudagraph_capture_sizes}")
+        compilation_config = _build_compilation_kwargs(config)
 
         engine_kwargs = config.get("engine_kwargs", {}).get("vllm", {}) or {}
 

@@ -33,6 +33,8 @@ from verl import DataProto
 from verl.models.transformers.monkey_patch import apply_monkey_patch
 from verl.utils import hf_processor, hf_tokenizer
 from verl.utils.activation_offload import enable_activation_offloading
+from verl.utils.attention import resolve_attn_implementation
+from verl.utils.bert_padding import index_first_axis, pad_input, rearrange, unpad_input
 from verl.utils.checkpoint.fsdp_checkpoint_manager import FSDPCheckpointManager
 from verl.utils.debug import log_gpu_memory_usage
 from verl.utils.device import (
@@ -64,11 +66,6 @@ from verl.utils.py_functional import append_to_dict, convert_to_regular_types
 from verl.utils.seqlen_balancing import get_reverse_idx, rearrange_micro_batches
 from verl.utils.ulysses import gather_outputs_and_unpad, ulysses_pad_and_slice_inputs
 from verl.workers.sharding_manager.fsdp_ulysses import FSDPUlyssesShardingManager
-
-if is_cuda_available:
-    from flash_attn.bert_padding import index_first_axis, pad_input, rearrange, unpad_input
-elif is_npu_available:
-    from transformers.integrations.npu_flash_attention import index_first_axis, pad_input, rearrange, unpad_input
 
 from ..base import BaseEngine, EngineRegistry
 from .utils import create_device_mesh, get_sharding_strategy
@@ -213,7 +210,7 @@ class FSDPEngine(BaseEngine):
 
         model_config = AutoConfig.from_pretrained(
             local_path,
-            attn_implementation="flash_attention_2",
+            attn_implementation=resolve_attn_implementation("flash_attention_2"),
             trust_remote_code=config.model.get("trust_remote_code", False),
         )
         model_config.num_labels = 1

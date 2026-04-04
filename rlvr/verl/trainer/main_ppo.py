@@ -255,14 +255,25 @@ class TaskRunner:
         local_path = copy_to_local(
             config.actor_rollout_ref.model.path, use_shm=config.actor_rollout_ref.model.get("use_shm", False)
         )
+        tokenizer_source = config.actor_rollout_ref.model.get("tokenizer_path", config.actor_rollout_ref.model.path)
+        local_tokenizer_path = copy_to_local(
+            tokenizer_source, use_shm=config.actor_rollout_ref.model.get("use_shm", False)
+        )
 
         # Instantiate the tokenizer and processor.
         from verl.utils import hf_processor, hf_tokenizer
 
         trust_remote_code = config.data.get("trust_remote_code", False)
-        tokenizer = hf_tokenizer(local_path, trust_remote_code=trust_remote_code)
+        tokenizer = hf_tokenizer(local_tokenizer_path, trust_remote_code=trust_remote_code)
         # Used for multimodal LLM, could be None
-        processor = hf_processor(local_path, trust_remote_code=trust_remote_code, use_fast=True)
+        processor = hf_processor(local_tokenizer_path, trust_remote_code=trust_remote_code, use_fast=True)
+
+        custom_chat_template = config.actor_rollout_ref.model.get("custom_chat_template", None)
+        if custom_chat_template is not None:
+            if processor is not None:
+                processor.chat_template = custom_chat_template
+            else:
+                tokenizer.chat_template = custom_chat_template
 
         # Load the reward manager for training and validation.
         reward_fn = load_reward_manager(

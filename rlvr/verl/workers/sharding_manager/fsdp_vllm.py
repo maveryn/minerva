@@ -53,6 +53,30 @@ logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
 
+def _supports_engine_sleep(engine: LLM) -> bool:
+    return hasattr(engine, "sleep") and hasattr(engine, "wake_up")
+
+
+def _wake_up_engine(engine: LLM, tags: list[str] | None = None):
+    if not _supports_engine_sleep(engine):
+        return False
+    if tags is not None and "tags" in inspect.signature(engine.wake_up).parameters:
+        engine.wake_up(tags=tags)
+    else:
+        engine.wake_up()
+    return True
+
+
+def _sleep_engine(engine: LLM):
+    if not hasattr(engine, "sleep"):
+        return False
+    if "level" in inspect.signature(engine.sleep).parameters:
+        engine.sleep(level=VLLM_SLEEP_LEVEL)
+    else:
+        engine.sleep()
+    return True
+
+
 class FSDPVLLMShardingManager(BaseShardingManager):
     """Sharding manager for FSDP models with vLLM inference engine integration.
 
@@ -215,11 +239,8 @@ class FSDPVLLMShardingManager(BaseShardingManager):
             logger.debug("fsdp vllm sharding_manager _set_allocator_settings to False")
             set_expandable_segments(False)
 
-            if self.rollout_config.free_cache_engine:
-                if "tags" in inspect.signature(self.inference_engine.wake_up).parameters:
-                    self.inference_engine.wake_up(tags=["weights"])
-                else:
-                    self.inference_engine.wake_up()
+            if self.rollout_config.free_cache_engine and not _wake_up_engine(self.inference_engine, tags=["weights"]):
+                logger.warning("Installed vLLM does not expose sleep/wake APIs; skipping engine wake_up for weights.")
 
             # update model params
             self.update_params(params, peft_config=peft_config)
@@ -227,11 +248,8 @@ class FSDPVLLMShardingManager(BaseShardingManager):
             del params
             get_torch_device().empty_cache()
 
-            if (
-                self.rollout_config.free_cache_engine
-                and "tags" in inspect.signature(self.inference_engine.wake_up).parameters
-            ):
-                self.inference_engine.wake_up(tags=["kv_cache"])
+            if self.rollout_config.free_cache_engine and _supports_engine_sleep(self.inference_engine):
+                _wake_up_engine(self.inference_engine, tags=["kv_cache"])
 
             log_gpu_memory_usage("After del state_dict and empty_cache in sharding manager", logger=logger)
 
@@ -242,8 +260,8 @@ class FSDPVLLMShardingManager(BaseShardingManager):
 
     @GPUMemoryLogger(role="fsdp vllm sharding_manager", logger=logger)
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.rollout_config.free_cache_engine:
-            self.inference_engine.sleep(level=VLLM_SLEEP_LEVEL)
+        if self.rollout_config.free_cache_engine and not _sleep_engine(self.inference_engine):
+            logger.warning("Installed vLLM does not expose sleep/wake APIs; skipping engine sleep.")
 
         self.module.train()
 

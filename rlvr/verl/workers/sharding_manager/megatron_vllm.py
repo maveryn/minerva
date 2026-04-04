@@ -44,6 +44,30 @@ logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
 
+def _supports_engine_sleep(engine: LLM) -> bool:
+    return hasattr(engine, "sleep") and hasattr(engine, "wake_up")
+
+
+def _wake_up_engine(engine: LLM, tags: list[str] | None = None):
+    if not _supports_engine_sleep(engine):
+        return False
+    if tags is not None and "tags" in inspect.signature(engine.wake_up).parameters:
+        engine.wake_up(tags=tags)
+    else:
+        engine.wake_up()
+    return True
+
+
+def _sleep_engine(engine: LLM):
+    if not hasattr(engine, "sleep"):
+        return False
+    if "level" in inspect.signature(engine.sleep).parameters:
+        engine.sleep(level=VLLM_SLEEP_LEVEL)
+    else:
+        engine.sleep()
+    return True
+
+
 """
 Megatron Hybrid Engine:
 - During training, only the current pp stage holds the parameters
@@ -152,11 +176,8 @@ class MegatronVLLMShardingManager(BaseShardingManager):
 
             set_expandable_segments(False)
 
-            if self.rollout_config.free_cache_engine:
-                if "tags" in inspect.signature(self.inference_engine.wake_up).parameters:
-                    self.inference_engine.wake_up(tags=["weights"])
-                else:
-                    self.inference_engine.wake_up()
+            if self.rollout_config.free_cache_engine and not _wake_up_engine(self.inference_engine, tags=["weights"]):
+                logger.warning("Installed vLLM does not expose sleep/wake APIs; skipping engine wake_up for weights.")
             if self.bridge is not None:
                 per_tensor_param = self.bridge.export_weights(self.actor_module)
             else:
@@ -179,11 +200,8 @@ class MegatronVLLMShardingManager(BaseShardingManager):
                 offload_megatron_model_to_cpu(self.actor_module)
             aggressive_empty_cache(force_sync=True)
 
-            if (
-                self.rollout_config.free_cache_engine
-                and "tags" in inspect.signature(self.inference_engine.wake_up).parameters
-            ):
-                self.inference_engine.wake_up(tags=["kv_cache"])
+            if self.rollout_config.free_cache_engine and _supports_engine_sleep(self.inference_engine):
+                _wake_up_engine(self.inference_engine, tags=["kv_cache"])
 
             # important: need to manually set the random states of each tp to be identical.
             if self.device_mesh is not None:
@@ -192,8 +210,8 @@ class MegatronVLLMShardingManager(BaseShardingManager):
 
     @GPUMemoryLogger(role="megatron vllm sharding_manager", logger=logger)
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.rollout_config.free_cache_engine:
-            self.inference_engine.sleep(level=VLLM_SLEEP_LEVEL)
+        if self.rollout_config.free_cache_engine and not _sleep_engine(self.inference_engine):
+            logger.warning("Installed vLLM does not expose sleep/wake APIs; skipping engine sleep.")
         for model in self.actor_module:
             model.train()
 
