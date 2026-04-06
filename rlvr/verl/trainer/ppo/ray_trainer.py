@@ -5032,8 +5032,15 @@ class RayPPOTrainer:
             rollout_skip = RolloutSkip(self.config, self.actor_rollout_wg)
             rollout_skip.wrap_generate_sequences()
 
-        # add tqdm
-        progress_bar = tqdm(total=self.total_training_steps, initial=self.global_steps, desc="Training Progress")
+        # Show explicit step/total progress with ETA in long SQL-R1 runs.
+        progress_bar = tqdm(
+            total=self.total_training_steps,
+            initial=self.global_steps,
+            desc="Training Progress",
+            dynamic_ncols=True,
+            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
+        )
+        progress_bar.set_postfix_str(f"step={progress_bar.n}/{self.total_training_steps}", refresh=False)
 
         # we start from step 1
         self.global_steps += 1
@@ -5650,6 +5657,7 @@ class RayPPOTrainer:
                 logger.log(data=metrics, step=self.global_steps)
 
                 progress_bar.update(1)
+                progress_bar.set_postfix_str(f"step={progress_bar.n}/{self.total_training_steps}", refresh=False)
                 self.global_steps += 1
 
                 if (
