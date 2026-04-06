@@ -246,6 +246,26 @@ tmp/
 
 # DART generated artifacts
 dart-artifacts/
+!dart-artifacts/
+dart-artifacts/*
+!dart-artifacts/README.md
+!dart-artifacts/dart_cti_llama8b/
+dart-artifacts/dart_cti_llama8b/*
+!dart-artifacts/dart_cti_llama8b/datasets/
+dart-artifacts/dart_cti_llama8b/datasets/*
+!dart-artifacts/dart_cti_llama8b/datasets/train/
+dart-artifacts/dart_cti_llama8b/datasets/train/*
+!dart-artifacts/dart_cti_llama8b/datasets/train/summary*.json
+!dart-artifacts/dart_cti_llama8b/datasets/train/train_v2_from_llama8b_direct_from_v3_cap200_seed.parquet
+!dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/
+dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/*
+!dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/summary*.json
+!dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/minerva_dev_v2_from_minerva_dev_v3_from_v2.parquet
+!dart-artifacts/dart_cti_llama8b/datasets/athena_bench/
+dart-artifacts/dart_cti_llama8b/datasets/athena_bench/*
+!dart-artifacts/dart_cti_llama8b/datasets/athena_bench/summary*.json
+!dart-artifacts/dart_cti_llama8b/datasets/athena_bench/athena_bench_v1.parquet
+!dart-artifacts/dart_cti_llama8b/datasets/athena_bench/athena_bench_v2_from_athena_bench_v3_from_v2.parquet
 
 # Human-judge: keep code/docs/scripts, ignore generated subsets, bundles, and annotations
 minerva-judge/human-judge/**

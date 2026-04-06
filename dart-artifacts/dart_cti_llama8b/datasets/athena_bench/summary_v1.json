@@ -1,0 +1,31 @@
+{
+  "total_questions": 950,
+  "target_accepted": 1,
+  "total_generated_samples": 13783,
+  "accepted_traces_total": 595,
+  "accepted_trace_source_breakdown": {
+    "plain": 595
+  },
+  "coverage": {
+    "zero": 355,
+    "one": 595,
+    "target": 595
+  },
+  "accepted_per_question": {
+    "count": 950,
+    "min": 0,
+    "max": 1,
+    "mean": 0.6263157894736842
+  },
+  "attempts_per_question": {
+    "count": 950,
+    "min": 1,
+    "max": 32,
+    "mean": 14.50842105263158
+  },
+  "timing": {
+    "started_at_utc": "2026-03-28T05:28:49Z",
+    "finished_at_utc": "2026-03-28T05:36:50Z",
+    "elapsed_seconds": 480.774
+  }
+}

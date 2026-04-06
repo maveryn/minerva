@@ -16,3 +16,4 @@ minerva-judge/judge-pairwise-quality-eval/pairwise_judge_results.jsonl filter=lf
 dart-artifacts/dart_cti_llama8b/datasets/train/train_v2_from_llama8b_direct_from_v3_cap200_seed.parquet filter=lfs diff=lfs merge=lfs -text
 dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/minerva_dev_v2_from_minerva_dev_v3_from_v2.parquet filter=lfs diff=lfs merge=lfs -text
 dart-artifacts/dart_cti_llama8b/datasets/athena_bench/athena_bench_v1.parquet filter=lfs diff=lfs merge=lfs -text
+dart-artifacts/dart_cti_llama8b/datasets/athena_bench/athena_bench_v2_from_athena_bench_v3_from_v2.parquet filter=lfs diff=lfs merge=lfs -text

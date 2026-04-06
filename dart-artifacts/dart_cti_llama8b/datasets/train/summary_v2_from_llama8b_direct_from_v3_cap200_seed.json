@@ -1,0 +1,22 @@
+{
+  "total_questions": 32000,
+  "target_accepted": 2,
+  "accepted_traces_total": 64000,
+  "accepted_trace_source_breakdown": {
+    "plain": 16807,
+    "guided_fill": 47164,
+    "direct_answer_gold": 29
+  },
+  "coverage_after_direct_fill": {
+    "zero": 0,
+    "one": 0,
+    "target": 32000
+  },
+  "direct_answer_added": 29,
+  "verification_failures": 0,
+  "timing": {
+    "started_at_utc": "2026-03-28T05:05:51Z",
+    "finished_at_utc": "2026-03-28T05:05:53Z",
+    "elapsed_seconds": 1.107
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "total_questions": 1200,
+  "target_accepted": 1,
+  "accepted_traces_total": 1120,
+  "accepted_trace_source_breakdown": {
+    "plain": 401,
+    "guided_fill": 719
+  },
+  "seed_coverage": {
+    "zero": 799,
+    "one": 401,
+    "target": 401
+  },
+  "coverage_after_fill": {
+    "zero": 80,
+    "one": 1120,
+    "target": 1120
+  },
+  "fill_attempts_per_question": {
+    "count": 1200,
+    "min": 0,
+    "max": 32,
+    "mean": 5.090833333333333
+  },
+  "final_accepted_per_question": {
+    "count": 1200,
+    "min": 0,
+    "max": 1,
+    "mean": 0.9333333333333333
+  },
+  "guided_fill_added": 719,
+  "acr_filter": {
+    "filter_mode": "ml+heuristic",
+    "rows_scored": 6109.0,
+    "heuristic_input": 4430.0,
+    "heuristic_passed": 2857.0,
+    "degenerate_checked": 3117.0,
+    "degenerate_filtered": 260.0,
+    "ml_filter_input": 2857.0,
+    "ml_filter_passed": 719.0,
+    "filter_threshold": 0.5,
+    "reward_threshold": 1.0,
+    "accepted_after_filter": 719.0
+  },
+  "timing": {
+    "started_at_utc": "2026-03-28T05:47:32Z",
+    "finished_at_utc": "2026-03-28T05:53:47Z",
+    "elapsed_seconds": 375.597
+  }
+}

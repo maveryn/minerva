@@ -1,0 +1,25 @@
+{
+  "seed_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/train/accepted_v1.jsonl",
+  "attempts_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/train/attempts_v2_from_llama8b_v1.jsonl",
+  "output_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/train/accepted_llama8b_v2_cap32_seed.jsonl",
+  "accept_mode": "verifier+filter",
+  "target_accepted": 2,
+  "max_attempts_per_question": 32,
+  "seed_total_traces": 16807,
+  "seed_unique_questions": 9820,
+  "accepted_from_attempts": 38868,
+  "recovered_total_traces": 55675,
+  "recovered_unique_questions": 29035,
+  "completed_questions": 26640,
+  "one_trace_questions": 2395,
+  "zero_trace_questions_unobserved": null,
+  "accepted_per_question": {
+    "1": 2395,
+    "2": 26640
+  },
+  "attempt_rows_seen": 344060,
+  "attempt_rows_parseable": 344060,
+  "attempt_rows_ignored_due_to_cap": 2902,
+  "attempt_uids_seen": 25009,
+  "max_attempt_index_seen": 33
+}
