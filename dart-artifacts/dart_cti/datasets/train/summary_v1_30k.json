@@ -1,0 +1,63 @@
+{
+  "dataset_name": "v1_30k",
+  "accepted_target": 30000,
+  "accepted_rows_written": 30000,
+  "total_attempt_rows_to_target": 621106,
+  "questions_seen": 32000,
+  "questions_with_ge_1_accept": 15652,
+  "questions_with_ge_2_accept": 14348,
+  "coverage": {
+    "zero": 16348,
+    "one": 1304,
+    "two_or_more": 14348
+  },
+  "max_attempt_index": 31,
+  "max_attempt_count": 32,
+  "num_questions_at_max_attempt_count": 4718,
+  "attempts_per_question_histogram": {
+    "2": 8638,
+    "3": 1417,
+    "4": 738,
+    "5": 511,
+    "6": 396,
+    "7": 323,
+    "8": 240,
+    "9": 202,
+    "10": 186,
+    "11": 146,
+    "12": 162,
+    "13": 140,
+    "14": 99,
+    "15": 96,
+    "16": 100,
+    "17": 92,
+    "18": 86,
+    "19": 81,
+    "20": 71,
+    "21": 73,
+    "22": 57,
+    "23": 65,
+    "24": 69,
+    "25": 52,
+    "26": 55,
+    "27": 43,
+    "28": 49,
+    "29": 55,
+    "30": 42,
+    "31": 12998,
+    "32": 4718
+  },
+  "accepted_per_question_histogram_capped_at_2": {
+    "1": 1304,
+    "2": 14348
+  },
+  "avg_attempts_per_question_seen": 19.4095625,
+  "avg_attempts_per_accepted_trace": 20.703533333333333,
+  "cutoff_row": {
+    "uid": "minerva-base-train.jsonl:12884:reward_tactic_ids",
+    "attempt_index": 32,
+    "source_file": "minerva-base-train.jsonl",
+    "source_index": 12884
+  },
+  "truncated_lines_ignored": 0
+}

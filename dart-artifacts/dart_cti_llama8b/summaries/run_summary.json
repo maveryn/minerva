@@ -1,0 +1,138 @@
+{
+  "experiment_name": "dart_cti_llama8b",
+  "output_root": "dart-artifacts/dart_cti_llama8b",
+  "teacher_model_path": "meta-llama/Llama-3.1-8B-Instruct",
+  "groups": {
+    "train": {
+      "group_name": "train",
+      "rows_in": 32000,
+      "v1": {
+        "accepted_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/train/accepted_v1.jsonl",
+        "state_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/train/state_v1.jsonl",
+        "attempts_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/train/attempts_v1.jsonl",
+        "summary_json": "dart-artifacts/dart_cti_llama8b/datasets/train/summary_v1.json",
+        "parquet": "dart-artifacts/dart_cti_llama8b/datasets/train/train_v1.parquet",
+        "metrics": {
+          "total_questions": 32000,
+          "target_accepted": 2,
+          "total_generated_samples": 880782,
+          "accepted_traces_total": 16807,
+          "accepted_trace_source_breakdown": {
+            "plain": 16807
+          },
+          "coverage": {
+            "zero": 22180,
+            "one": 2833,
+            "target": 6987
+          },
+          "accepted_per_question": {
+            "count": 32000,
+            "min": 0,
+            "max": 2,
+            "mean": 0.52521875
+          },
+          "attempts_per_question": {
+            "count": 32000,
+            "min": 2,
+            "max": 32,
+            "mean": 27.5244375
+          },
+          "timing": {
+            "started_at_utc": "2026-03-27T18:10:13Z",
+            "finished_at_utc": "2026-03-27T22:03:23Z",
+            "elapsed_seconds": 13990.265
+          }
+        }
+      }
+    },
+    "minerva_dev": {
+      "group_name": "minerva_dev",
+      "rows_in": 0,
+      "v1": {
+        "accepted_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/accepted_v1.jsonl",
+        "state_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/state_v1.jsonl",
+        "attempts_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/attempts_v1.jsonl",
+        "summary_json": "dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/summary_v1.json",
+        "parquet": "dart-artifacts/dart_cti_llama8b/datasets/minerva_dev/minerva_dev_v1.parquet",
+        "metrics": {
+          "total_questions": 0,
+          "target_accepted": 2,
+          "total_generated_samples": 0,
+          "accepted_traces_total": 0,
+          "accepted_trace_source_breakdown": {
+            "plain": 0
+          },
+          "coverage": {
+            "zero": 0,
+            "one": 0,
+            "target": 0
+          },
+          "accepted_per_question": {
+            "count": 0,
+            "min": 0,
+            "max": 0,
+            "mean": 0.0
+          },
+          "attempts_per_question": {
+            "count": 0,
+            "min": 0,
+            "max": 0,
+            "mean": 0.0
+          },
+          "timing": {
+            "started_at_utc": "2026-03-27T22:03:32Z",
+            "finished_at_utc": "2026-03-27T22:03:32Z",
+            "elapsed_seconds": 0.001
+          }
+        }
+      }
+    },
+    "athena_bench": {
+      "group_name": "athena_bench",
+      "rows_in": 0,
+      "v1": {
+        "accepted_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/athena_bench/accepted_v1.jsonl",
+        "state_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/athena_bench/state_v1.jsonl",
+        "attempts_jsonl": "dart-artifacts/dart_cti_llama8b/datasets/athena_bench/attempts_v1.jsonl",
+        "summary_json": "dart-artifacts/dart_cti_llama8b/datasets/athena_bench/summary_v1.json",
+        "parquet": "dart-artifacts/dart_cti_llama8b/datasets/athena_bench/athena_bench_v1.parquet",
+        "metrics": {
+          "total_questions": 0,
+          "target_accepted": 2,
+          "total_generated_samples": 0,
+          "accepted_traces_total": 0,
+          "accepted_trace_source_breakdown": {
+            "plain": 0
+          },
+          "coverage": {
+            "zero": 0,
+            "one": 0,
+            "target": 0
+          },
+          "accepted_per_question": {
+            "count": 0,
+            "min": 0,
+            "max": 0,
+            "mean": 0.0
+          },
+          "attempts_per_question": {
+            "count": 0,
+            "min": 0,
+            "max": 0,
+            "mean": 0.0
+          },
+          "timing": {
+            "started_at_utc": "2026-03-27T22:03:33Z",
+            "finished_at_utc": "2026-03-27T22:03:33Z",
+            "elapsed_seconds": 0.0
+          }
+        }
+      }
+    }
+  },
+  "timing": {
+    "started_at_utc": "2026-03-27T18:10:13Z",
+    "finished_at_utc": "2026-03-27T22:03:34Z",
+    "elapsed_seconds": 14000.766
+  }
+}
