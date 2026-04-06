@@ -1,0 +1,2 @@
+dataset	exec_accuracy_all	pred_json	eval_log
+bird-dev	0.5423728813559322	/home/jovyan/work/minerva/sql-benchmark/grpo_qwen25coder3b_best_step380_table1/bird-dev/birddev_generated_sql.json	/home/jovyan/work/minerva/sql-benchmark/grpo_qwen25coder3b_best_step380_table1/bird-dev/eval.log

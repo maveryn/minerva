@@ -1,0 +1,2 @@
+dataset	exec_accuracy_all	pred_json	pred_sql_txt	eval_log
+spider-dk	0.6897	/home/jovyan/work/minerva/sql-benchmark/grpo_qwen25coder3b_best_step380_table2/spider-dk/spider-dk/spiderdk_generated_sql.json	/home/jovyan/work/minerva/sql-benchmark/grpo_qwen25coder3b_best_step380_table2/spider-dk/spider-dk/spiderdk_generated_sql_pred_major_voting_sqls.txt	/home/jovyan/work/minerva/sql-benchmark/grpo_qwen25coder3b_best_step380_table2/spider-dk/spider-dk/eval.log
