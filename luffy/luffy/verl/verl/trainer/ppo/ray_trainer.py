@@ -829,11 +829,13 @@ class RayPPOTrainer(object):
         # load dataloader,
         # TODO: from remote not implemented yet
         dataloader_local_path = os.path.join(global_step_folder, 'data.pt')
-        self.train_dataloader = torch.load(dataloader_local_path)
+        self.train_dataloader = torch.load(dataloader_local_path, weights_only=False)
         if isinstance(self.train_dataloader.dataset, RLHFDataset):
             self.train_dataloader.dataset.resume_dataset_state()
         # set sampler state
-        self.train_dataloader.sampler.set_state(torch.load(os.path.join(global_step_folder, 'sampler_state.pt')))
+        self.train_dataloader.sampler.set_state(
+            torch.load(os.path.join(global_step_folder, 'sampler_state.pt'), weights_only=False)
+        )
             
     def _balance_batch(self, batch: DataProto, metrics, logging_prefix='global_seqlen'):
         """Reorder the data on single controller such that each dp rank gets similar total tokens"""

@@ -323,28 +323,34 @@ class MIXRayPPOTrainer(RayPPOTrainer):
                                            sampler=sampler,
                                            num_workers=dataloader_num_workers)
         
-        self.val_dataset = RLHFDataset(parquet_files=self.config.data.val_files,
-                                       tokenizer=self.tokenizer,
-                                       prompt_key=self.config.data.prompt_key,
-                                       max_prompt_length=self.config.data.max_prompt_length,
-                                       filter_prompts=filter_prompts,
-                                       return_raw_chat=self.config.data.get('return_raw_chat', False),
-                                       truncation=truncation)
-        val_batch_size = self.config.data.get('val_batch_size', None)
-        if val_batch_size is None:
-            val_batch_size = len(self.val_dataset)
-        self.val_dataloader = DataLoader(dataset=self.val_dataset,
-                                         batch_size=val_batch_size,
-                                         shuffle=self.config.data.get('validation_shuffle', True),
-                                         drop_last=False,
-                                         collate_fn=collate_fn,
-                                         num_workers=dataloader_num_workers)
+        self.val_dataset = None
+        self.val_dataloader = None
+        if len(self.config.data.val_files) > 0:
+            self.val_dataset = RLHFDataset(parquet_files=self.config.data.val_files,
+                                           tokenizer=self.tokenizer,
+                                           prompt_key=self.config.data.prompt_key,
+                                           max_prompt_length=self.config.data.max_prompt_length,
+                                           filter_prompts=filter_prompts,
+                                           return_raw_chat=self.config.data.get('return_raw_chat', False),
+                                           truncation=truncation)
+            val_batch_size = self.config.data.get('val_batch_size', None)
+            if val_batch_size is None:
+                val_batch_size = len(self.val_dataset)
+            self.val_dataloader = DataLoader(dataset=self.val_dataset,
+                                             batch_size=val_batch_size,
+                                             shuffle=self.config.data.get('validation_shuffle', True),
+                                             drop_last=False,
+                                             collate_fn=collate_fn,
+                                             num_workers=dataloader_num_workers)
 
         assert len(self.train_dataloader) >= 1
-        assert len(self.val_dataloader) >= 1
 
         print(f'Size of train dataloader: {len(self.train_dataloader)}')
-        print(f'Size of val dataloader: {len(self.val_dataloader)}')
+        if self.val_dataloader is not None:
+            assert len(self.val_dataloader) >= 1
+            print(f'Size of val dataloader: {len(self.val_dataloader)}')
+        else:
+            print('Size of val dataloader: 0')
 
         # inject total_training_steps to actor/critic optim_config. This is hacky.
         total_training_steps = len(self.train_dataloader) * self.config.trainer.total_epochs
@@ -648,6 +654,11 @@ class MIXRayPPOTrainer(RayPPOTrainer):
                     return
         
 def compute_data_metrics_ours(batch, use_critic=True):
+    def _safe_mean(tensor):
+        if tensor.numel() == 0:
+            return 0.0
+        return torch.mean(tensor).detach().item()
+
     # TODO: add response length
     sequence_score = batch.batch['token_level_scores'].sum(-1)
     sequence_reward = batch.batch['token_level_rewards'].sum(-1)
@@ -673,7 +684,7 @@ def compute_data_metrics_ours(batch, use_critic=True):
     off_response_length = response_length[off_policy_mask]
     on_response_length = response_length[on_policy_mask]
     
-    off_on_example_ratio = off_policy_mask.sum().item() / on_policy_mask.sum().item()
+    off_on_example_ratio = off_policy_mask.sum().item() / max(1, on_policy_mask.sum().item())
 
     off_sequence_score = sequence_score[off_policy_mask]
     on_sequence_score = sequence_score[on_policy_mask]
@@ -747,13 +758,13 @@ def compute_data_metrics_ours(batch, use_critic=True):
             torch.mean(torch.eq(response_length, max_response_length).float()).detach().item(),
         # on/off policy response length
         'on_off_metrics/on_response_length_mean':
-            torch.mean(on_response_length).detach().item(),
+            _safe_mean(on_response_length),
         'on_off_metrics/off_response_length_mean':
-            torch.mean(off_response_length).detach().item(),
+            _safe_mean(off_response_length),
         'on_off_metrics/on_score':
-            torch.mean(on_sequence_score).detach().item(),
+            _safe_mean(on_sequence_score),
         'on_off_metrics/off_score':
-            torch.mean(off_sequence_score).detach().item(),
+            _safe_mean(off_sequence_score),
         # 'on_off_metrics/on_prompt_score':
         #     torch.mean(on_prompt_score).detach().item(),
         # 'on_off_metrics/off_prompt_score':

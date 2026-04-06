@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-REPO_VENV_PY="$ROOT_DIR/../.venv-luffy/bin/python"
+ACTIVE_VENV_PY="${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}"
+CONFIGURED_VENV_PY="${LUFFY_ENV_DIR:+$LUFFY_ENV_DIR/bin/python}"
+REPO_VENV_PY_PREFERRED="$ROOT_DIR/../.venv-luffy312/bin/python"
+REPO_VENV_PY_LEGACY="$ROOT_DIR/../.venv-luffy/bin/python"
 
 supports_visible_gpu_arch() {
   local py_bin="$1"
@@ -30,22 +33,40 @@ PY
 }
 
 if [ -z "${PYTHON_BIN:-}" ]; then
-  if [ -x "$REPO_VENV_PY" ]; then
-    PYTHON_BIN="$REPO_VENV_PY"
-  else
-    PYTHON_BIN="$(command -v python3 || command -v python)"
+  for candidate in \
+    "${ACTIVE_VENV_PY:-}" \
+    "${CONFIGURED_VENV_PY:-}" \
+    "$REPO_VENV_PY_PREFERRED" \
+    "$REPO_VENV_PY_LEGACY" \
+    "$(command -v python3 || true)" \
+    "$(command -v python || true)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  done
+fi
+
+if ! supports_visible_gpu_arch "$PYTHON_BIN"; then
+  for candidate in \
+    "${ACTIVE_VENV_PY:-}" \
+    "${CONFIGURED_VENV_PY:-}" \
+    "$REPO_VENV_PY_PREFERRED" \
+    "$REPO_VENV_PY_LEGACY" \
+    /opt/conda/bin/python; do
+    if [ -x "$candidate" ] && supports_visible_gpu_arch "$candidate"; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  done
+  if ! supports_visible_gpu_arch "$PYTHON_BIN"; then
+    PYTHON_BIN="/opt/conda/bin/python"
   fi
 fi
 
 if ! supports_visible_gpu_arch "$PYTHON_BIN"; then
-  if [ -x "$REPO_VENV_PY" ] && supports_visible_gpu_arch "$REPO_VENV_PY"; then
-    PYTHON_BIN="$REPO_VENV_PY"
-  elif [ -x /opt/conda/bin/python ] && supports_visible_gpu_arch /opt/conda/bin/python; then
-    PYTHON_BIN="/opt/conda/bin/python"
-  else
-    echo "No compatible Python/PyTorch runtime was found for the visible GPU architecture." >&2
-    exit 1
-  fi
+  echo "No compatible Python/PyTorch runtime was found for the visible GPU architecture." >&2
+  exit 1
 fi
 
 DATA_DIR="${MINERVA_DATA_DIR:-$ROOT_DIR/data}"
@@ -83,6 +104,7 @@ TENSOR_PARALLEL_SIZE="${MINERVA_TENSOR_PARALLEL_SIZE:-1}"
 PREFIX_MIN_RATIO="${MINERVA_PREFIX_MIN_RATIO:-1.0}"
 PREFIX_MAX_RATIO="${MINERVA_PREFIX_MAX_RATIO:-1.0}"
 OFF_POLICY_RESHAPE="${MINERVA_OFF_POLICY_RESHAPE:-p_div_p_0.1}"
+ATTN_IMPLEMENTATION="${MINERVA_ATTN_IMPLEMENTATION:-flash_attention_2}"
 VAL_BATCH_SIZE="${MINERVA_VAL_BATCH_SIZE:-3000}"
 VAL_BEFORE_TRAIN="${MINERVA_VAL_BEFORE_TRAIN:-false}"
 SAVE_BEST_ONLY="${MINERVA_SAVE_BEST_ONLY:-true}"
@@ -92,6 +114,9 @@ SAVE_BEST_DIR="${MINERVA_SAVE_BEST_DIR:-best}"
 SAVE_LAST_DIR="${MINERVA_SAVE_LAST_DIR:-last}"
 MAX_OPTIM_TO_KEEP="${MINERVA_MAX_OPTIM_TO_KEEP:-1}"
 ROLLOUT_MICRO_BATCH_SIZE="${MINERVA_ROLLOUT_MICRO_BATCH_SIZE:-}"
+ACTOR_PARAM_OFFLOAD="${MINERVA_ACTOR_PARAM_OFFLOAD:-true}"
+ACTOR_OPTIMIZER_OFFLOAD="${MINERVA_ACTOR_OPTIMIZER_OFFLOAD:-true}"
+REF_PARAM_OFFLOAD="${MINERVA_REF_PARAM_OFFLOAD:-true}"
 OUTPUT_DIR="${MINERVA_OUTPUT_DIR:-$ROOT_DIR/checkpoints/minerva/$EXP_NAME}"
 
 if [ -n "${MINERVA_ROLLOUT_NAME:-}" ]; then
@@ -112,6 +137,10 @@ PY
   fi
 fi
 
+if [ "$ROLLOUT_NAME" = "hf" ] && [ -z "$ROLLOUT_MICRO_BATCH_SIZE" ]; then
+  ROLLOUT_MICRO_BATCH_SIZE="$MICRO_BATCH_SIZE"
+fi
+
 TRAIN_FILE="${MINERVA_TRAIN_FILE:-$DATA_DIR/minerva_train_dart32k_offpolicy.parquet}"
 VAL_FILES="['${DATA_DIR}/minerva_base_dev.parquet','${DATA_DIR}/athena_cti_ate.parquet','${DATA_DIR}/athena_cti_ckt.parquet','${DATA_DIR}/athena_cti_rcm.parquet','${DATA_DIR}/athena_cti_rms.parquet','${DATA_DIR}/athena_cti_taa.parquet','${DATA_DIR}/athena_cti_vsp.parquet','${DATA_DIR}/seceval_mini.parquet']"
 
@@ -129,6 +158,7 @@ cd "$ROOT_DIR/luffy/verl"
     data.filter_overlong_prompts=True \
     data.truncation='error' \
     actor_rollout_ref.model.path="$MODEL_PATH" \
+    +actor_rollout_ref.model.attn_implementation="$ATTN_IMPLEMENTATION" \
     actor_rollout_ref.actor.optim.lr="$ACTOR_LR" \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size="$TRAIN_BATCH_SIZE" \
@@ -140,8 +170,8 @@ cd "$ROOT_DIR/luffy/verl"
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.entropy_coeff="$ENTROPY_COEFF" \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
-    actor_rollout_ref.actor.fsdp_config.param_offload=True \
-    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.actor.fsdp_config.param_offload="$ACTOR_PARAM_OFFLOAD" \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload="$ACTOR_OPTIMIZER_OFFLOAD" \
     actor_rollout_ref.rollout.tensor_model_parallel_size="$TENSOR_PARALLEL_SIZE" \
     actor_rollout_ref.rollout.name="$ROLLOUT_NAME" \
     actor_rollout_ref.rollout.temperature=1.0 \
@@ -151,7 +181,7 @@ cd "$ROOT_DIR/luffy/verl"
     actor_rollout_ref.rollout.n_val=1 \
     actor_rollout_ref.rollout.max_prefix_len="$MAX_PREFIX_LEN" \
     ${ROLLOUT_MICRO_BATCH_SIZE:+actor_rollout_ref.rollout.micro_batch_size="$ROLLOUT_MICRO_BATCH_SIZE"} \
-    actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    actor_rollout_ref.ref.fsdp_config.param_offload="$REF_PARAM_OFFLOAD" \
     actor_rollout_ref.ref.use_ref=False \
     actor_rollout_ref.rollout.prefix_share_across_samples=False \
     actor_rollout_ref.rollout.prefix_strategy=random \

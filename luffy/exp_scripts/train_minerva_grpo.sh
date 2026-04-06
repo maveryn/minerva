@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-REPO_VENV_PY="$ROOT_DIR/../.venv-luffy/bin/python"
+ACTIVE_VENV_PY="${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}"
+CONFIGURED_VENV_PY="${LUFFY_ENV_DIR:+$LUFFY_ENV_DIR/bin/python}"
+REPO_VENV_PY_PREFERRED="$ROOT_DIR/../.venv-luffy312/bin/python"
+REPO_VENV_PY_LEGACY="$ROOT_DIR/../.venv-luffy/bin/python"
 
 supports_visible_gpu_arch() {
   local py_bin="$1"
@@ -30,22 +33,40 @@ PY
 }
 
 if [ -z "${PYTHON_BIN:-}" ]; then
-  if [ -x "$REPO_VENV_PY" ]; then
-    PYTHON_BIN="$REPO_VENV_PY"
-  else
-    PYTHON_BIN="$(command -v python3 || command -v python)"
+  for candidate in \
+    "${ACTIVE_VENV_PY:-}" \
+    "${CONFIGURED_VENV_PY:-}" \
+    "$REPO_VENV_PY_PREFERRED" \
+    "$REPO_VENV_PY_LEGACY" \
+    "$(command -v python3 || true)" \
+    "$(command -v python || true)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  done
+fi
+
+if ! supports_visible_gpu_arch "$PYTHON_BIN"; then
+  for candidate in \
+    "${ACTIVE_VENV_PY:-}" \
+    "${CONFIGURED_VENV_PY:-}" \
+    "$REPO_VENV_PY_PREFERRED" \
+    "$REPO_VENV_PY_LEGACY" \
+    /opt/conda/bin/python; do
+    if [ -x "$candidate" ] && supports_visible_gpu_arch "$candidate"; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  done
+  if ! supports_visible_gpu_arch "$PYTHON_BIN"; then
+    PYTHON_BIN="/opt/conda/bin/python"
   fi
 fi
 
 if ! supports_visible_gpu_arch "$PYTHON_BIN"; then
-  if [ -x "$REPO_VENV_PY" ] && supports_visible_gpu_arch "$REPO_VENV_PY"; then
-    PYTHON_BIN="$REPO_VENV_PY"
-  elif [ -x /opt/conda/bin/python ] && supports_visible_gpu_arch /opt/conda/bin/python; then
-    PYTHON_BIN="/opt/conda/bin/python"
-  else
-    echo "No compatible Python/PyTorch runtime was found for the visible GPU architecture." >&2
-    exit 1
-  fi
+  echo "No compatible Python/PyTorch runtime was found for the visible GPU architecture." >&2
+  exit 1
 fi
 
 DATA_DIR="${MINERVA_DATA_DIR:-$ROOT_DIR/data}"
@@ -106,6 +127,10 @@ PY
   else
     ROLLOUT_NAME="hf"
   fi
+fi
+
+if [ "$ROLLOUT_NAME" = "hf" ] && [ -z "$ROLLOUT_MICRO_BATCH_SIZE" ]; then
+  ROLLOUT_MICRO_BATCH_SIZE="$MICRO_BATCH_SIZE"
 fi
 
 TRAIN_FILE="${MINERVA_TRAIN_FILE:-$DATA_DIR/minerva_base_train.parquet}"

@@ -242,7 +242,11 @@ def main_task(config):
     reward_fn = RewardManager(tokenizer=tokenizer, num_examine=0, reward_impl_version=config.data.reward_impl_version)
 
     # Note that we always use function-based RM for validation
-    val_reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1, reward_impl_version=config.data.reward_impl_version)
+    val_reward_fn = None
+    if len(config.data.val_files) > 0:
+        val_reward_fn = RewardManager(tokenizer=tokenizer,
+                                      num_examine=1,
+                                      reward_impl_version=config.data.reward_impl_version)
 
     resource_pool_manager = ResourcePoolManager(resource_pool_spec=resource_pool_spec, mapping=mapping)
 

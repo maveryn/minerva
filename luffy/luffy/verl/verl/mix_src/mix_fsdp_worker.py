@@ -107,6 +107,7 @@ class MIXActorRolloutRefWorker(Worker):
                                use_remove_padding=False,
                                enable_gradient_checkpointing=False,
                                trust_remote_code=False,
+                               attn_implementation='flash_attention_2',
                                role='actor'):
         from verl.utils.model import print_model_size, update_model_config
         from verl.utils.torch_dtypes import PrecisionType
@@ -158,7 +159,7 @@ class MIXActorRolloutRefWorker(Worker):
             actor_module = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=local_path,
                                                                 torch_dtype=torch_dtype,
                                                                 config=actor_model_config,
-                                                                attn_implementation='flash_attention_2',
+                                                                attn_implementation=attn_implementation,
                                                                 trust_remote_code=trust_remote_code)
             # some parameters may not in torch_dtype. TODO(zhangchi.usc1992) remove this after we switch to fsdp2
             actor_module.to(torch_dtype)
@@ -309,6 +310,7 @@ class MIXActorRolloutRefWorker(Worker):
                 use_remove_padding=use_remove_padding,
                 enable_gradient_checkpointing=self.config.model.get('enable_gradient_checkpointing', False),
                 trust_remote_code=self.config.model.get('trust_remote_code', False),
+                attn_implementation=self.config.model.get('attn_implementation', 'flash_attention_2'),
                 role='actor')
 
             # get the original unwrapped module
@@ -342,6 +344,8 @@ class MIXActorRolloutRefWorker(Worker):
                                                                use_remove_padding=use_remove_padding,
                                                                trust_remote_code=self.config.model.get(
                                                                    'trust_remote_code', False),
+                                                               attn_implementation=self.config.model.get(
+                                                                   'attn_implementation', 'flash_attention_2'),
                                                                role='ref')[0]
             OmegaConf.set_struct(self.config.ref, True)
             with open_dict(self.config.ref):

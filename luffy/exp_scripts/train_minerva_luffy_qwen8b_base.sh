@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export MINERVA_MODEL_PATH="${MINERVA_MODEL_PATH:-Qwen/Qwen3-8B-Base}"
+export MINERVA_ATTN_IMPLEMENTATION="${MINERVA_ATTN_IMPLEMENTATION:-flash_attention_2}"
+export MINERVA_ROLLOUT_GPU_UTIL="${MINERVA_ROLLOUT_GPU_UTIL:-0.7}"
+export MINERVA_ACTOR_PARAM_OFFLOAD="${MINERVA_ACTOR_PARAM_OFFLOAD:-false}"
+export MINERVA_ACTOR_OPTIMIZER_OFFLOAD="${MINERVA_ACTOR_OPTIMIZER_OFFLOAD:-false}"
+export MINERVA_REF_PARAM_OFFLOAD="${MINERVA_REF_PARAM_OFFLOAD:-false}"
+
+exec bash "$(dirname "$0")/train_minerva_luffy.sh" "$@"

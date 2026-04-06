@@ -129,7 +129,10 @@ class HFRollout(BaseRollout):
                 'responses': response,
                 'input_ids': seq,
                 'attention_mask': attention_mask,
-                'position_ids': position_ids
+                'position_ids': position_ids,
+                # The mix trainer expects a prefix mask even when rollout does not
+                # inject off-policy target prefixes.
+                'prefix_mask': torch.zeros((batch_size, response_length), device=seq.device, dtype=torch.bool),
             },
             batch_size=batch_size)
 
