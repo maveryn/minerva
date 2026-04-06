@@ -61,6 +61,7 @@ ACR_EMA_TEACHER_ALPHA="${ACRD_ACR_EMA_TEACHER_ALPHA:-0.995}"
 ACR_RL_WEIGHT="${ACRD_ACR_RL_WEIGHT:-0.3}"
 ACR_HARD_REWARD_MODE="${ACRD_ACR_HARD_REWARD_MODE:-max}"
 ACR_HARD_REWARD_THRESHOLD="${ACRD_ACR_HARD_REWARD_THRESHOLD:-1.0}"
+ACR_HARD_REWARD_KEY="${ACRD_ACR_HARD_REWARD_KEY:-}"
 ACR_SKIP_CVSS="${ACRD_ACR_SKIP_CVSS:-true}"
 
 ACR_DISTILL_INTERVAL="${ACRD_ACR_DISTILL_INTERVAL:-10}"
@@ -153,6 +154,10 @@ if [ -n "$ACR_ROLLOUT_TOP_P" ]; then
 fi
 if [ -n "$ACR_ROLLOUT_TOP_K" ]; then
   ACR_ROLLOUT_ARGS+=(+data.acr.rollout_sampling.top_k="$ACR_ROLLOUT_TOP_K")
+fi
+ACR_HARD_REWARD_ARGS=()
+if [ -n "$ACR_HARD_REWARD_KEY" ]; then
+  ACR_HARD_REWARD_ARGS+=(+data.acr.hard_reward_key="$ACR_HARD_REWARD_KEY")
 fi
 
 REWARD_FN_PATH="$ROOT_DIR/verl/utils/reward_score/reward_minerva.py"
@@ -272,5 +277,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.max_actor_ckpt_to_keep=1 \
     trainer.max_critic_ckpt_to_keep=1 \
     trainer.default_local_dir="$OUTPUT_ROOT" \
+    "${ACR_HARD_REWARD_ARGS[@]}" \
     "${ACR_ROLLOUT_ARGS[@]}" \
     "$@"

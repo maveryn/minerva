@@ -13,3 +13,12 @@ minerva-judge/classifier/data/** filter=lfs diff=lfs merge=lfs -text
 minerva-judge/classifier/data/* filter=lfs diff=lfs merge=lfs -text
 rlvr/mydata/seceval/*.parquet filter=lfs diff=lfs merge=lfs -text
 minerva-judge/judge-pairwise-quality-eval/pairwise_judge_results.jsonl filter=lfs diff=lfs merge=lfs -text
+
+# LFS tracking for committed SQL benchmark artifacts
+sql-benchmark/noctua_qwen25coder3b_best_step400_table1/**/*.json filter=lfs diff=lfs merge=lfs -text
+sql-benchmark/noctua_qwen25coder3b_best_step400_table1/**/*.txt filter=lfs diff=lfs merge=lfs -text
+sql-benchmark/noctua_qwen25coder3b_best_step400_table1/**/*.csv filter=lfs diff=lfs merge=lfs -text
+sql-benchmark/noctua_qwen25coder3b_best_step400_table2/**/*.json filter=lfs diff=lfs merge=lfs -text
+sql-benchmark/noctua_qwen25coder3b_best_step400_table2/**/*.txt filter=lfs diff=lfs merge=lfs -text
+sql-benchmark/noctua_qwen25coder3b_best_step400_table2/**/*.csv filter=lfs diff=lfs merge=lfs -text
+sql-benchmark/noctua_qwen25coder3b_best_step400_table2/**/*.sql filter=lfs diff=lfs merge=lfs -text

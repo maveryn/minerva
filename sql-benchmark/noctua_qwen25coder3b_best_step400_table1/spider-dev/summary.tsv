@@ -1,0 +1,2 @@
+dataset	exec_accuracy_all	pred_json	eval_log
+spider-dev	0.7824	/home/jovyan/work/minerva/sql-benchmark/noctua_qwen25coder3b_best_step400_table1/spider-dev/spiderdev_generated_sql.json	/home/jovyan/work/minerva/sql-benchmark/noctua_qwen25coder3b_best_step400_table1/spider-dev/eval.log

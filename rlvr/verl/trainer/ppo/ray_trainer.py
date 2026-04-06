@@ -58,11 +58,13 @@ from verl.trainer.ppo.metric_utils import (
     compute_timing_metrics,
     process_validation_metrics,
 )
+from verl.trainer.ppo.acr_utils import coerce_numeric_sequence, select_hard_uids
 from verl.trainer.ppo.reward import compute_reward, compute_reward_async
 from verl.trainer.ppo.utils import Role, WorkerType, need_critic, need_reference_policy, need_reward_model
 from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path, should_save_ckpt_esi
 from verl.utils.config import omega_conf_to_dataclass
 from verl.utils.debug import marked_timer
+from verl.utils.import_utils import load_extern_type
 from verl.utils.metric import reduce_metrics
 from verl.utils.model import compute_position_id_with_mask
 from verl.utils.rollout_skip import RolloutSkip
@@ -1544,6 +1546,8 @@ class RayPPOTrainer:
         self._acr_dedupe_labels = None
         self._acr_extract_gold_labels = None
         self._acr_try_build_messages = None
+        self._acr_try_build_sql_messages = None
+        self._acr_is_preformatted_messages = None
         self._acr_get_task_spec = None
         self._acr_normalize_label = None
         self._acr_extract_labels_from_truth = None
@@ -1584,14 +1588,42 @@ class RayPPOTrainer:
             print("ACR per-batch disabled: multimodal processor is not supported.")
             return
 
+        sql_prompt_exc = None
+        try:
+            from minerva.sql_r1_acr_prompt import is_sql_r1_preformatted_messages, try_build_sql_r1_acr_messages
+        except Exception as exc:
+            sql_prompt_exc = exc
+            is_sql_r1_preformatted_messages = None
+            try_build_sql_r1_acr_messages = None
+
+        cti_import_exc = None
         try:
             from minerva.acr_prompt import dedupe_labels, extract_gold_labels, try_build_acr_messages
             from minerva.cti_task_specs import get_task_spec
             from minerva.label_details_store import LabelDetailsStore
             from minerva.retrieval.task_specs import TaskSpec as RetrievalTaskSpec
             from minerva.retrieval.task_specs import extract_labels_from_truth, normalize_label
+
+            cti_helpers_available = True
         except Exception as exc:
-            print(f"ACR per-batch disabled: {exc}")
+            cti_import_exc = exc
+            dedupe_labels = None
+            extract_gold_labels = None
+            try_build_acr_messages = None
+            get_task_spec = None
+            LabelDetailsStore = None
+            RetrievalTaskSpec = None
+            extract_labels_from_truth = None
+            normalize_label = None
+            cti_helpers_available = False
+
+        if try_build_sql_r1_acr_messages is None and not cti_helpers_available:
+            reasons = []
+            if cti_import_exc is not None:
+                reasons.append(f"cti={cti_import_exc}")
+            if sql_prompt_exc is not None:
+                reasons.append(f"sql={sql_prompt_exc}")
+            print(f"ACR per-batch disabled: {'; '.join(reasons) if reasons else 'no prompt builders available'}")
             return
         try:
             from verl.utils.dataset.minerva_acr_dataset import (
@@ -1635,30 +1667,46 @@ class RayPPOTrainer:
                 reward_kwargs.pop("judge_runner", None)
                 self._acr_judge_model = reward_kwargs.get("judge_model")
         self._acr_reward_kwargs = dict(reward_kwargs)
-        try:
-            if reward_manager_name == "batch":
-                from verl.utils.reward_score.reward_acr_batch import reward_acr_batch
-            else:
-                from verl.utils.reward_score.reward_acr import reward_acr
-        except Exception as exc:
-            print(f"ACR per-batch disabled: {exc}")
-            return
+        reward_path = acr_cfg.get("reward_path")
+        reward_name = acr_cfg.get("reward_name")
+        if reward_path and reward_name:
+            try:
+                acr_reward_callable = load_extern_type(str(reward_path), str(reward_name))
+            except Exception as exc:
+                print(f"ACR per-batch disabled: {exc}")
+                return
+        else:
+            try:
+                if reward_manager_name == "batch":
+                    from verl.utils.reward_score.reward_acr_batch import reward_acr_batch
 
-        label_details_dir = acr_cfg.get("label_details_dir")
-        self._acr_details_store = LabelDetailsStore(label_details_dir)
-        self._acr_dedupe_labels = dedupe_labels
-        self._acr_extract_gold_labels = extract_gold_labels
-        self._acr_try_build_messages = try_build_acr_messages
-        self._acr_get_task_spec = get_task_spec
-        self._acr_normalize_label = normalize_label
-        self._acr_extract_labels_from_truth = extract_labels_from_truth
-        self._acr_task_spec_cls = RetrievalTaskSpec
-        self._acr_task_reasoning_hints = apply_reasoning_hints(
-            DEFAULT_TASK_REASONING_HINTS, acr_cfg.get("task_reasoning_hints")
-        )
-        self._acr_entity_reasoning_hints = apply_reasoning_hints(
-            DEFAULT_ENTITY_REASONING_HINTS, acr_cfg.get("entity_reasoning_hints")
-        )
+                    acr_reward_callable = reward_acr_batch
+                else:
+                    from verl.utils.reward_score.reward_acr import reward_acr
+
+                    acr_reward_callable = reward_acr
+            except Exception as exc:
+                print(f"ACR per-batch disabled: {exc}")
+                return
+
+        if cti_helpers_available:
+            label_details_dir = acr_cfg.get("label_details_dir")
+            self._acr_details_store = LabelDetailsStore(label_details_dir)
+            self._acr_dedupe_labels = dedupe_labels
+            self._acr_extract_gold_labels = extract_gold_labels
+            self._acr_try_build_messages = try_build_acr_messages
+            self._acr_get_task_spec = get_task_spec
+            self._acr_normalize_label = normalize_label
+            self._acr_extract_labels_from_truth = extract_labels_from_truth
+            self._acr_task_spec_cls = RetrievalTaskSpec
+            self._acr_task_reasoning_hints = apply_reasoning_hints(
+                DEFAULT_TASK_REASONING_HINTS, acr_cfg.get("task_reasoning_hints")
+            )
+            self._acr_entity_reasoning_hints = apply_reasoning_hints(
+                DEFAULT_ENTITY_REASONING_HINTS, acr_cfg.get("entity_reasoning_hints")
+            )
+        self._acr_try_build_sql_messages = try_build_sql_r1_acr_messages
+        self._acr_is_preformatted_messages = is_sql_r1_preformatted_messages
 
         self._acr_cfg = acr_cfg
         self._acr_enabled = True
@@ -1765,10 +1813,16 @@ class RayPPOTrainer:
             hard_reward_mode = "max"
             self._acr_hard_reward_no_perfect = True
         self._acr_hard_reward_mode = hard_reward_mode
+        hard_reward_key = acr_cfg.get("hard_reward_key", None)
+        if hard_reward_key is not None:
+            hard_reward_key = str(hard_reward_key).strip()
+            if not hard_reward_key:
+                hard_reward_key = None
+        self._acr_hard_reward_key = hard_reward_key
         if reward_manager_name == "batch":
             from verl.workers.reward_manager.batch import BatchRewardManager
 
-            compute_score = partial(reward_acr_batch, **reward_kwargs)
+            compute_score = partial(acr_reward_callable, **reward_kwargs)
             self._acr_reward_fn = BatchRewardManager(
                 tokenizer=self.tokenizer,
                 num_examine=0,
@@ -1776,7 +1830,7 @@ class RayPPOTrainer:
                 reward_fn_key=self._acr_reward_fn_key,
             )
         else:
-            compute_score = partial(reward_acr, **reward_kwargs)
+            compute_score = partial(acr_reward_callable, **reward_kwargs)
             self._acr_reward_fn = NaiveRewardManager(
                 tokenizer=self.tokenizer,
                 num_examine=0,
@@ -2292,22 +2346,53 @@ class RayPPOTrainer:
         self._distill_actor_dp_size = max(1, dp_size)
         return self._distill_actor_dp_size
 
+    def _acr_uses_preformatted_prompt(self, messages: Any) -> bool:
+        checker = getattr(self, "_acr_is_preformatted_messages", None)
+        if callable(checker):
+            try:
+                return bool(checker(messages))
+            except Exception:
+                return False
+        return False
+
+    def _acr_render_prompt_text(self, messages: list[dict], *, add_generation_prompt: bool = True) -> Optional[str]:
+        if not isinstance(messages, list):
+            return None
+        if self._acr_uses_preformatted_prompt(messages):
+            content = messages[0].get("content") if messages else None
+            return content if isinstance(content, str) else None
+        try:
+            return self.tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=add_generation_prompt,
+                tokenize=False,
+                **self._acr_apply_chat_template_kwargs,
+            )
+        except Exception:
+            return None
+
+    def _acr_is_sql_r1_source(self, data_source: Any, extra_info: Any = None, messages: Any = None) -> bool:
+        if data_source is not None and "synsql" in str(data_source).strip().lower():
+            return True
+        if isinstance(extra_info, dict):
+            prompt_format = extra_info.get("prompt_format")
+            if isinstance(prompt_format, str) and prompt_format.strip().lower() == "sql_r1_preformatted":
+                return True
+        return self._acr_uses_preformatted_prompt(messages)
+
     def _acr_prompt_too_long(self, messages: list[dict]) -> bool:
         if not self._acr_enabled:
             return False
-        try:
-            raw_prompt = self.tokenizer.apply_chat_template(
-                messages, add_generation_prompt=True, tokenize=False, **self._acr_apply_chat_template_kwargs
-            )
-            input_ids = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
-            return len(input_ids) > self._acr_max_prompt_length
-        except Exception:
+        raw_prompt = self._acr_render_prompt_text(messages, add_generation_prompt=True)
+        if raw_prompt is None:
             return False
+        input_ids = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
+        return len(input_ids) > self._acr_max_prompt_length
 
     def _acr_tokenize_messages(self, messages: list[dict]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        raw_prompt = self.tokenizer.apply_chat_template(
-            messages, add_generation_prompt=True, tokenize=False, **self._acr_apply_chat_template_kwargs
-        )
+        raw_prompt = self._acr_render_prompt_text(messages, add_generation_prompt=True)
+        if raw_prompt is None:
+            raise ValueError("Failed to render ACR prompt.")
         model_inputs = self.tokenizer(raw_prompt, return_tensors="pt", add_special_tokens=False)
         input_ids = model_inputs.pop("input_ids")
         attention_mask = model_inputs.pop("attention_mask")
@@ -2372,6 +2457,7 @@ class RayPPOTrainer:
 
         skipped_missing_prompt = 0
         skipped_missing_labels = 0
+        skipped_missing_target = 0
         skipped_prompt_too_long = 0
         skipped_tokenize_error = 0
         skipped_task = 0
@@ -2442,102 +2528,130 @@ class RayPPOTrainer:
                 skipped_task += 1
                 continue
 
-            spec = self._acr_get_task_spec(data_source, ground_truth, extra_info)
-            entity_type = spec.entity_type
-            reasoning_hint = None
-            task_hints = getattr(self, "_acr_task_reasoning_hints", None)
-            if spec.task_key and isinstance(task_hints, dict):
-                reasoning_hint = task_hints.get(spec.task_key)
-            if not reasoning_hint:
-                entity_hints = getattr(self, "_acr_entity_reasoning_hints", None)
-                if entity_type and isinstance(entity_hints, dict):
-                    reasoning_hint = entity_hints.get(entity_type)
-            gold_norm = []
-            if self._acr_extract_labels_from_truth is not None and self._acr_task_spec_cls is not None:
-                try:
-                    retrieval_spec = self._acr_task_spec_cls(
-                        label_type=entity_type,
-                        is_multilabel=bool(spec.is_multilabel),
-                        label_id_regex=spec.label_id_regex,
-                    )
-                    gold_norm = self._acr_extract_labels_from_truth(ground_truth, retrieval_spec)
-                except Exception:
-                    gold_norm = []
-            if not gold_norm:
-                gold_labels = self._acr_extract_gold_labels(ground_truth)
-                gold_norm = [
-                    self._acr_normalize_label(entity_type, label) if entity_type else str(label).strip()
-                    for label in gold_labels
-                ]
-                gold_norm = self._acr_dedupe_labels(gold_norm)
-            if not gold_norm:
-                skipped_missing_labels += 1
-                continue
-
-            details_labels = gold_norm
+            is_sql_r1_source = self._acr_is_sql_r1_source(data_source, extra_info, messages)
+            entity_type = ""
             option_text = ""
-            if (
-                entity_type
-                and len(gold_norm) == 1
-                and len(gold_norm[0]) == 1
-                and isinstance(messages, list)
-            ):
-                options = extract_option_map(messages)
-                option_text = options.get(gold_norm[0].upper(), "")
-                if option_text:
-                    if self._acr_extract_labels_from_truth is not None and self._acr_task_spec_cls is not None:
-                        try:
-                            retrieval_spec = self._acr_task_spec_cls(
-                                label_type=entity_type,
-                                is_multilabel=bool(spec.is_multilabel),
-                                label_id_regex=spec.label_id_regex,
-                            )
-                            extracted = self._acr_extract_labels_from_truth(option_text, retrieval_spec)
-                            if extracted:
-                                details_labels = extracted
-                        except Exception:
-                            pass
-                    if details_labels == gold_norm:
-                        details_labels = [option_text]
+            used_details = ""
+            spec_task_key = ""
+            gold_norm = []
 
-            details_applicable = bool(entity_type)
-            details_text = None
-            if details_applicable:
-                details_text = self._acr_details_store.get_details(entity_type, details_labels)
-            acr_messages, skipped, used_details = self._acr_try_build_messages(
-                messages,
-                gold_norm,
-                details_text,
-                max_details_chars=self._acr_max_details_chars,
-                prompt_too_long=self._acr_prompt_too_long,
-                enforce_no_id=self._acr_enforce_no_id,
-                reasoning_hint=reasoning_hint,
-            )
-            if skipped:
-                skipped_prompt_too_long += 1
-                continue
-
-            if details_applicable:
-                if not details_text:
-                    details_missing += 1
-                    log_details_issue(
-                        "details_missing",
-                        details_text=details_text or "",
-                        used_details=used_details or "",
-                        option_text=option_text,
-                    )
-                elif not used_details:
-                    details_omitted += 1
-                    log_details_issue(
-                        "details_omitted",
-                        details_text=details_text or "",
-                        used_details=used_details or "",
-                        option_text=option_text,
-                    )
-                elif used_details and details_text and used_details.endswith("...") and len(used_details) < len(details_text):
-                    details_truncated += 1
+            if is_sql_r1_source:
+                gold_sql = str((ground_truth or {}).get("sql") or "").strip()
+                if not gold_sql or self._acr_try_build_sql_messages is None:
+                    skipped_missing_target += 1
+                    continue
+                acr_messages, skipped = self._acr_try_build_sql_messages(
+                    messages,
+                    gold_sql,
+                    prompt_too_long=self._acr_prompt_too_long,
+                )
+                if skipped:
+                    skipped_prompt_too_long += 1
+                    continue
             else:
-                details_not_applicable += 1
+                if self._acr_get_task_spec is None:
+                    skipped_task += 1
+                    continue
+                spec = self._acr_get_task_spec(data_source, ground_truth, extra_info)
+                entity_type = spec.entity_type
+                spec_task_key = spec.task_key or ""
+                reasoning_hint = None
+                task_hints = getattr(self, "_acr_task_reasoning_hints", None)
+                if spec.task_key and isinstance(task_hints, dict):
+                    reasoning_hint = task_hints.get(spec.task_key)
+                if not reasoning_hint:
+                    entity_hints = getattr(self, "_acr_entity_reasoning_hints", None)
+                    if entity_type and isinstance(entity_hints, dict):
+                        reasoning_hint = entity_hints.get(entity_type)
+                if self._acr_extract_labels_from_truth is not None and self._acr_task_spec_cls is not None:
+                    try:
+                        retrieval_spec = self._acr_task_spec_cls(
+                            label_type=entity_type,
+                            is_multilabel=bool(spec.is_multilabel),
+                            label_id_regex=spec.label_id_regex,
+                        )
+                        gold_norm = self._acr_extract_labels_from_truth(ground_truth, retrieval_spec)
+                    except Exception:
+                        gold_norm = []
+                if not gold_norm:
+                    gold_labels = self._acr_extract_gold_labels(ground_truth)
+                    gold_norm = [
+                        self._acr_normalize_label(entity_type, label) if entity_type else str(label).strip()
+                        for label in gold_labels
+                    ]
+                    gold_norm = self._acr_dedupe_labels(gold_norm)
+                if not gold_norm:
+                    skipped_missing_labels += 1
+                    continue
+
+                details_labels = gold_norm
+                if (
+                    entity_type
+                    and len(gold_norm) == 1
+                    and len(gold_norm[0]) == 1
+                    and isinstance(messages, list)
+                ):
+                    options = extract_option_map(messages)
+                    option_text = options.get(gold_norm[0].upper(), "")
+                    if option_text:
+                        if self._acr_extract_labels_from_truth is not None and self._acr_task_spec_cls is not None:
+                            try:
+                                retrieval_spec = self._acr_task_spec_cls(
+                                    label_type=entity_type,
+                                    is_multilabel=bool(spec.is_multilabel),
+                                    label_id_regex=spec.label_id_regex,
+                                )
+                                extracted = self._acr_extract_labels_from_truth(option_text, retrieval_spec)
+                                if extracted:
+                                    details_labels = extracted
+                            except Exception:
+                                pass
+                        if details_labels == gold_norm:
+                            details_labels = [option_text]
+
+                details_applicable = bool(entity_type)
+                details_text = None
+                if details_applicable:
+                    details_text = self._acr_details_store.get_details(entity_type, details_labels)
+                acr_messages, skipped, used_details = self._acr_try_build_messages(
+                    messages,
+                    gold_norm,
+                    details_text,
+                    max_details_chars=self._acr_max_details_chars,
+                    prompt_too_long=self._acr_prompt_too_long,
+                    enforce_no_id=self._acr_enforce_no_id,
+                    reasoning_hint=reasoning_hint,
+                )
+                if skipped:
+                    skipped_prompt_too_long += 1
+                    continue
+
+                if details_applicable:
+                    if not details_text:
+                        details_missing += 1
+                        log_details_issue(
+                            "details_missing",
+                            details_text=details_text or "",
+                            used_details=used_details or "",
+                            option_text=option_text,
+                        )
+                    elif not used_details:
+                        details_omitted += 1
+                        log_details_issue(
+                            "details_omitted",
+                            details_text=details_text or "",
+                            used_details=used_details or "",
+                            option_text=option_text,
+                        )
+                    elif (
+                        used_details
+                        and details_text
+                        and used_details.endswith("...")
+                        and len(used_details) < len(details_text)
+                    ):
+                        details_truncated += 1
+                else:
+                    details_not_applicable += 1
 
             try:
                 input_ids, attention_mask, position_ids = self._acr_tokenize_messages(acr_messages)
@@ -2549,18 +2663,26 @@ class RayPPOTrainer:
             extra.setdefault("acr_orig_prompt", deepcopy(messages))
             extra["acr_prompt"] = acr_messages
             extra["acr_skipped"] = False
-            if option_text:
-                extra["acr_option_text"] = option_text
-            if details_labels != gold_norm:
-                extra["acr_details_labels"] = details_labels
-            extra["acr_entity_type"] = entity_type or ""
-            extra["acr_gold_labels"] = gold_norm
-            extra["acr_gold_keys"] = [f"{entity_type}:{label}" if entity_type else label for label in gold_norm]
             extra["acr_mode"] = "acr"
-            if spec.task_key:
-                extra["acr_task_key"] = spec.task_key
-            if used_details:
-                extra["acr_details_chars"] = int(len(used_details))
+            if is_sql_r1_source:
+                extra["acr_entity_type"] = ""
+                extra["acr_gold_sql"] = str((ground_truth or {}).get("sql") or "")
+                extra["acr_gold_labels"] = []
+                extra["acr_gold_keys"] = []
+                extra["prompt_format"] = "sql_r1_preformatted"
+                extra["acr_task_key"] = str(data_source or "synsql")
+            else:
+                if option_text:
+                    extra["acr_option_text"] = option_text
+                if details_labels != gold_norm:
+                    extra["acr_details_labels"] = details_labels
+                extra["acr_entity_type"] = entity_type or ""
+                extra["acr_gold_labels"] = gold_norm
+                extra["acr_gold_keys"] = [f"{entity_type}:{label}" if entity_type else label for label in gold_norm]
+                if spec_task_key:
+                    extra["acr_task_key"] = spec_task_key
+                if used_details:
+                    extra["acr_details_chars"] = int(len(used_details))
 
             input_ids_list.append(input_ids)
             attention_mask_list.append(attention_mask)
@@ -2580,6 +2702,8 @@ class RayPPOTrainer:
             metrics["acr/skip_missing_prompt"] = float(skipped_missing_prompt)
         if skipped_missing_labels:
             metrics["acr/skip_missing_labels"] = float(skipped_missing_labels)
+        if skipped_missing_target:
+            metrics["acr/skip_missing_target"] = float(skipped_missing_target)
         if skipped_prompt_too_long:
             metrics["acr/skip_prompt_long"] = float(skipped_prompt_too_long)
         if skipped_tokenize_error:
@@ -2614,7 +2738,7 @@ class RayPPOTrainer:
         self, batch: DataProto, reward_scalar: Optional[torch.Tensor]
     ) -> tuple[Optional[set[str]], dict[str, float]]:
         metrics: dict[str, float] = {}
-        if not self._acr_enabled or reward_scalar is None:
+        if not self._acr_enabled:
             return None, metrics
 
         uid_arr = batch.non_tensor_batch.get("uid")
@@ -2622,21 +2746,21 @@ class RayPPOTrainer:
             return None, metrics
 
         uid_list = np.asarray(uid_arr, dtype=object).tolist()
-        reward_list = reward_scalar.detach().cpu().tolist()
-        if len(uid_list) != len(reward_list):
-            return None, metrics
+        reward_list = None
+        hard_reward_key = getattr(self, "_acr_hard_reward_key", None)
+        if hard_reward_key:
+            reward_list = coerce_numeric_sequence(batch.non_tensor_batch.get(hard_reward_key), len(uid_list))
+            metrics["acr/hard_uid_source_metric"] = 1.0
+            if reward_list is None:
+                metrics["acr/hard_uid_metric_fallback"] = 1.0
 
-        reward_sum_by_uid: dict[str, float] = {}
-        reward_count_by_uid: dict[str, int] = {}
-        reward_max_by_uid: dict[str, float] = {}
-        for uid, reward in zip(uid_list, reward_list):
-            key = str(uid)
-            reward_val = float(reward)
-            reward_sum_by_uid[key] = reward_sum_by_uid.get(key, 0.0) + reward_val
-            reward_count_by_uid[key] = reward_count_by_uid.get(key, 0) + 1
-            prev = reward_max_by_uid.get(key)
-            if prev is None or reward_val > prev:
-                reward_max_by_uid[key] = reward_val
+        if reward_list is None:
+            metrics.setdefault("acr/hard_uid_source_metric", 0.0)
+            if reward_scalar is None:
+                return None, metrics
+            reward_list = coerce_numeric_sequence(reward_scalar.detach().cpu().tolist(), len(uid_list))
+            if reward_list is None:
+                return None, metrics
 
         hard_mode = str(getattr(self, "_acr_hard_reward_mode", "max")).lower().strip()
         if hard_mode in {"mean", "avg", "average", "mean_reward"}:
@@ -2646,31 +2770,27 @@ class RayPPOTrainer:
         else:
             hard_mode = "max"
 
+        total = len({str(uid) for uid in uid_list})
         if hard_mode == "mean":
-            mean_reward_by_uid = {
-                uid: (reward_sum_by_uid[uid] / max(1, reward_count_by_uid.get(uid, 0)))
-                for uid in reward_sum_by_uid
-            }
-            total = len(mean_reward_by_uid)
             if getattr(self, "_acr_hard_reward_threshold_set", False):
                 threshold = float(getattr(self, "_acr_hard_reward_threshold", 0.5))
             else:
                 threshold = 0.5
-            hard_uids = {uid for uid, score in mean_reward_by_uid.items() if score < threshold}
         else:
-            total = len(reward_max_by_uid)
             if getattr(self, "_acr_hard_reward_no_perfect", False):
                 threshold = 1.0
             elif getattr(self, "_acr_hard_reward_threshold_set", False):
                 threshold = float(getattr(self, "_acr_hard_reward_threshold", 1.0))
             else:
                 threshold = 1.0
-            hard_uids = {uid for uid, score in reward_max_by_uid.items() if score < (threshold - 1e-6)}
+
+        hard_uids = select_hard_uids(uid_list, reward_list, hard_mode=hard_mode, threshold=threshold)
 
         if total > 0:
             metrics["acr/hard_uid_total"] = float(total)
             metrics["acr/hard_uid_count"] = float(len(hard_uids))
             metrics["acr/hard_uid_frac"] = float(len(hard_uids) / total)
+        metrics["acr/hard_uid_threshold"] = float(threshold)
 
         return hard_uids, metrics
 
@@ -2778,14 +2898,10 @@ class RayPPOTrainer:
     def _tokenize_prompt_nohint(self, messages: list[dict]) -> Optional[list[int]]:
         if not isinstance(messages, list):
             return None
-        kwargs = self.config.data.get("apply_chat_template_kwargs", {})
-        try:
-            raw_prompt = self.tokenizer.apply_chat_template(
-                messages, add_generation_prompt=True, tokenize=False, **kwargs
-            )
-            return self.tokenizer.encode(raw_prompt, add_special_tokens=False)
-        except Exception:
+        raw_prompt = self._acr_render_prompt_text(messages, add_generation_prompt=True)
+        if raw_prompt is None:
             return None
+        return self.tokenizer.encode(raw_prompt, add_special_tokens=False)
 
     def _acr_filter_mode(self, disable_filters: bool) -> str:
         mode = str(self._distill_cfg.get("filter_mode", "heuristic")).lower().strip()

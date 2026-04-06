@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# End-to-end SQL-R1 Noctua run on 2 GPUs.
+# Mirrors the public SQL-R1 GRPO training numbers where practical, except for a
+# more conservative RL/ACR profile needed for stable vLLM sync on 2x H200:
+# - train/val batch size: 32
+# - max prompt length: 4096
+# - max response length: 2048
+# - rollout.n: 8
+# - rollout temperature: 1.1
+# - actor lr: 3e-7
+# - KL coef: 0.001
+# - total epochs: 10
+#
+# Hardware-specific adaptations for this machine:
+# - 2 GPUs instead of 8
+# - tensor parallel size 1
+# - conservative per-GPU micro-batches for FSDP + vLLM
+# - non-deferred SQL ACR by default to avoid large step-interval flush bursts
+# - EMA teacher enabled by default on the reduced 2-GPU profile
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+RLVR_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
+
+export SQLR1_ROOT="${SQLR1_ROOT:-/home/jovyan/work/SQL-R1}"
+export SQLR1_MODEL_PATH="${SQLR1_MODEL_PATH:-MPX0222forHF/SQL-R1-3B}"
+export SQLR1_TOKENIZER_PATH="${SQLR1_TOKENIZER_PATH:-$SQLR1_MODEL_PATH}"
+
+export SQLR1_TRAIN_PATH="${SQLR1_TRAIN_PATH:-$SQLR1_ROOT/example_data/train.parquet}"
+export SQLR1_VAL_PATH="${SQLR1_VAL_PATH:-$SQLR1_ROOT/example_data/test.parquet}"
+export SQLR1_DB_ROOT="${SQLR1_DB_ROOT:-$SQLR1_ROOT/data/NL2SQL/SynSQL-2.5M/databases}"
+
+export SQLR1_TRAIN_BATCH_SIZE="${SQLR1_TRAIN_BATCH_SIZE:-32}"
+export SQLR1_VAL_BATCH_SIZE="${SQLR1_VAL_BATCH_SIZE:-32}"
+export SQLR1_MAX_PROMPT_LEN="${SQLR1_MAX_PROMPT_LEN:-4096}"
+export SQLR1_ACR_MAX_PROMPT_LEN="${SQLR1_ACR_MAX_PROMPT_LEN:-4608}"
+export SQLR1_MAX_RESPONSE_LEN="${SQLR1_MAX_RESPONSE_LEN:-2048}"
+export SQLR1_ROLLOUT_N="${SQLR1_ROLLOUT_N:-8}"
+export SQLR1_ROLLOUT_TEMPERATURE="${SQLR1_ROLLOUT_TEMPERATURE:-1.1}"
+export SQLR1_ACTOR_LR="${SQLR1_ACTOR_LR:-3e-7}"
+export SQLR1_KL_COEF="${SQLR1_KL_COEF:-0.001}"
+export SQLR1_TOTAL_EPOCHS="${SQLR1_TOTAL_EPOCHS:-10}"
+
+export SQLR1_N_GPUS_PER_NODE="${SQLR1_N_GPUS_PER_NODE:-2}"
+export SQLR1_TENSOR_PARALLEL_SIZE="${SQLR1_TENSOR_PARALLEL_SIZE:-1}"
+export SQLR1_PPO_MICRO_BATCH_SIZE="${SQLR1_PPO_MICRO_BATCH_SIZE:-4}"
+export SQLR1_LOGPROB_MICRO_BATCH_SIZE="${SQLR1_LOGPROB_MICRO_BATCH_SIZE:-16}"
+export SQLR1_ROLLOUT_GPU_UTIL="${SQLR1_ROLLOUT_GPU_UTIL:-0.55}"
+export SQLR1_FREE_CACHE_ENGINE="${SQLR1_FREE_CACHE_ENGINE:-false}"
+
+export SQLR1_ACR_ROLLOUT_N="${SQLR1_ACR_ROLLOUT_N:-2}"
+export SQLR1_ACR_RL_WEIGHT="${SQLR1_ACR_RL_WEIGHT:-0.3}"
+export SQLR1_ACR_DEFER_GENERATION="${SQLR1_ACR_DEFER_GENERATION:-false}"
+export SQLR1_ACR_EMA_TEACHER_ENABLED="${SQLR1_ACR_EMA_TEACHER_ENABLED:-true}"
+export SQLR1_ACR_EMA_TEACHER_ALPHA="${SQLR1_ACR_EMA_TEACHER_ALPHA:-0.995}"
+export SQLR1_ACR_HARD_REWARD_KEY="${SQLR1_ACR_HARD_REWARD_KEY:-exec_match}"
+export SQLR1_ACR_HARD_REWARD_MODE="${SQLR1_ACR_HARD_REWARD_MODE:-max}"
+export SQLR1_ACR_HARD_REWARD_THRESHOLD="${SQLR1_ACR_HARD_REWARD_THRESHOLD:-1.0}"
+
+export SQLR1_ACR_DISTILL_INTERVAL="${SQLR1_ACR_DISTILL_INTERVAL:-10}"
+export SQLR1_ACR_DISTILL_THRESHOLD="${SQLR1_ACR_DISTILL_THRESHOLD:-1.0}"
+export SQLR1_ACR_DISTILL_SELECTION_MODE="${SQLR1_ACR_DISTILL_SELECTION_MODE:-random}"
+export SQLR1_ACR_DISTILL_BUFFER_MODE="${SQLR1_ACR_DISTILL_BUFFER_MODE:-flush}"
+export SQLR1_ACR_DISTILL_BATCH_SIZE="${SQLR1_ACR_DISTILL_BATCH_SIZE:-256}"
+export SQLR1_ACR_DISTILL_MAX_BUFFER="${SQLR1_ACR_DISTILL_MAX_BUFFER:-0}"
+export SQLR1_ACR_DISTILL_LR_SCALE="${SQLR1_ACR_DISTILL_LR_SCALE:-0.05}"
+export SQLR1_ACR_DISTILL_FILTER_MODE="${SQLR1_ACR_DISTILL_FILTER_MODE:-heuristic}"
+export SQLR1_REWARD_TIMEOUT_S="${SQLR1_REWARD_TIMEOUT_S:-10}"
+
+export SQLR1_SAVE_FREQ="${SQLR1_SAVE_FREQ:-100}"
+export SQLR1_TEST_FREQ="${SQLR1_TEST_FREQ:-100}"
+export SQLR1_EXPERIMENT_NAME="${SQLR1_EXPERIMENT_NAME:-sql_r1_noctua_sqlr1_3b_2gpu}"
+export SQLR1_OUTPUT_ROOT="${SQLR1_OUTPUT_ROOT:-$RLVR_ROOT/checkpoints/sql-r1/$SQLR1_EXPERIMENT_NAME}"
+
+# Keep the default full-run logs readable.
+export ACRD_DEBUG_SAMPLES="${ACRD_DEBUG_SAMPLES:-0}"
+export ACRD_JUDGE_DEBUG_SAMPLES="${ACRD_JUDGE_DEBUG_SAMPLES:-0}"
+
+exec bash "$SCRIPT_DIR/train_sql_r1_noctua.sh" "$@"

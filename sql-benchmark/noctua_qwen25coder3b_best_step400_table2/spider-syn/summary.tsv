@@ -1,0 +1,2 @@
+dataset	exec_accuracy_all	pred_json	pred_sql_txt	eval_log
+spider-syn	0.7070	/home/jovyan/work/minerva/sql-benchmark/noctua_qwen25coder3b_best_step400_table2/spider-syn/spider-syn/spidersyn_generated_sql.json	/home/jovyan/work/minerva/sql-benchmark/noctua_qwen25coder3b_best_step400_table2/spider-syn/spider-syn/spidersyn_generated_sql_pred_major_voting_sqls.txt	/home/jovyan/work/minerva/sql-benchmark/noctua_qwen25coder3b_best_step400_table2/spider-syn/spider-syn/eval.log
