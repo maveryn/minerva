@@ -296,6 +296,9 @@ paper/**
 !paper/**/*.md
 !paper/**/*.sh
 !paper/**/*.bat
+!paper/valacc/*.csv
+!paper/expansion/*.csv
+!paper/reward_sparsity/target_level_stats_v1_*.csv
 paper/**/__pycache__/
 paper/**/.ipynb_checkpoints/
 paper/human-annotation/
