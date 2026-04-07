@@ -1,0 +1,259 @@
+{
+  "polar_equipment|EquipmentType|EquipType": "TEXT. Unique identifier for the equipment type. PK.",
+  "polar_equipment|Equipment|EQUIP_CODE": "TEXT. Unique identifier for the equipment. PK. Example: PE593707.",
+  "polar_equipment|Equipment|EquipType": "TEXT. Reference to the equipment type. FK to EquipmentType.EquipType.",
+  "polar_equipment|Equipment|model_name": "TEXT. Model name of the equipment. **NULL means no model name provided.**. Example: Model-925.",
+  "polar_equipment|Equipment|MakerName": "TEXT. Name of the equipment manufacturer. **NULL means no manufacturer provided.**. Example: Lee, Meyers and Hamilton.",
+  "polar_equipment|Equipment|SERVICE_YRS": "BIGINT. Number of years the equipment has been in service. Example: 4.",
+  "polar_equipment|Equipment|utilPercent": "REAL. Utilization percentage of the equipment. Example: 53.",
+  "polar_equipment|Equipment|RELIAB_IDX": "REAL. Reliability index of the equipment. Example: 97.8.",
+  "polar_equipment|Location|STATION_name": "TEXT. Unique name of the station. PK.",
+  "polar_equipment|Location|TimeStamp": "TIMESTAMP. Timestamp when the location data was recorded. Example: 2024-10-29T17:30:55.",
+  "polar_equipment|Location|locType": "TEXT. Type of location (e.g., field, lab). Possible values: Antarctic, Arctic.",
+  "polar_equipment|Location|LAT_deg": "REAL. Latitude of the location in degrees. Example: 80.255202.",
+  "polar_equipment|Location|LON_deg": "REAL. Longitude of the location in degrees. Example: -146.257874.",
+  "polar_equipment|Location|altitude_m": "REAL. Altitude of the location in meters. **NULL means no altitude provided.**. Example: 2054.5.",
+  "polar_equipment|OperationMaintenance|OP_MAINT_ID": "BIGSERIAL. Unique identifier for operation and maintenance record. PK.",
+  "polar_equipment|OperationMaintenance|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|OperationMaintenance|OPER_hours": "REAL. Total operational hours of the equipment. Example: 17843.",
+  "polar_equipment|OperationMaintenance|maintCycleHrs": "REAL. Maintenance cycle hours. **NULL means no maintenance cycle defined.**. Example: 2047.0.",
+  "polar_equipment|OperationMaintenance|LAST_maint_date": "DATE. Date of the last maintenance. **NULL means no maintenance date provided.**. Example: 25-Feb-24.",
+  "polar_equipment|OperationMaintenance|NEXT_due_date": "DATE. Date of the next scheduled maintenance. **NULL means no next maintenance date provided.**. Example: 2025/11/16.",
+  "polar_equipment|OperationMaintenance|OPER_status": "TEXT. Operational status of the equipment. Possible values: Active, Maintenance, Repair, Standby, Storage.",
+  "polar_equipment|OperationMaintenance|MAINT_COST_usd": "REAL. Maintenance cost in USD. Example: 7632.51.",
+  "polar_equipment|OperationMaintenance|repairCostUsd": "REAL. Repair cost in USD. Example: 3297.13.",
+  "polar_equipment|OperationMaintenance|operating_cost_usd": "REAL. Operating cost in USD. **NULL means no operating cost recorded.**. Example: 338.79.",
+  "polar_equipment|OperationMaintenance|crewCertStatus": "TEXT. Certification status of the crew. Possible values: Expired, Pending, Valid.",
+  "polar_equipment|OperationMaintenance|inspect_status": "TEXT. Inspection status of the equipment. Possible values: Failed, Passed, Pending.",
+  "polar_equipment|OperationMaintenance|docu_status": "TEXT. Documentation status for the equipment. Possible values: Complete, Incomplete, Updated.",
+  "polar_equipment|OperationMaintenance|COMPLIANCE_state": "TEXT. Compliance state of the equipment. **NULL means no compliance state recorded.**. Possible values: Compliant, Non-compliant, Review.",
+  "polar_equipment|OperationMaintenance|comm_link": "BIGINT. Optional reference to communication link.",
+  "polar_equipment|PowerBattery|PWR_BATT_ID": "BIGSERIAL. Unique identifier for the power battery. PK.",
+  "polar_equipment|PowerBattery|equip_ref": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|EngineAndFluids|ENGINE_ID": "BIGSERIAL. Unique identifier for the engine and fluids record. PK.",
+  "polar_equipment|EngineAndFluids|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|EngineAndFluids|batt_link": "BIGINT. Reference to the battery. FK to PowerBattery.PWR_BATT_ID.",
+  "polar_equipment|EngineAndFluids|opmaint_link": "BIGINT. Reference to the operation and maintenance record. FK to OperationMaintenance.OP_MAINT_ID.",
+  "polar_equipment|Transmission|TRANS_ID": "BIGSERIAL. Unique identifier for the transmission record. PK.",
+  "polar_equipment|Transmission|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|Transmission|engine_link": "BIGINT. Reference to the engine and fluids record. FK to EngineAndFluids.ENGINE_ID.",
+  "polar_equipment|Transmission|transTempC": "REAL. Transmission temperature in Celsius. Example: 94.5.",
+  "polar_equipment|Transmission|transPress_kpa": "REAL. Transmission pressure in kPa. **NULL means no transmission pressure recorded.**. Example: 532.9.",
+  "polar_equipment|Transmission|TRANS_gear": "TEXT. Gear setting of the transmission. **NULL means no gear setting recorded.**. Possible values: -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0.",
+  "polar_equipment|Transmission|diffTempC": "REAL. Differential temperature in Celsius. Example: 80.9.",
+  "polar_equipment|Transmission|axleTempC": "REAL. Axle temperature in Celsius. Example: 22.1.",
+  "polar_equipment|Transmission|opmaint_link": "BIGINT. Reference to the operation and maintenance record. FK to OperationMaintenance.OP_MAINT_ID.",
+  "polar_equipment|ChassisAndVehicle|CHASSIS_ID": "BIGSERIAL. Unique identifier for the chassis and vehicle record. PK.",
+  "polar_equipment|ChassisAndVehicle|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|ChassisAndVehicle|trans_link": "BIGINT. Reference to the transmission record. FK to Transmission.TRANS_ID.",
+  "polar_equipment|ChassisAndVehicle|engine_link": "BIGINT. Reference to the engine and fluids record. FK to EngineAndFluids.ENGINE_ID.",
+  "polar_equipment|Communication|COMM_ID": "BIGSERIAL. Unique identifier for the communication record. PK.",
+  "polar_equipment|Communication|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|Communication|loc_link": "TEXT. Reference to the location. FK to Location.STATION_name.",
+  "polar_equipment|Communication|GPS_signal": "TEXT. GPS signal status. **NULL means no GPS signal data recorded.**. Possible values: Medium, Strong, Weak.",
+  "polar_equipment|Communication|sat_conn_stat": "TEXT. Satellite connection status. **NULL means no satellite connection status recorded.**. Possible values: Connected, Disconnected, Limited.",
+  "polar_equipment|Communication|wifiSignal_dBm": "REAL. Wi-Fi signal strength in dBm. **NULL means no Wi-Fi signal data recorded.**. Example: -61.7.",
+  "polar_equipment|Communication|radioSignal_dBm": "REAL. Radio signal strength in dBm. Example: -97.8.",
+  "polar_equipment|Communication|radioFreq_mhz": "REAL. Radio frequency in MHz. Example: 731.2.",
+  "polar_equipment|Communication|antenna_stat": "TEXT. Antenna status. Possible values: Error, Normal, Warning.",
+  "polar_equipment|Communication|netLatency_ms": "REAL. Network latency in milliseconds. Example: 1006.0.",
+  "polar_equipment|Communication|dataRate_kbps": "REAL. Data rate in kilobits per second. Example: 389.6.",
+  "polar_equipment|Communication|btStatus": "TEXT. Bluetooth status. Possible values: Error, Off, On, Pairing.",
+  "polar_equipment|Communication|opmaint_link": "BIGINT. Reference to the operation and maintenance record. FK to OperationMaintenance.OP_MAINT_ID.",
+  "polar_equipment|CabinEnvironment|CABIN_ID": "BIGSERIAL. Unique identifier for the cabin environment record. PK.",
+  "polar_equipment|CabinEnvironment|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|CabinEnvironment|loc_link": "TEXT. Reference to the location. FK to Location.STATION_name.",
+  "polar_equipment|CabinEnvironment|comm_link": "BIGINT. Reference to the communication record. FK to Communication.COMM_ID.",
+  "polar_equipment|LightingAndSafety|LIGHT_ID": "BIGSERIAL. Unique identifier for the lighting and safety record. PK.",
+  "polar_equipment|LightingAndSafety|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|LightingAndSafety|lightingStat": "TEXT. Lighting status. Possible values: Auto, Off, On.",
+  "polar_equipment|LightingAndSafety|lightIntensityPct": "REAL. Light intensity percentage. **NULL means no light intensity data recorded.**. Example: 21.0.",
+  "polar_equipment|LightingAndSafety|extLightStat": "TEXT. External lighting status. **NULL means no external lighting status recorded.**. Possible values: Auto, Off, On.",
+  "polar_equipment|LightingAndSafety|emerStopStat": "TEXT. Emergency stop status. **NULL means no emergency stop status recorded.**. Possible values: Activated, Ready, Reset.",
+  "polar_equipment|LightingAndSafety|emerLightStat": "TEXT. Emergency light status. Possible values: Off, On, Testing.",
+  "polar_equipment|LightingAndSafety|fireDetectStat": "TEXT. Fire detection status. Possible values: Alert, Fault, Normal.",
+  "polar_equipment|LightingAndSafety|smokeDetectStat": "TEXT. Smoke detection status. Possible values: Alert, Fault, Normal.",
+  "polar_equipment|LightingAndSafety|COdetectStat": "TEXT. CO detection status. Possible values: Alert, Fault, Normal.",
+  "polar_equipment|LightingAndSafety|gasDetectStat": "TEXT. Gas detection status. Possible values: Alert, Fault, Normal.",
+  "polar_equipment|LightingAndSafety|alarm_stat": "TEXT. Alarm system status. Possible values: Critical, Normal, Warning.",
+  "polar_equipment|LightingAndSafety|safetySysStat": "TEXT. Safety system status. Possible values: Active, Fault, Standby.",
+  "polar_equipment|LightingAndSafety|lifeSupportStat": "TEXT. Life support system status. Possible values: Critical, Normal, Warning.",
+  "polar_equipment|LightingAndSafety|O2SupplyStat": "TEXT. Oxygen supply status. Possible values: Critical, Normal, Warning.",
+  "polar_equipment|LightingAndSafety|medEquipStat": "TEXT. Medical equipment status. Possible values: Critical, Normal, Warning.",
+  "polar_equipment|LightingAndSafety|wasteMgmtStat": "TEXT. Waste management status. Possible values: Critical, Normal, Warning.",
+  "polar_equipment|LightingAndSafety|waterSupplyStat": "TEXT. Water supply status. Possible values: Critical, Normal, Warning.",
+  "polar_equipment|WaterAndWaste|WATER_ID": "BIGSERIAL. Unique identifier for the water and waste record. PK.",
+  "polar_equipment|WaterAndWaste|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|WaterAndWaste|waterLevelPct": "REAL. Water level percentage. Example: 77.",
+  "polar_equipment|WaterAndWaste|waterPress_kpa": "REAL. Water pressure in kPa. Example: 66.4.",
+  "polar_equipment|WaterAndWaste|waterTempC": "TEXT. Water temperature in Celsius. **NULL means no water temperature data recorded.**. Example: 58.4 °C.",
+  "polar_equipment|WaterAndWaste|waterFlow_lpm": "REAL. Water flow in liters per minute. Example: 28.6.",
+  "polar_equipment|WaterAndWaste|waterQualityIdx": "BIGINT. Water quality index. Example: 57.",
+  "polar_equipment|WaterAndWaste|wasteTankPct": "REAL. Waste tank percentage. Example: 28.",
+  "polar_equipment|Scientific|SCI_ID": "BIGSERIAL. Unique identifier for the scientific instrument record. PK.",
+  "polar_equipment|Scientific|equipRef": "TEXT. Reference to the equipment. FK to Equipment.EQUIP_CODE.",
+  "polar_equipment|Scientific|sciEquipStat": "TEXT. Status of the scientific equipment. Possible values: Fault, Operating, Standby.",
+  "polar_equipment|Scientific|dataLogStat": "TEXT. Data logging status for the equipment. Possible values: Active, Error, Paused.",
+  "polar_equipment|Scientific|sensorStat": "TEXT. Sensor status. Possible values: Error, Normal, Warning.",
+  "polar_equipment|Scientific|calibrStat": "TEXT. Calibration status. Possible values: Due, Expired, Valid.",
+  "polar_equipment|Scientific|measureAccPct": "REAL. Measurement accuracy percentage. Example: 99.3.",
+  "polar_equipment|WeatherAndStructure|WEATHER_ID": "BIGSERIAL. Unique identifier for the weather and structure record. PK.",
+  "polar_equipment|WeatherAndStructure|loc_link": "TEXT. Reference to the location. FK to Location.STATION_name.",
+  "polar_equipment|WeatherAndStructure|opmaint_link": "BIGINT. Reference to the operation and maintenance record. FK to OperationMaintenance.OP_MAINT_ID.",
+  "polar_equipment|WeatherAndStructure|extTempC": "REAL. External temperature in Celsius. Example: -14.9.",
+  "polar_equipment|WeatherAndStructure|windSpeed_ms": "REAL. Wind speed in meters per second. Example: 26.5.",
+  "polar_equipment|WeatherAndStructure|windDir_deg": "REAL. Wind direction in degrees. **NULL means no wind direction data recorded.**. Example: 71.4.",
+  "polar_equipment|WeatherAndStructure|precipType": "TEXT. Type of precipitation (e.g., rain, snow). **NULL means no precipitation type recorded.**. Possible values: Blowing Snow, Ice, Snow.",
+  "polar_equipment|WeatherAndStructure|structIntegrityStat": "TEXT. Structural integrity status. **NULL means no structural integrity status recorded.**. Possible values: Critical, Normal, Warning.",
+  "polar_equipment|WeatherAndStructure|baroPress_hpa": "REAL. Barometric pressure in hectopascals. Example: 975.3.",
+  "polar_equipment|WeatherAndStructure|solarRad_wm2": "REAL. Solar radiation in watts per square meter. Example: 541.0.",
+  "polar_equipment|WeatherAndStructure|snowDepth_cm": "BIGINT. Snow depth in centimeters. Example: 143.6.",
+  "polar_equipment|WeatherAndStructure|iceThick_cm": "REAL. Ice thickness in centimeters. Example: 254.4.",
+  "polar_equipment|WeatherAndStructure|visibility_km": "REAL. Visibility in kilometers. Example: 42.8.",
+  "polar_equipment|WeatherAndStructure|precipRate_mmh": "REAL. Precipitation rate in millimeters per hour. Example: 2.4.",
+  "polar_equipment|WeatherAndStructure|snowLoad_kgm2": "BIGINT. Snow load in kilograms per square meter. Example: 459.7.",
+  "polar_equipment|WeatherAndStructure|structLoadPct": "REAL. Structural load percentage. Example: 62.",
+  "polar_equipment|WeatherAndStructure|vibrLevel_mms2": "REAL. Vibration level in millimeters squared. Example: 8.61.",
+  "polar_equipment|WeatherAndStructure|noiseLevel_dB": "REAL. Noise level in decibels. Example: 38.5.",
+  "polar_equipment|ThermalSolarWindAndGrid|THERMAL_ID": "BIGSERIAL. Unique identifier for the thermal, solar, wind, and grid record. PK.",
+  "polar_equipment|ThermalSolarWindAndGrid|comm_link": "BIGINT. Reference to the communication record. FK to Communication.COMM_ID.",
+  "polar_equipment|ThermalSolarWindAndGrid|batt_link": "BIGINT. Reference to the battery record. FK to PowerBattery.PWR_BATT_ID.",
+  "polar_equipment|ThermalSolarWindAndGrid|thermalImgStat": "TEXT. Thermal image status. Possible values: Critical, Normal, Warning.",
+  "polar_equipment|ThermalSolarWindAndGrid|insulationStat": "TEXT. Insulation status. Possible values: Fair, Good, Poor.",
+  "polar_equipment|ThermalSolarWindAndGrid|heatLoss_kwh": "REAL. Heat loss in kilowatt-hours. **NULL means no heat loss data recorded.**. Example: 1.11.",
+  "polar_equipment|ThermalSolarWindAndGrid|windOutput_w": "REAL. Wind turbine output in watts. **NULL means no wind output data recorded.**. Example: 656.8.",
+  "polar_equipment|ThermalSolarWindAndGrid|backupPowerStat": "TEXT. Backup power status. **NULL means no backup power status recorded.**. Possible values: Active, Fault, Standby.",
+  "polar_equipment|ThermalSolarWindAndGrid|solarPanelStat": "TEXT. Solar panel status. Possible values: Active, Fault, Inactive.",
+  "polar_equipment|ThermalSolarWindAndGrid|solarOutput_w": "REAL. Solar panel output in watts. Example: 746.1.",
+  "polar_equipment|ThermalSolarWindAndGrid|solarEffPct": "REAL. Solar efficiency percentage. Example: 2.0.",
+  "polar_equipment|ThermalSolarWindAndGrid|solarTempC": "REAL. Solar panel temperature in Celsius. Example: -14.9.",
+  "polar_equipment|ThermalSolarWindAndGrid|windTurbineStat": "TEXT. Wind turbine status. Possible values: Fault, Operating, Stopped.",
+  "polar_equipment|ThermalSolarWindAndGrid|windRPM": "BIGINT. Wind turbine RPM. Example: 130.3.",
+  "polar_equipment|ThermalSolarWindAndGrid|powerGridStat": "TEXT. Power grid status. Possible values: Connected, Disconnected, Island Mode.",
+  "polar_equipment|ThermalSolarWindAndGrid|powerQualIdx": "REAL. Power quality index. Example: 95.",
+  "polar_equipment|ThermalSolarWindAndGrid|fuelCellStat": "TEXT. Fuel cell status. Possible values: Fault, Operating, Standby.",
+  "polar_equipment|ThermalSolarWindAndGrid|fuelCellOutput_w": "REAL. Fuel cell output in watts. Example: 185.0.",
+  "polar_equipment|ThermalSolarWindAndGrid|fuelCellEffPct": "REAL. Fuel cell efficiency percentage. Example: 48.2.",
+  "polar_equipment|ThermalSolarWindAndGrid|H2LevelPct": "REAL. Hydrogen level percentage. Example: 95.",
+  "polar_equipment|ThermalSolarWindAndGrid|O2LevelPct": "REAL. Oxygen level percentage. Example: 82.",
+  "polar_equipment|StationEquipmentType|station_name": "TEXT. Reference to the station. FK to Location.STATION_name. Example: Station-14.",
+  "polar_equipment|StationEquipmentType|equip_type": "TEXT. Reference to the equipment type. FK to EquipmentType.EquipType. Possible values: Communication, Generator, Safety, Scientific, Shelter, Vehicle.",
+  "polar_equipment|StationEquipmentType|PRIMARY KEY (station_name, equip_type)": "PRIMARY KEY. Composite primary key combining station name and equipment type.",
+  "polar_equipment|EquipmentType|type_indices": {
+    "column_meaning": "JSONB column. Bundles the various performance-, efficiency-, safety- and sustainability-related indices that characterise an equipment family.",
+    "fields_meaning": {
+      "performance_score": "REAL. Performance index for the equipment type. Example: 72.8.",
+      "energy_efficiency_idx": "REAL. Efficiency index for the equipment type. Example: 47.1.",
+      "safety_idx": "REAL. Safety index for the equipment type. Example: 75.9.",
+      "environmental_impact_idx": "REAL. Environmental impact index for the equipment type. Example: 36.7."
+    }
+  },
+  "polar_equipment|PowerBattery|battery_telemetry": {
+    "column_meaning": "JSONB column. Captures the full real-time power and battery state of a unit (operating mode, SOC, health, charge parameters, consumption, efficiency) as a single JSONB blob.",
+    "fields_meaning": {
+      "power_state": {
+        "system_state": "TEXT. Power status of the battery. Possible values: Charging, Off, On, Sleep.",
+        "primary_source": "TEXT. Source of the power for the battery. Possible values: Battery, Diesel, Hybrid, Solar, Wind.",
+        "instant_consumption_w": "REAL. Power consumption in watts. Example: 4383.2.",
+        "conversion_eff_pct": "REAL. Energy efficiency percentage of the battery. Example: 81.8."
+      },
+      "battery_pack": {
+        "soc_pct": "REAL. Battery level percentage. Example: 19.",
+        "health_pct": "REAL. Battery health percentage. Example: 93.",
+        "cycle_count": "BIGINT. Number of cycles the battery has undergone. Example: 79.",
+        "temperature_c": "REAL. Battery temperature in Celsius. Example: -22.9."
+      },
+      "charging": {
+        "charge_state": "TEXT. Charging status of the battery. Possible values: Charging, Error, Full, Not Charging.",
+        "current_a": "REAL. Charging current in amperes. **NULL means no current recorded.**. Example: 24.12.",
+        "voltage_v": "REAL. Charging voltage in volts. Example: 26.5."
+      }
+    }
+  },
+  "polar_equipment|EngineAndFluids|engine_fluids_snapshot": {
+    "column_meaning": "JSONB column. Consolidates engine operating metrics together with the levels, temperatures and pressures of all key fluids (fuel, oil, coolant, hydraulics) for easier telemetry ingestion.",
+    "fields_meaning": {
+      "fuel": {
+        "level_pct": "REAL. Fuel level percentage. Example: 49.",
+        "consumption_lph": "REAL. Fuel consumption in liters per hour. Example: 44.48.",
+        "rail_pressure_kpa": "BIGINT. Fuel pressure in kPa. **NULL means no fuel pressure data recorded.**. Example: 89.9.",
+        "temperature_c": "REAL. Fuel temperature in Celsius. Example: -37.2."
+      },
+      "oil": {
+        "level_pct": "REAL. Oil level percentage. Example: 49.",
+        "pressure_kpa": "BIGINT. Oil pressure in kPa. Example: 331.4.",
+        "temperature_c": "REAL. Oil temperature in Celsius. Example: 6.6."
+      },
+      "coolant": {
+        "level_pct": "REAL. Coolant level percentage. Example: 64.",
+        "temperature_c": "REAL. Coolant temperature in Celsius. Example: 69.3.",
+        "pressure_kpa_or_code": "TEXT. Coolant pressure in kPa. Example: 88.9 hPa."
+      },
+      "hydraulic": {
+        "pressure_kpa": "REAL. Hydraulic pressure in kPa. Example: 19647.2.",
+        "temperature_c": "REAL. Hydraulic temperature in Celsius. Example: 39.2.",
+        "fluid_level_pct": "REAL. Hydraulic fluid percentage. Example: 59."
+      },
+      "engine_core": {
+        "rpm": "BIGINT. Engine RPM. **NULL means no engine RPM data recorded.**. Example: 3133.0.",
+        "load_pct": "REAL. Engine load percentage. Example: 61.",
+        "block_temp_c": "REAL. Engine temperature in Celsius. Example: 4.1.",
+        "lifetime_hours": "REAL. Total engine hours. Example: 31452."
+      }
+    }
+  },
+  "polar_equipment|ChassisAndVehicle|ground_vehicle_status": {
+    "column_meaning": "JSONB column. Wraps the principal running-gear and motion telemetry (brakes, tyres, tracks, suspension, speed & load) into a single JSONB field for rapid health checks.",
+    "fields_meaning": {
+      "brake_system": {
+        "pad_wear_pct": "REAL. Brake pad wear percentage. **NULL means no brake pad wear data recorded.**. Example: 69.0.",
+        "fluid_level_pct": "REAL. Brake fluid percentage. Example: 97.",
+        "pressure_kpa_or_code": "TEXT. Brake pressure in kPa. Example: 370.8 hPa."
+      },
+      "tires": {
+        "pressure_kpa": "BIGINT. Tire pressure in kPa. Example: 345.2.",
+        "temperature_c": "REAL. Tire temperature in Celsius. Example: 28.7.",
+        "tread_depth_mm": "REAL. Tire tread thickness in millimeters. Example: 12.8."
+      },
+      "tracks": {
+        "tension_kN": "REAL. Track tension in kilonewtons. Example: 21.9.",
+        "wear_pct": "REAL. Track wear percentage. **NULL means no track wear data recorded.**. Example: 35.0."
+      },
+      "suspension": {
+        "ride_height_mm": "REAL. Suspension height in millimeters. **NULL means no suspension height data recorded.**. Example: 351.9."
+      },
+      "vehicle_motion": {
+        "speed_kmh": "TEXT. Vehicle speed in kilometers per hour. Example: 49.30 m/s.",
+        "payload_kg": "REAL. Vehicle load in kilograms. **NULL means no vehicle load data recorded.**. Example: 9585.3.",
+        "attitude_angle_deg": "REAL. Vehicle angle in degrees. Example: 1.6.",
+        "heading_deg": "REAL. Vehicle heading in degrees. Example: 89.3."
+      }
+    }
+  },
+  "polar_equipment|CabinEnvironment|cabin_env_snapshot": {
+    "column_meaning": "JSONB column. Stores all atmosphere, HVAC, access and emergency-beacon readings relevant to crew comfort & safety in a single JSONB column.",
+    "fields_meaning": {
+      "emergency": "TEXT. Emergency beacon status. Possible values: Active, Standby, Testing.",
+      "air_metrics": {
+        "temperature_c": "REAL. Cabin temperature in Celsius. **NULL means no cabin temperature data recorded.**. Example: -0.3.",
+        "humidity_pct": "REAL. Cabin humidity percentage. Example: 58.8.",
+        "pressure_kpa": "BIGINT. Cabin pressure in kPa. Example: 98.9.",
+        "co2_ppm": "REAL. Cabin CO2 level in parts per million. Example: 557.",
+        "o2_pct": "REAL. Cabin oxygen level in percentage. Example: 19.9.",
+        "air_quality_idx": "REAL. Cabin air quality index. Example: 237."
+      },
+      "hvac": {
+        "vent_state": "TEXT. Ventilation status. **NULL means no ventilation status recorded.**. Possible values: Auto, Off, On.",
+        "vent_speed_pct": "REAL. Ventilation speed percentage. Example: 13.",
+        "heater_state": "TEXT. Heater status. Possible values: Auto, Off, On.",
+        "heater_temp_c": "REAL. Heater temperature in Celsius. Example: 34.9.",
+        "defroster_state": "TEXT. Defroster status. Possible values: Auto, Off, On."
+      },
+      "access": {
+        "window_state": "TEXT. Window status. Possible values: Closed, Open, Partial.",
+        "door_state": "TEXT. Door status. Possible values: Closed, Locked, Open.",
+        "hatch_state": "TEXT. Hatch status. Possible values: Closed, Locked, Open."
+      }
+    }
+  }
+}

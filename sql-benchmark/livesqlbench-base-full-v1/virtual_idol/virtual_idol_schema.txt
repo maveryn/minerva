@@ -1,0 +1,336 @@
+CREATE TABLE "fans" (
+user_registry text NOT NULL,
+nick_label text NULL,
+reg_moment text NULL,
+tier_step smallint NULL,
+pts_val bigint NULL,
+status_tag text NULL,
+lang_pref text NULL,
+demo_profile jsonb NULL,
+    PRIMARY KEY (user_registry)
+);
+
+First 3 rows:
+user_registry    nick_label    reg_moment      tier_step    pts_val  status_tag    lang_pref    demo_profile
+---------------  ------------  ------------  -----------  ---------  ------------  -----------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+FAN55719         brownandrew   2024-07-22             52      93976  Inactive      multiple     {'Loc_Town': 'Patelbury', 'Age_Count': 55, 'Occu_Path': 'Professional', 'Loc_Nation': 'United States Minor Outlying Islands', 'Gender_Type': 'Other', 'Interest_Set': 'technology'}
+FAN83471         ymoore        2023-07-19              3      53540  Active        CHINESE      {'Loc_Town': 'Juliefort', 'Age_Count': 50, 'Occu_Path': None, 'Loc_Nation': 'Niue', 'Gender_Type': 'Female', 'Interest_Set': None}
+FAN75581         lauren67      2024-01-23             41      72104  VIP           Korean       {'Loc_Town': 'Virginiabury', 'Age_Count': 38, 'Occu_Path': 'professional', 'Loc_Nation': 'United States Minor Outlying Islands', 'Gender_Type': 'Male', 'Interest_Set': 'Anime'}
+...
+
+
+CREATE TABLE "socialcommunity" (
+social_reg bigint NOT NULL DEFAULT nextval('socialcommunity_social_reg_seq'::regclass),
+social_engage_pivot bigint NULL,
+social_commerce_pivot bigint NULL,
+comm_contrib text NULL,
+cont_create_stat text NULL,
+network_stats jsonb NULL,
+content_creation jsonb NULL,
+content_creation_rate text NULL,
+community_growth_rate text NULL,
+influence_rate text NULL,
+    PRIMARY KEY (social_reg),
+    FOREIGN KEY (social_commerce_pivot) REFERENCES commerceandcollection(commerce_reg),
+    FOREIGN KEY (social_engage_pivot) REFERENCES engagement(engage_reg)
+);
+
+First 3 rows:
+  social_reg    social_engage_pivot    social_commerce_pivot  comm_contrib    cont_create_stat    network_stats                                                                                                           content_creation                                                                                                 content_creation_rate    community_growth_rate    influence_rate
+------------  ---------------------  -----------------------  --------------  ------------------  ----------------------------------------------------------------------------------------------------------------------  ---------------------------------------------------------------------------------------------------------------  -----------------------  -----------------------  ------------------
+           1                      6                        3  High            active              {'Grp_Memb': 15, 'Grp_Role': 'Moderator', 'Fing_Count': 626, 'Foll_Count': 3668, 'Friend_Con': 406, 'Soc_Net_Sz': 568}  {'UGC_Val': 0, 'Art_Subs': 35, 'Fic_Subs': 4, 'Collab_Count': 0, 'Cont_Qual_Rate': 0.8, 'Cover_Perf_Cnt': 2}     5 posts/week             122 followers/month      5 connections/week
+           2                      7                        4  MEDIUM          Active              {'Grp_Memb': 4, 'Grp_Role': 'Leader', 'Fing_Count': 779, 'Foll_Count': 1206, 'Friend_Con': 223, 'Soc_Net_Sz': 972}      {'UGC_Val': 73, 'Art_Subs': 20, 'Fic_Subs': 3, 'Collab_Count': 16, 'Cont_Qual_Rate': 0.4, 'Cover_Perf_Cnt': 23}  2 posts/week             40 followers/month       9 connections/week
+           3                      9                        5  Medium                              {'Grp_Memb': 2, 'Grp_Role': 'Leader', 'Fing_Count': 17, 'Foll_Count': 3524, 'Friend_Con': 302, 'Soc_Net_Sz': 112}       {'UGC_Val': 9, 'Art_Subs': 39, 'Fic_Subs': 7, 'Collab_Count': 11, 'Cont_Qual_Rate': 1.2, 'Cover_Perf_Cnt': 4}    5 posts/week             117 followers/month      1 connections/week
+...
+
+
+CREATE TABLE "supportandfeedback" (
+support_reg bigint NOT NULL DEFAULT nextval('supportandfeedback_support_reg_seq'::regclass),
+support_interact_pivot text NULL,
+support_pref_pivot bigint NULL,
+surv_part text NULL,
+beta_part text NULL,
+feedback_data jsonb NULL,
+    PRIMARY KEY (support_reg),
+    FOREIGN KEY (support_interact_pivot) REFERENCES interactions(activity_reg),
+    FOREIGN KEY (support_pref_pivot) REFERENCES preferencesandsettings(pref_reg)
+);
+
+First 3 rows:
+  support_reg  support_interact_pivot      support_pref_pivot  surv_part    beta_part    feedback_data
+-------------  ------------------------  --------------------  -----------  -----------  -----------------------------------------------------------------------------------------------------------------------
+            1  FI814576                                     1  Active       Yes          {'Fb_Subs': 30, 'NPS_Val': 6, 'Bug_Subs': 2, 'Sat_Rate': 2, 'Supp_Tix': 9, 'Feat_Req_Subs': 8, 'Tech_Issue_Rpt': 2}
+            2  FI648876                                     3  Active       Yes          {'Fb_Subs': 2, 'NPS_Val': 10, 'Bug_Subs': 0, 'Sat_Rate': 1.2, 'Supp_Tix': 5, 'Feat_Req_Subs': 19, 'Tech_Issue_Rpt': 14}
+            3  FI817373                                     4  Occasional   Yes          {'Fb_Subs': 2, 'NPS_Val': 8, 'Bug_Subs': 12, 'Sat_Rate': 1.7, 'Supp_Tix': 6, 'Feat_Req_Subs': 6, 'Tech_Issue_Rpt': 5}
+...
+
+
+CREATE TABLE "eventsandclub" (
+events_reg bigint NOT NULL DEFAULT nextval('eventsandclub_events_reg_seq'::regclass),
+events_social_pivot bigint NULL,
+events_member_pivot bigint NULL,
+evt_part text NULL,
+camp_part text NULL,
+club_stat text NULL,
+club_j_date text NULL,
+club_contrib text NULL,
+evt_participation jsonb NULL,
+    PRIMARY KEY (events_reg),
+    FOREIGN KEY (events_member_pivot) REFERENCES membershipandspending(member_reg),
+    FOREIGN KEY (events_social_pivot) REFERENCES socialcommunity(social_reg)
+);
+
+First 3 rows:
+  events_reg    events_social_pivot    events_member_pivot  evt_part    camp_part    club_stat    club_j_date    club_contrib    evt_participation
+------------  ---------------------  ---------------------  ----------  -----------  -----------  -------------  --------------  --------------------------------------------------------------------------------------------
+           1                      2                      8  rare        Selective    Elite        2023/03/04     Outstanding     {'Conc_Att': 23, 'Meet_Att': 8, 'On_Evt_Att': 17, 'Off_Evt_Att': 0, 'Vote_Part_Rate': 39.1}
+           2                      3                     10                           Non-member   2023/09/20     Low             {'Conc_Att': 20, 'Meet_Att': 1, 'On_Evt_Att': 52, 'Off_Evt_Att': 5, 'Vote_Part_Rate': 51.1}
+           3                      4                     11              Active       Elite        2023/09/21     Outstanding     {'Conc_Att': 24, 'Meet_Att': 0, 'On_Evt_Att': 98, 'Off_Evt_Att': 11, 'Vote_Part_Rate': 91.1}
+...
+
+
+CREATE TABLE "virtualidols" (
+entity_reg text NOT NULL,
+name_tag text NULL,
+kind_tag text NULL,
+deb_date text NULL,
+assoc_group text NULL,
+genre_tag text NULL,
+prim_lang text NULL,
+    PRIMARY KEY (entity_reg)
+);
+
+First 3 rows:
+entity_reg    name_tag          kind_tag      deb_date    assoc_group                   genre_tag    prim_lang
+------------  ----------------  ------------  ----------  ----------------------------  -----------  -----------
+VI1517        Brandon Buck      2D            01/02/2025  Archer, Martinez and Jimenez  Electronic   English
+VI8705        Brittney Freeman  AI Generated  20/05/2022  Carpenter and Sons            Electronic   Chinese
+VI6535        Anita Snyder      3D            24/04/2020  Tran, Aguirre and Jenkins     Dance        English
+...
+
+
+CREATE TABLE "retentionandinfluence" (
+ret_reg bigint NOT NULL DEFAULT nextval('retentionandinfluence_ret_reg_seq'::regclass),
+retain_engage_pivot bigint NULL,
+retain_loyalty_pivot bigint NULL,
+churn_flag text NULL,
+ref_count smallint NULL,
+infl_impact jsonb NULL,
+    PRIMARY KEY (ret_reg),
+    FOREIGN KEY (retain_engage_pivot) REFERENCES engagement(engage_reg),
+    FOREIGN KEY (retain_loyalty_pivot) REFERENCES loyaltyandachievements(loyalty_reg)
+);
+
+First 3 rows:
+  ret_reg    retain_engage_pivot    retain_loyalty_pivot  churn_flag      ref_count  infl_impact
+---------  ---------------------  ----------------------  ------------  -----------  -------------------------------------------------------------------------------------------
+        1                     12                       3  High                   16  {'Hash_Use': 265, 'Cont_Reach': 90332, 'Trend_Part': 2, 'Viral_Cont': 4, 'React_Count': 4}
+        2                     16                       4  Medium                 11  {'Hash_Use': 724, 'Cont_Reach': 94612, 'Trend_Part': 49, 'Viral_Cont': 4, 'React_Count': 1}
+        3                     21                       5  High                    3  {'Hash_Use': 38, 'Cont_Reach': 53260, 'Trend_Part': 3, 'Viral_Cont': 10, 'React_Count': 3}
+...
+
+
+CREATE TABLE "interactions" (
+activity_reg text NOT NULL,
+time_mark timestamp without time zone NULL,
+interact_fan_pivot text NULL,
+interact_idol_pivot text NULL,
+act_kind text NULL,
+act_plat text NULL,
+plat_used text NULL,
+dev_type text NULL,
+app_ver text NULL,
+sess_dur_min smallint NULL,
+live_att smallint NULL,
+watch_hrs real NULL,
+gift_metrics jsonb NULL,
+chat_activity jsonb NULL,
+engagement_rate text NULL,
+gift_rate text NULL,
+message_rate text NULL,
+content_consumption_rate text NULL,
+    PRIMARY KEY (activity_reg),
+    FOREIGN KEY (interact_fan_pivot) REFERENCES fans(user_registry),
+    FOREIGN KEY (interact_idol_pivot) REFERENCES virtualidols(entity_reg)
+);
+
+First 3 rows:
+activity_reg    time_mark                   interact_fan_pivot    interact_idol_pivot    act_kind    act_plat      plat_used    dev_type    app_ver      sess_dur_min    live_att    watch_hrs  gift_metrics                                                                                 chat_activity                                                                                                engagement_rate    gift_rate    message_rate    content_consumption_rate
+--------------  --------------------------  --------------------  ---------------------  ----------  ------------  -----------  ----------  ---------  --------------  ----------  -----------  -------------------------------------------------------------------------------------------  -----------------------------------------------------------------------------------------------------------  -----------------  -----------  --------------  -------------------------------
+FI537855        2024-12-10 10:48:19.557855  FAN55719              VI1517                 vote        YouTube       tablet       WINDOWS     3.4.0                  44          53        359.1  {'Gift_Tot': 373, 'Gift_Freq': 'Often', 'Fav_Gift_Tag': 'Limited', 'Gift_Val_Usd': 663.63}   {'Chat_Msg': 905, 'Msg_Tone': 'Negative', 'Chat_Lang': 'Mixed', 'Stk_Count': 29, 'Emoji_Count': 323}         106 actions/hr     4 gifts/hr   132 msgs/hr     489.68182650479406 mins/session
+FI528045        2024-11-22 11:17:12.560133  FAN75581              VI8705                 COMMENT     Twitter       mobile       iOS         4.6.7                  79          21        169.9  {'Gift_Tot': 867, 'Gift_Freq': 'Often', 'Fav_Gift_Tag': 'Custom', 'Gift_Val_Usd': 4710.36}   {'Chat_Msg': 539, 'Msg_Tone': 'Negative', 'Chat_Lang': 'Translation', 'Stk_Count': 104, 'Emoji_Count': 461}  42 actions/hr      7 gifts/hr   237 msgs/hr     129.03797004796283 mins/session
+FI137526        2024-08-19 10:13:29.560133  FAN27370              VI6535                 vote        OFFICIAL APP  Console      android     3.9.2                  14          73        388.1  {'Gift_Tot': 494, 'Gift_Freq': 'Rarely', 'Fav_Gift_Tag': 'Custom', 'Gift_Val_Usd': 3270.78}  {'Chat_Msg': 424, 'Msg_Tone': 'Positive', 'Chat_Lang': 'Mixed', 'Stk_Count': 122, 'Emoji_Count': 306}        146 actions/hr     1 gifts/hr   42 msgs/hr      1663.2857404436384 mins/session
+...
+
+
+CREATE TABLE "loyaltyandachievements" (
+loyalty_reg bigint NOT NULL DEFAULT nextval('loyaltyandachievements_loyalty_reg_seq'::regclass),
+loyalty_events_pivot bigint NULL,
+loyalty_engage_pivot bigint NULL,
+loy_pts bigint NULL,
+rew_tier text NULL,
+repute_lv text NULL,
+trust_val real NULL,
+achiev_stats jsonb NULL,
+    PRIMARY KEY (loyalty_reg),
+    FOREIGN KEY (loyalty_engage_pivot) REFERENCES engagement(engage_reg),
+    FOREIGN KEY (loyalty_events_pivot) REFERENCES eventsandclub(events_reg)
+);
+
+First 3 rows:
+  loyalty_reg    loyalty_events_pivot    loyalty_engage_pivot    loy_pts  rew_tier    repute_lv      trust_val  achiev_stats
+-------------  ----------------------  ----------------------  ---------  ----------  -----------  -----------  ------------------------------------------------------------------------------------------
+            1                       1                       7       7209  Bronze      Respected           94.3  {'Rank_Pos': 1494, 'Ach_Count': 83, 'Badge_Coll': 35, 'Infl_Score': 1.7, 'Spec_Titles': 4}
+            2                       4                      11      10961  Gold        Established         29.5  {'Rank_Pos': 618, 'Ach_Count': 78, 'Badge_Coll': 44, 'Infl_Score': 94.9, 'Spec_Titles': 3}
+            3                       5                      12       6490  Platinum    Elite               79.5  {'Rank_Pos': 2856, 'Ach_Count': 87, 'Badge_Coll': 3, 'Infl_Score': 24.5, 'Spec_Titles': 4}
+...
+
+
+CREATE TABLE "additionalnotes" (
+notes_reg bigint NOT NULL DEFAULT nextval('additionalnotes_notes_reg_seq'::regclass),
+notes_retain_pivot bigint NULL,
+note_info text NULL,
+    PRIMARY KEY (notes_reg),
+    FOREIGN KEY (notes_retain_pivot) REFERENCES retentionandinfluence(ret_reg)
+);
+
+First 3 rows:
+  notes_reg    notes_retain_pivot  note_info
+-----------  --------------------  -----------------------
+          1                     1  Body better piece drug.
+          2                     2
+          3                     3
+...
+
+
+CREATE TABLE "membershipandspending" (
+member_reg bigint NOT NULL DEFAULT nextval('membershipandspending_member_reg_seq'::regclass),
+member_fan_pivot text NULL,
+memb_kind text NULL,
+memb_days smallint NULL,
+spend_usd real NULL,
+spend_freq text NULL,
+pay_method text NULL,
+spend_rate text NULL,
+value_per_day text NULL,
+cost_efficiency text NULL,
+    PRIMARY KEY (member_reg),
+    FOREIGN KEY (member_fan_pivot) REFERENCES fans(user_registry)
+);
+
+First 3 rows:
+  member_reg  member_fan_pivot    memb_kind      memb_days    spend_usd  spend_freq    pay_method      spend_rate                  value_per_day                 cost_efficiency
+------------  ------------------  -----------  -----------  -----------  ------------  --------------  --------------------------  ----------------------------  -----------------
+         132  FAN39666            Free                   0      7221.69  Occasional    Mobile Payment                              240.722998046875 USD/month    100 value/USD
+           1  FAN55719            Free                 194      6265.46  Occasional    Credit Card     32.296185365657216 USD/day  208.84866536458333 USD/month  81 value/USD
+           2  FAN75581            Basic                798      9993.63  Weekly        Mobile Payment  12.52334571781015 USD/day   333.12099609375 USD/month     21 value/USD
+...
+
+
+CREATE TABLE "preferencesandsettings" (
+pref_reg bigint NOT NULL DEFAULT nextval('preferencesandsettings_pref_reg_seq'::regclass),
+preferences_member_pivot bigint NULL,
+preferences_social_pivot bigint NULL,
+priv_set text NULL,
+ds_consent text NULL,
+notif_pref text NULL,
+comm_pref text NULL,
+mark_pref text NULL,
+lang_set text NULL,
+access_set text NULL,
+dev_count smallint NULL,
+log_freq text NULL,
+last_log_dt text NULL,
+conn_qual text NULL,
+usage_metrics jsonb NULL,
+    PRIMARY KEY (pref_reg),
+    FOREIGN KEY (preferences_member_pivot) REFERENCES membershipandspending(member_reg),
+    FOREIGN KEY (preferences_social_pivot) REFERENCES socialcommunity(social_reg)
+);
+
+First 3 rows:
+  pref_reg    preferences_member_pivot    preferences_social_pivot  priv_set    ds_consent    notif_pref    comm_pref    mark_pref    lang_set    access_set      dev_count  log_freq    last_log_dt    conn_qual    usage_metrics
+----------  --------------------------  --------------------------  ----------  ------------  ------------  -----------  -----------  ----------  ------------  -----------  ----------  -------------  -----------  --------------------------------------------------------------------------------------------------------------------
+         1                          14                           7  Public      Minimal       All           Push         Opted Out    Translated  Standard                1  Rare        2025.01.20     Excellent    {'Time_Hrs': 1533, 'Peak_Sess': 3, 'Sess_Count': 164, 'Int_Consist': 0.82, 'Plat_Stable': 0.4, 'Avg_Daily_Min': 289}
+         2                          17                           8  Private     Minimal                     Push         Opted In     Original    Standard                4  Weekly      2025.02.04     Fair         {'Time_Hrs': 4552, 'Peak_Sess': 1, 'Sess_Count': 297, 'Int_Consist': 0.49, 'Plat_Stable': 0.92, 'Avg_Daily_Min': 61}
+         3                          19                          10  Public      Minimal       All                        Opted Out    Auto        Standard                3  Daily       2025.02.14     Fair         {'Time_Hrs': 2775, 'Peak_Sess': 5, 'Sess_Count': 477, 'Int_Consist': 0.43, 'Plat_Stable': 0.17, 'Avg_Daily_Min': 39}
+...
+
+
+CREATE TABLE "engagement" (
+engage_reg bigint NOT NULL DEFAULT nextval('engagement_engage_reg_seq'::regclass),
+engage_activity_pivot text NULL,
+engage_member_pivot bigint NULL,
+soc_int_score real NULL,
+eng_rate real NULL,
+act_freq text NULL,
+peak_time text NULL,
+act_days_wk smallint NULL,
+avg_sess_count smallint NULL,
+cont_pref text NULL,
+lang_pref text NULL,
+trans_use text NULL,
+interaction_efficiency text NULL,
+session_productivity text NULL,
+    PRIMARY KEY (engage_reg),
+    FOREIGN KEY (engage_activity_pivot) REFERENCES interactions(activity_reg),
+    FOREIGN KEY (engage_member_pivot) REFERENCES membershipandspending(member_reg)
+);
+
+First 3 rows:
+  engage_reg  engage_activity_pivot      engage_member_pivot    soc_int_score    eng_rate  act_freq    peak_time      act_days_wk    avg_sess_count  cont_pref    lang_pref    trans_use    interaction_efficiency              session_productivity
+------------  -----------------------  ---------------------  ---------------  ----------  ----------  -----------  -------------  ----------------  -----------  -----------  -----------  ----------------------------------  ----------------------
+           1  FI537855                                     1             13.1       0.522  Weekly      Afternoon                7                20  Music        Both         Always       26.200000762939453 interactions/hr  140 sessions/week
+           2  FI528045                                     2             86.2       0.64   Monthly     Afternoon                6                 9  Dance        Original     Sometimes    172.39999389648438 interactions/hr  54 sessions/week
+           3  FI137526                                     3             98.8       0.878  Weekly      Evening                  1                13  Gaming       Translated   Sometimes    197.60000610351562 interactions/hr  13 sessions/week
+...
+
+
+CREATE TABLE "moderationandcompliance" (
+mod_reg bigint NOT NULL DEFAULT nextval('moderationandcompliance_mod_reg_seq'::regclass),
+moderation_interact_pivot text NULL,
+moderation_social_pivot bigint NULL,
+rpt_count smallint NULL,
+warn_count smallint NULL,
+viol_hist text NULL,
+mod_stat text NULL,
+cont_comp text NULL,
+age_verif text NULL,
+pay_verif text NULL,
+id_verif text NULL,
+    PRIMARY KEY (mod_reg),
+    FOREIGN KEY (moderation_interact_pivot) REFERENCES interactions(activity_reg),
+    FOREIGN KEY (moderation_social_pivot) REFERENCES socialcommunity(social_reg)
+);
+
+First 3 rows:
+  mod_reg  moderation_interact_pivot      moderation_social_pivot    rpt_count    warn_count  viol_hist    mod_stat       cont_comp    age_verif     pay_verif    id_verif
+---------  ---------------------------  -------------------------  -----------  ------------  -----------  -------------  -----------  ------------  -----------  ----------
+        1  FI648876                                            10            8             4  Minor        Good Standing  Compliant    Not Required  Verified
+        2  FI202186                                            18            0             5               Restricted     Violation    Pending       Pending      Pending
+        3  FI156375                                            25            1             0  Minor        Warning        Compliant    Pending       Verified
+...
+
+
+CREATE TABLE "commerceandcollection" (
+commerce_reg bigint NOT NULL DEFAULT nextval('commerceandcollection_commerce_reg_seq'::regclass),
+commerce_engage_pivot bigint NULL,
+commerce_member_pivot bigint NULL,
+merch_buy smallint NULL,
+merch_spend_usd real NULL,
+dig_own bigint NULL,
+phys_own bigint NULL,
+coll_comp_rate real NULL,
+trade_level text NULL,
+    PRIMARY KEY (commerce_reg),
+    FOREIGN KEY (commerce_engage_pivot) REFERENCES engagement(engage_reg),
+    FOREIGN KEY (commerce_member_pivot) REFERENCES membershipandspending(member_reg)
+);
+
+First 3 rows:
+  commerce_reg    commerce_engage_pivot    commerce_member_pivot    merch_buy    merch_spend_usd    dig_own    phys_own    coll_comp_rate  trade_level
+--------------  -----------------------  -----------------------  -----------  -----------------  ---------  ----------  ----------------  -------------
+             1                        2                        2            0             626.15         69          34              77.9  Low
+             2                        5                        5           38             838.82         52          27              39.9  High
+             3                        6                        7            6             578.34         17          42              60.4  High
+...

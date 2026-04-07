@@ -1,0 +1,51 @@
+{
+  "households|locations|regioncode": "Administrative region code or identifier representing the geographic administrative division where households are located. Forms part of composite primary key with ZoneNum. EX. Taguatinga,Samambaia ",
+  "households|locations|zonenum": "Macrozone numerical identifier representing specific geographic zones within administrative regions for detailed location classification. Forms part of composite primary key with RegionCode. EX.315,222,332",
+  "households|infrastructure|infraref": "A SERIAL primary key uniquely identifying each infrastructure configuration record in the database. EX. 1,2,3",
+  "households|infrastructure|wateraccess": "Piped water supply access type indicating the household's water infrastructure connectivity. Part of unique constraint combination. ex.Yes, available at least in one room",
+  "households|infrastructure|roadsurface": "Street pavement condition and type describing the road infrastructure quality around the household location. Part of unique constraint combination. EX. Asphalt, concrete;Gravel surface",
+  "households|infrastructure|parkavail": "Private parking space availability indicating whether households have dedicated parking facilities. Part of unique constraint combination. EX.Available, not available",
+  "households|households|housenum": "A BIGINT primary key uniquely identifying each household unit in the database system. EX.3,4,7",
+  "households|households|residentcount": "Number of people currently residing in the household, representing the total household size including all family members and occupants. EX. 1,2 3",
+  "households|households|locregion": "Foreign key referencing locations.RegionCode, indicating the administrative region where this household is located. Part of composite foreign key constraint. EX.Taguatinga,Samambaia",
+  "households|households|loczone": "Foreign key referencing locations.ZoneNum, indicating the specific macrozone within the administrative region. Part of composite foreign key constraint. EX.315,222,332",
+  "households|households|serviceplan": "Foreign key referencing service_types.ServiceRef, indicating which social service package or plan the household is enrolled in or eligible for. Contains NULL when household is not enrolled in any social service programs or eligibility has not been determined. EX. 1",
+  "households|properties|propref": "A SERIAL primary key uniquely identifying each residential property record in the database. EX. 1,2,3",
+  "households|properties|houselink": "Foreign key referencing households.HouseNum with unique constraint, ensuring 1:1 relationship between properties and households. EX.3,4,7",
+  "households|properties|infralink": "Foreign key referencing infrastructure.InfraRef, indicating which infrastructure configuration applies to this property's location and services. EX.1,2",
+  "households|transportation_assets|transref": "A SERIAL primary key uniquely identifying each transportation asset record for households. EX. 1,2,3",
+  "households|transportation_assets|housetag": "Foreign key referencing households.HouseNum with unique constraint, ensuring 1:1 relationship for transportation assets per household. EX.3,4,7",
+  "households|service_types|serviceref": "A SERIAL primary key uniquely identifying each social service type or package configuration available to households. Ex. 1,2,3",
+  "households|service_types|domestichelp": "Domestic worker service availability indicating whether households have access to or utilize domestic help services. Part of unique constraint combination. EX. No domestic workers, Yes, occasional",
+  "households|service_types|socsupport": "Social assistance program participation indicating the type of government or community support services available. Part of unique constraint combination. Ex. Yes, No",
+  "households|amenities|amenityref": "A SERIAL primary key uniquely identifying each household amenities and utilities record. EX. 1,2,3",
+  "households|amenities|houseid": "Foreign key referencing households.HouseNum with unique constraint, ensuring 1:1 relationship for amenities configuration per household. Ex.3,4,7",
+  "households|amenities|cablestatus": "Cable television service availability and subscription status indicating the household's access to cable TV services. Ex. avail, available,yes",
+  "households|households|socioeconomic": {
+    "column_meaning": "JSONB column. Groups socioeconomic characteristics of the household including tenure status, income classification, and expenditure patterns for demographic analysis.",
+    "fields_meaning": {
+      "Tenure_Type": "Household tenure classification indicating the ownership or occupancy status. Contains NULL when tenure status is unknown, transitional, or under legal dispute. Ex. OWNED, RENTED, OCCUPIED",
+      "Income_Bracket": "Income classification level representing the household's economic status and earning capacity. Contains NULL when income information is not disclosed, not available, or household income is irregular/informal. Ex.More than R$ 1,760 and less than R$ 2,640 ",
+      "Expend_Coeff": "Household expenditure coefficient as a real number representing the spending pattern or consumption multiplier factor for economic analysis. Contains NULL when expenditure data is not available or household spending patterns cannot be reliably calculated. EX.60.6315"
+    }
+  },
+  "households|properties|dwelling_specs": {
+    "column_meaning": "JSONB column. Combines dwelling characteristics including structural type and room specifications for property classification and capacity assessment.",
+    "fields_meaning": {
+      "Dwelling_Class": "Dwelling type classification describing the structural and architectural category of the residential unit. Contains NULL when dwelling type is non-standard, mixed-use, or classification is pending assessment. Ex. Brickwork house, Apartment",
+      "Bath_Count": "Total number of bathrooms in the residential property, including full bathrooms and half-bathrooms. Contains NULL when bathroom count is not available or property has shared/communal bathroom facilities that cannot be counted per household. Ex. 1, 2, 3",
+      "Room_Count": "Total number of bedrooms in the residential property, representing the sleeping accommodation capacity. Contains NULL when room count is not available or property has non-standard room configurations that cannot be classified as bedrooms. Ex. 1, 2, 3"
+    }
+  },
+  "households|transportation_assets|vehicleinventory": {
+    "column_meaning": "JSONB column. Aggregates transportation assets owned by household including counts of different vehicle types and age information for mobility analysis.",
+    "fields_meaning": {
+      "vehicle_counts": {
+        "Auto_Count": "Number of passenger vehicles owned by the household, defaulting to 0 if no vehicles are owned. Contains NULL when vehicle ownership status is unknown or verification is pending. ex.0",
+        "Bike_Count": "Number of bicycles owned by the household for transportation and recreation, defaulting to 0 if none are owned. Contains NULL when bicycle ownership information is not available or not tracked. ex.0,1",
+        "Motor_Count": "Number of motorcycles, scooters, or motorized two-wheelers owned by the household, defaulting to 0 if none are owned. Contains NULL when motorcycle ownership information is not available or not applicable. EX.0,1,2"
+      },
+      "Newest_Year": "Year of manufacture for the newest vehicle in the household's transportation fleet, stored as text to accommodate various date formats and null values. Contains NULL when no vehicles are owned, vehicle age information is not available, or vehicles are too old to have reliable manufacture date records. EX.2012 To 2013, Not applicable, 2014 or newer"
+    }
+  }
+}

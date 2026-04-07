@@ -1,0 +1,370 @@
+"CREATE" TABLE "ArtifactRatings" (
+"HIST_sign" bigint NOT NULL,
+"ART_link" text NOT NULL,
+rating_profile jsonb NULL,
+    "PRIMARY" KEY (HIST_sign),
+    "FOREIGN" KEY ("ART_link") REFERENCES ArtifactsCore(ARTregID)
+);
+
+
+
+"First" 3 rows:
+  HIST_sign  ART_link    rating_profile
+-----------  ----------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+          7  ART54317    {'exhibit_value': 4, 'cultural_score': 25, 'research_score': 9, 'educational_value': 9, 'deterioration_rate': 'Moderate', 'material_stability': 'Unstable', 'public_access_rating': 9, 'treatment_complexity': 'Complex', 'conservation_difficulty': 'Medium'}
+          3  ART54254    {'exhibit_value': 7, 'cultural_score': 13, 'research_score': 5, 'educational_value': 3, 'deterioration_rate': 'Rapid', 'material_stability': 'Stable', 'public_access_rating': 1, 'treatment_complexity': 'Moderate', 'conservation_difficulty': 'High'}
+          5  ART69978    {'exhibit_value': None, 'cultural_score': 4, 'research_score': 10, 'educational_value': 3, 'deterioration_rate': 'Rapid', 'material_stability': 'Moderate', 'public_access_rating': None, 'treatment_complexity': 'Moderate', 'conservation_difficulty': 'High'}
+...
+
+
+"CREATE" TABLE "SensitivityData" (
+"ENVsense" text NOT NULL,
+"ART_link" text NOT NULL,
+env_handling_sensitivity jsonb NULL,
+    "PRIMARY" KEY (ENVsense),
+    "FOREIGN" KEY ("ART_link") REFERENCES ArtifactsCore(ARTregID)
+);
+
+
+
+"First" 3 rows:
+ENVsense    ART_link    env_handling_sensitivity
+----------  ----------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Low         ART54317    {'context': {'display': 'Low', 'storage': 'Medium'}, 'biological': {'pest': None}, 'environment': {'light': 'High', 'humidity': 'Medium', 'vibration': 'Medium', 'pollutants': None, 'temperature': None}, 'handling_transport': {'handling': 'Medium', 'transport': 'High'}}
+High        ART54254    {'context': {'display': 'Low', 'storage': 'Low'}, 'biological': {'pest': 'Low'}, 'environment': {'light': 'Low', 'humidity': 'High', 'vibration': 'High', 'pollutants': 'Medium', 'temperature': 'Low'}, 'handling_transport': {'handling': 'Medium', 'transport': 'High'}}
+Medium      ART48028    {'context': {'display': 'High', 'storage': 'Low'}, 'biological': {'pest': None}, 'environment': {'light': None, 'humidity': 'Medium', 'vibration': 'High', 'pollutants': 'High', 'temperature': 'Low'}, 'handling_transport': {'handling': 'High', 'transport': 'Low'}}
+...
+
+
+"CREATE" TABLE "ArtifactsCore" (
+"ARTregID" text NOT NULL,
+art_title text NULL,
+"DYNASTY" text NULL,
+"ageYears" bigint NULL,
+"MatKind" text NULL,
+conserve_status text NULL,
+    "PRIMARY" KEY (ARTregID)
+);
+
+
+
+"First" 3 rows:
+ARTregID    art_title         DYNASTY      ageYears  MatKind    conserve_status
+----------  ----------------  ---------  ----------  ---------  -----------------
+ART54317    Culture Painting  Ming              943  Stone      Good
+ART54254    Poor Vase         Song             2179  Textile    Fair
+ART69978    Order Painting    Qing              366  Bronze
+...
+
+
+"CREATE" TABLE "ExhibitionHalls" (
+"Hall_ID" text NOT NULL,
+security_visitor_overview jsonb NULL,
+    "PRIMARY" KEY (Hall_ID)
+);
+
+
+
+"First" 3 rows:
+Hall_ID    security_visitor_overview
+---------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Hall-3     {'security': {'alarm_status': 'Armed', 'cctv_coverage': None, 'access_control': 'Maintenance', 'motion_detection': 'Active'}, 'behaviour_notes': 'Poor', 'visitor_statistics': {'visitor_flow': 'Low', 'avg_dwell_minutes': 16, 'avg_daily_visitors': 308}}
+Hall-12    {'security': {'alarm_status': 'Armed', 'cctv_coverage': 'Full', 'access_control': 'Active', 'motion_detection': 'Maintenance'}, 'behaviour_notes': 'Poor', 'visitor_statistics': {'visitor_flow': 'Low', 'avg_dwell_minutes': 11, 'avg_daily_visitors': 993}}
+Hall-9     {'security': {'alarm_status': 'Partial', 'cctv_coverage': 'Full', 'access_control': 'Maintenance', 'motion_detection': 'Partial'}, 'behaviour_notes': 'Poor', 'visitor_statistics': {'visitor_flow': 'High', 'avg_dwell_minutes': 6, 'avg_daily_visitors': 888}}
+...
+
+
+"CREATE" TABLE "Showcases" (
+"caseID" text NOT NULL,
+hall_ref text NULL,
+case_environment_profile jsonb NULL,
+    "PRIMARY" KEY (caseID),
+    "FOREIGN" KEY (hall_ref) REFERENCES ExhibitionHalls(Hall_ID)
+);
+
+
+
+"First" 3 rows:
+caseID    hall_ref    case_environment_profile
+--------  ----------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+SC9857    Hall-3      {'maintenance': {'maint_status': 'Overdue', 'filter_status': 'Replace Now', 'silica_status': 'Active', 'silica_last_replaced': '2024-09-15'}, 'physical_state': {'seal_state': None, 'leak_rate_per_day': 0.41, 'airtightness_factor': 95.1, 'internal_pressure_pa': -3, 'construction_material': 'Tempered Glass'}, 'buffer_capacity': {'humidity_capacity_g': 81, 'pollutant_capacity_mg': None}, 'safety_and_power': {'inert_gas_state': 'Active', 'fire_system_state': 'Maintenance', 'backup_power_state': 'Ready', 'primary_power_state': 'Testing'}}
+SC7393    Hall-12     {'maintenance': {'maint_status': 'Overdue', 'filter_status': 'Replace Now', 'silica_status': 'Active', 'silica_last_replaced': '2024-12-15'}, 'physical_state': {'seal_state': 'Excellent', 'leak_rate_per_day': 0.07, 'airtightness_factor': 93, 'internal_pressure_pa': 3, 'construction_material': 'Tempered Glass'}, 'buffer_capacity': {'humidity_capacity_g': 78, 'pollutant_capacity_mg': 79.8}, 'safety_and_power': {'inert_gas_state': 'Standby', 'fire_system_state': 'Active', 'backup_power_state': 'Maintenance', 'primary_power_state': 'Active'}}
+SC9391    Hall-3      {'maintenance': {'maint_status': 'Due', 'filter_status': 'Replace Soon', 'silica_status': 'Replace Soon', 'silica_last_replaced': '2024-12-21'}, 'physical_state': {'seal_state': 'Good', 'leak_rate_per_day': 0.2, 'airtightness_factor': 99.4, 'internal_pressure_pa': -4, 'construction_material': 'Glass'}, 'buffer_capacity': {'humidity_capacity_g': 93, 'pollutant_capacity_mg': 66.3}, 'safety_and_power': {'inert_gas_state': 'Active', 'fire_system_state': 'Active', 'backup_power_state': 'Testing', 'primary_power_state': 'Active'}}
+...
+
+
+"CREATE" TABLE "EnvironmentalReadingsCore" (
+monitor_code text NOT NULL,
+"readTS" timestamp without time zone NOT NULL,
+case_link text NULL,
+"TEMPc" bigint NULL,
+"tempVar24" real NULL,
+"RH" bigint NULL,
+"RHvar" bigint NULL,
+air_press real NULL,
+    "PRIMARY" KEY (monitor_code),
+    "FOREIGN" KEY (case_link) REFERENCES Showcases(caseID)
+);
+
+
+
+"First" 3 rows:
+monitor_code    readTS               case_link      TEMPc    tempVar24    RH    RHvar    air_press
+--------------  -------------------  -----------  -------  -----------  ----  -------  -----------
+MM191823        2024-08-06 08:38:48  SC9857            22         0.85    53        3       1020
+MM153427        2025-02-07 03:00:17  SC7393            18         1.34    54        1       1013.4
+MM675303        2024-07-25 09:37:21  SC9391           nan         1.75    48        2       1015.3
+...
+
+
+"CREATE" TABLE "AirQualityReadings" (
+aq_id bigint NOT NULL DEFAULT nextval('"AirQualityReadings_aq_id_seq"'::regclass),
+env_link text NOT NULL,
+air_quality_metrics jsonb NULL,
+    "PRIMARY" KEY (aq_id),
+    "FOREIGN" KEY (env_link) REFERENCES EnvironmentalReadingsCore(monitor_code)
+);
+
+
+
+"First" 3 rows:
+  aq_id  env_link    air_quality_metrics
+-------  ----------  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      1  MM191823    {'air_flow': {'air_velocity_ms': 0.18, 'air_exchange_rate_h': 6.4}, 'particulates': {'pm10_ug_m3': None, 'pm25_ug_m3': 16.7}, 'gases_ppm_ppb': {'co2_ppm': '794 ppm', 'no2_ppb': 27, 'so2_ppb': 12, 'tvoc_ppb': 89, 'ozone_ppb': 11, 'formaldehyde_mg_m3': 0.014}}
+      2  MM153427    {'air_flow': {'air_velocity_ms': 0.19, 'air_exchange_rate_h': 4.3}, 'particulates': {'pm10_ug_m3': None, 'pm25_ug_m3': 10.7}, 'gases_ppm_ppb': {'co2_ppm': '539 ppm', 'no2_ppb': 21, 'so2_ppb': 18, 'tvoc_ppb': 420, 'ozone_ppb': 12, 'formaldehyde_mg_m3': 0.035}}
+      3  MM675303    {'air_flow': {'air_velocity_ms': 0.14, 'air_exchange_rate_h': None}, 'particulates': {'pm10_ug_m3': 29, 'pm25_ug_m3': 5.4}, 'gases_ppm_ppb': {'co2_ppm': '402 ppm', 'no2_ppb': 13, 'so2_ppb': 14, 'tvoc_ppb': 393, 'ozone_ppb': 47, 'formaldehyde_mg_m3': 0.077}}
+...
+
+
+"CREATE" TABLE "SurfaceAndPhysicalReadings" (
+surf_id bigint NOT NULL DEFAULT nextval('"SurfaceAndPhysicalReadings_surf_id_seq"'::regclass),
+env_link text NOT NULL,
+vibra_mms2 real NULL,
+"noise_dB" bigint NULL,
+"dust_Mg_m2" real NULL,
+"microbe_CFU" bigint NULL,
+"moldIdx" real NULL,
+"pestActivity" text NULL,
+"pestTrap" bigint NULL,
+"pestSpecies" text NULL,
+"surface_pH" real NULL,
+moist_pct real NULL,
+"saltRisk" text NULL,
+"metalCorr" real NULL,
+"organicDeg" real NULL,
+"deltaE" real NULL,
+"surfTemp" real NULL,
+"surfRH" real NULL,
+"condRisk" text NULL,
+"thermalImg" text NULL,
+"structStable" text NULL,
+"crackNote" text NULL,
+deform_mm real NULL,
+"wtPct" real NULL,
+"surfDust" bigint NULL,
+"O2_pct" real NULL,
+"N2_pct" real NULL,
+    "PRIMARY" KEY (surf_id),
+    "FOREIGN" KEY (env_link) REFERENCES EnvironmentalReadingsCore(monitor_code)
+);
+
+
+
+"First" 3 rows:
+  surf_id  env_link      vibra_mms2    noise_dB    dust_Mg_m2    microbe_CFU    moldIdx  pestActivity      pestTrap  pestSpecies      surface_pH    moist_pct  saltRisk      metalCorr    organicDeg    deltaE    surfTemp    surfRH  condRisk    thermalImg    structStable    crackNote              deform_mm    wtPct    surfDust    O2_pct    N2_pct
+---------  ----------  ------------  ----------  ------------  -------------  ---------  --------------  ----------  -------------  ------------  -----------  ----------  -----------  ------------  --------  ----------  --------  ----------  ------------  --------------  -------------------  -----------  -------  ----------  --------  --------
+        1  MM191823           0.461          47          1.74            234       0.1   Medium                  10                          6.7         10.3  High               0.04          0.47      1.99       19.11     45.46  Medium      Normal        Stable          Significant Changes         0.08   -0.001           6     20.8      78.75
+        2  MM153427           0.053          50          0.39            450       0.33  Low                      6                          6.5         11    High               0.05          0.37      0.87      nan        52.95              Critical      Stable          Significant Changes       nan      -0.011           4     20.53     78.3
+        3  MM675303           0.018          42          2.77            486       0.43  Low                      7                          6.6        nan                     nan             0.92      1.48       20.53     54.81              Critical      Stable          Minor Changes               0.16  nan               4     20.31     78.62
+...
+
+
+"CREATE" TABLE "LightAndRadiationReadings" (
+rad_id bigint NOT NULL DEFAULT nextval('"LightAndRadiationReadings_rad_id_seq"'::regclass),
+env_link text NOT NULL,
+lux bigint NULL,
+"UV_uW" real NULL,
+"IR_W" real NULL,
+"visLxh" bigint NULL,
+    "PRIMARY" KEY (rad_id),
+    "FOREIGN" KEY (env_link) REFERENCES EnvironmentalReadingsCore(monitor_code)
+);
+
+
+
+"First" 3 rows:
+  rad_id  env_link      lux    UV_uW    IR_W    visLxh
+--------  ----------  -----  -------  ------  --------
+       1  MM191823      nan    32.58    7.51     71166
+       2  MM153427      138    64.99    7.81     69438
+       3  MM675303       71    66.82    5.47     75541
+...
+
+
+"CREATE" TABLE "ConditionAssessments" (
+cond_id bigint NOT NULL DEFAULT nextval('"ConditionAssessments_cond_id_seq"'::regclass),
+art_exam text NULL,
+case_exam text NULL,
+light_link bigint NULL,
+score bigint NULL,
+assess_date date NULL,
+next_due date NULL,
+    "PRIMARY" KEY (cond_id),
+    "FOREIGN" KEY (art_exam) REFERENCES ArtifactsCore(ARTregID),
+    "FOREIGN" KEY (case_exam) REFERENCES Showcases(caseID),
+    "FOREIGN" KEY (light_link) REFERENCES LightAndRadiationReadings(rad_id)
+);
+
+
+
+"First" 3 rows:
+  cond_id  art_exam    case_exam      light_link    score  assess_date    next_due
+---------  ----------  -----------  ------------  -------  -------------  ----------
+        1  ART54317    SC9857                  1       93  2024-09-15     2025-04-17
+        2  ART54254    SC7393                  2       48  2024-03-27     2025-09-09
+        3  ART69978    SC9391                  3       61  2024-05-01     2025-11-10
+...
+
+
+"CREATE" TABLE "RiskAssessments" (
+risk_id text NOT NULL,
+art_concern text NOT NULL,
+hall_concern text NULL,
+risk_level text NULL,
+emerg_plan text NULL,
+"evacPrio" text NULL,
+handle_rules text NULL,
+conserve_score bigint NULL,
+    "PRIMARY" KEY (risk_id),
+    "FOREIGN" KEY (art_concern) REFERENCES ArtifactsCore(ARTregID),
+    "FOREIGN" KEY (hall_concern) REFERENCES ExhibitionHalls(Hall_ID)
+);
+
+
+
+"First" 3 rows:
+risk_id    art_concern    hall_concern    risk_level    emerg_plan       evacPrio    handle_rules      conserve_score
+---------  -------------  --------------  ------------  ---------------  ----------  --------------  ----------------
+11X1B3CW   ART54317       Hall-3          Medium        Review Required  Priority 3  Minimal                       85
+WE7WL5Y2   ART54254       Hall-12         Medium        Under Revision   Priority 1  Strict                        76
+2248Y534   ART69978       Hall-3          Medium                         Priority 2  Minimal                       91
+...
+
+
+"CREATE" TABLE "ConservationAndMaintenance" (
+maint_id bigint NOT NULL DEFAULT nextval('"ConservationAndMaintenance_maint_id_seq"'::regclass),
+monitor_link text NULL,
+surf_link bigint NULL,
+treat_stat text NULL,
+prio_tag text NULL,
+"lastClean" date NULL,
+"nextClean" date NULL,
+"cleanDays" bigint NULL,
+"maintLog" text NULL,
+incident_stat text NULL,
+drill_stat text NULL,
+train_stat text NULL,
+budget_alloc text NULL,
+budget_stat text NULL,
+"conserveFreq" text NULL,
+history text NULL,
+"prevTreat" bigint NULL,
+"treatEffect" text NULL,
+"reversePot" text NULL,
+    "PRIMARY" KEY (maint_id),
+    "FOREIGN" KEY (monitor_link) REFERENCES EnvironmentalReadingsCore(monitor_code),
+    "FOREIGN" KEY (surf_link) REFERENCES SurfaceAndPhysicalReadings(surf_id)
+);
+
+
+
+"First" 3 rows:
+  maint_id  monitor_link      surf_link  treat_stat    prio_tag    lastClean    nextClean      cleanDays  maintLog    incident_stat    drill_stat    train_stat    budget_alloc     budget_stat    conserveFreq    history      prevTreat  treatEffect    reversePot
+----------  --------------  -----------  ------------  ----------  -----------  -----------  -----------  ----------  ---------------  ------------  ------------  ---------------  -------------  --------------  ---------  -----------  -------------  ------------
+         1  MM191823                  1  In Progress   High        2024-12-16   2025-05-10            83  Updated     Closed           Current       Current       Review Required  Limited        Rare            Extensive            4  Low            Medium
+         2  MM153427                  2                Medium      2024-12-13   2025-03-26           nan  Updated                      Overdue       Overdue       Review Required  Depleted       Rare            Minimal              1  Low            High
+         3  MM675303                  3  Not Required  Low         2024-11-21   2025-05-14            85  Pending     Closed           Overdue       Overdue       Insufficient     Limited        Rare            Moderate             8  Low            Low
+...
+
+
+"CREATE" TABLE "UsageRecords" (
+usage_id bigint NOT NULL DEFAULT nextval('"UsageRecords_usage_id_seq"'::regclass),
+env_link text NULL,
+rotate_sched text NULL,
+"displayMonths" bigint NULL,
+"restMonths" bigint NULL,
+"dispReqs" text NULL,
+"storeReqs" text NULL,
+"handleReqs" text NULL,
+"transportReqs" text NULL,
+"packReqs" text NULL,
+"resAccess" text NULL,
+"publicDisp" text NULL,
+"loanFreq" text NULL,
+"handleFreq" text NULL,
+"docuFreq" text NULL,
+"monitorFreq" text NULL,
+"assessFreq" text NULL,
+"conserveFreq" text NULL,
+"maintFreq" text NULL,
+"inspectFreq" text NULL,
+"calibFreq" text NULL,
+"certStatus" text NULL,
+"complianceStatus" text NULL,
+"auditStatus" text NULL,
+"qualityStatus" text NULL,
+    "PRIMARY" KEY (usage_id),
+    "FOREIGN" KEY (env_link) REFERENCES EnvironmentalReadingsCore(monitor_code)
+);
+
+
+
+"First" 3 rows:
+  usage_id  env_link    rotate_sched      displayMonths    restMonths  dispReqs    storeReqs    handleReqs    transportReqs    packReqs    resAccess    publicDisp    loanFreq    handleFreq    docuFreq    monitorFreq    assessFreq    conserveFreq    maintFreq    inspectFreq    calibFreq    certStatus    complianceStatus    auditStatus    qualityStatus
+----------  ----------  --------------  ---------------  ------------  ----------  -----------  ------------  ---------------  ----------  -----------  ------------  ----------  ------------  ----------  -------------  ------------  --------------  -----------  -------------  -----------  ------------  ------------------  -------------  ---------------
+         1  MM191823    Permanent                     1            22  Special     Standard     Custom        Custom                       Frequent     Frequent      Occasional  Rare          Frequent    Monthly        Monthly       Rare            Monthly      Weekly         Monthly      Expired       Non-compliant       Passed         Failed
+         2  MM153427    Resting                       5            11  Standard    Custom       Special       Special          Special     Rare         Frequent                  Rare          Rare                       Quarterly     Rare            Weekly       Monthly        Quarterly    Current       Partial             Pending        Failed
+         3  MM675303    Permanent                     6            10  Custom      Custom       Standard      Standard         Special     Rare         Occasional    Occasional  Rare          Frequent    Weekly         Quarterly     Rare            Weekly       Daily          Monthly                    Non-compliant       Failed         Passed
+...
+
+
+"CREATE" TABLE "ArtifactSecurityAccess" (
+loan_stat text NOT NULL,
+"insUSD" real NULL,
+"SEC_LEVEL" text NULL,
+access_restrict text NULL,
+docu_stat text NULL,
+photo_docu text NULL,
+cond_report text NULL,
+conserve_rec text NULL,
+research_access text NULL,
+digital_rec text NULL,
+    "PRIMARY" KEY (loan_stat)
+);
+
+
+
+"First" 3 rows:
+loan_stat        insUSD  SEC_LEVEL    access_restrict    docu_stat    photo_docu    cond_report    conserve_rec     research_access    digital_rec
+-------------  --------  -----------  -----------------  -----------  ------------  -------------  ---------------  -----------------  -------------
+"On" Loan          968368  Level 3      Public             Updating     Outdated      Current        Review Required  Limited            In Progress
+Available         36135  Level 3      Public             Partial      Required      Due            Pending          Limited            Partial
+"Not" Available    776900  Level 3      Limited            Updating                   Current        Updated          Available          Complete
+...
+
+
+"CREATE" TABLE "Monitor_Showcase_Map" (
+"mon_ID" text NOT NULL,
+"case_ID" text NOT NULL,
+    "PRIMARY" KEY (mon_ID, case_ID)
+);
+
+
+
+"First" 3 rows:
+mon_ID    case_ID
+--------  ---------
+MM191823  SC9857
+MM153427  SC7393
+MM675303  SC9391
+...

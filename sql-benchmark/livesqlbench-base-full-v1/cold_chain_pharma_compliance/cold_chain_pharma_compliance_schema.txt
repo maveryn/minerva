@@ -1,0 +1,238 @@
+CREATE TABLE "shipments" (
+reckey text NOT NULL,
+log_ts timestamp without time zone NULL,
+shiptok text NULL,
+shipment_overview jsonb NULL,
+    PRIMARY KEY (reckey)
+);
+
+First 3 rows:
+reckey    log_ts               shiptok    shipment_overview
+--------  -------------------  ---------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CC299394  NaT                  SH84615    {'route': {'origin': {'hub': 'Nielsen, Hogan and Morgan Facility', 'nation': 'Ireland', 'address': '07026 Bell Trail\nGonzalezland, CT 04965'}, 'risk_note': 'Low', 'destination': {'hub': 'Garcia-Mann Hospital', 'nation': None, 'address': '704 Valentine Parkways\nNew Andrew, PW 63414'}, 'route_string': 'Ireland -> Rwanda'}, 'timing_performance': {'go_time_ts': '2025-02-18T21:29:00', 'distance_km': 1710, 'end_time_ts': '2025-02-19T08:29:00', 'planned_eta_hrs': 18, 'actual_duration_hrs': 72}}
+CC122014  2025-02-10 23:41:55  SH95068    {'route': {'origin': {'hub': 'Bowers-Hurley Facility', 'nation': 'Pitcairn Islands', 'address': '7757 Victoria Walk Apt. 470\nAlexishaven, GU 69290'}, 'risk_note': 'Low', 'destination': {'hub': 'Mcgee-Gonzales Hospital', 'nation': 'Libyan Arab Jamahiriya', 'address': '75571 Cline Causeway Suite 713\nNorth Christopher, RI 33695'}, 'route_string': 'Pitcairn Islands -> Libyan Arab Jamahiriya'}, 'timing_performance': {'go_time_ts': '2025-02-18T17:29:00', 'distance_km': 303, 'end_time_ts': '2025-02-19T08:29:00', 'planned_eta_hrs': 8, 'actual_duration_hrs': 55}}
+CC892358  2025-02-05 08:30:29  SH68318    {'route': {'origin': {'hub': 'Smith-Carter Facility', 'nation': 'Benin', 'address': '646 Wolf Village\nSouth Natalieburgh, NM 29188'}, 'risk_note': 'High', 'destination': {'hub': 'Webb, Mendez and Davis Hospital', 'nation': 'Iran', 'address': '43648 Jackson Plaza\nLake Ambertown, LA 02999'}, 'route_string': 'Benin -> Iran'}, 'timing_performance': {'go_time_ts': '2025-02-19T02:29:00', 'distance_km': 3371, 'end_time_ts': '2025-02-19T08:29:00', 'planned_eta_hrs': 58, 'actual_duration_hrs': 48}}
+...
+
+
+CREATE TABLE "environmentalmonitoring" (
+reckeylink text NOT NULL,
+devlink text NULL,
+env_metrics jsonb NULL,
+    PRIMARY KEY (reckeylink),
+    FOREIGN KEY (reckeylink) REFERENCES shipments(reckey),
+    FOREIGN KEY (devlink) REFERENCES monitoringdevices(mondevref)
+);
+
+First 3 rows:
+reckeylink    devlink    env_metrics
+------------  ---------  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CC892358      MD8154     {'humidity': {'avg_pct': 65.8, 'excursion_count': 4, 'humidity_monitor': 'No'}, 'tracking': {'stop_duration_min': 77, 'unscheduled_stops': 5, 'gps_completeness_pct': '96.3', 'location_tracking_state': 'Active', 'route_deviation_incidents': 2}, 'temperature': {'avg_c': 3, 'max_c': 10, 'min_c': 4, 'alarm_count': 5, 'excursion_count': 0, 'excursion_duration_min': 31}, 'light_and_shock': {'shock_monitor': None, 'shock_event_count': 5, 'light_monitor_mode': None}}
+CC837054      MD2483     {'humidity': {'avg_pct': 69.6, 'excursion_count': 0, 'humidity_monitor': None}, 'tracking': {'stop_duration_min': 78, 'unscheduled_stops': 5, 'gps_completeness_pct': '91.2', 'location_tracking_state': 'Failed', 'route_deviation_incidents': 2}, 'temperature': {'avg_c': 7.6, 'max_c': 9.5, 'min_c': 2.2, 'alarm_count': 4, 'excursion_count': 6, 'excursion_duration_min': 111}, 'light_and_shock': {'shock_monitor': 'Passive', 'shock_event_count': 5, 'light_monitor_mode': None}}
+CC324346      MD3745     {'humidity': {'avg_pct': 44.9, 'excursion_count': 5, 'humidity_monitor': 'Yes'}, 'tracking': {'stop_duration_min': 171, 'unscheduled_stops': 5, 'gps_completeness_pct': '97.3', 'location_tracking_state': 'Intermittent', 'route_deviation_incidents': 2}, 'temperature': {'avg_c': 5.7, 'max_c': 11.8, 'min_c': 0.6, 'alarm_count': 5, 'excursion_count': 4, 'excursion_duration_min': 58}, 'light_and_shock': {'shock_monitor': None, 'shock_event_count': 6, 'light_monitor_mode': None}}
+...
+
+
+CREATE TABLE "products" (
+prodcode text NOT NULL,
+prodlabel text NULL,
+prodcat text NULL,
+maker text NULL,
+    PRIMARY KEY (prodcode)
+);
+
+First 3 rows:
+prodcode    prodlabel                            prodcat         maker
+----------  -----------------------------------  --------------  --------------
+PH75271     strategize value-added deliverables  Vaccines        York Ltd
+PH70163     maximize enterprise platforms        Biologics       Davis and Sons
+PH42851     target dot-com partnerships          Blood Products
+...
+
+
+CREATE TABLE "productbatches" (
+batchtag text NOT NULL,
+prodlink text NULL,
+mfg_ts timestamp without time zone NULL,
+exp_ts timestamp without time zone NULL,
+store_cond text NULL,
+tempmin real NULL,
+tempmax real NULL,
+tempsense text NULL,
+pack_type text NULL,
+pack_cnt bigint NULL,
+valusd text NULL,
+insusd real NULL,
+    PRIMARY KEY (batchtag),
+    FOREIGN KEY (prodlink) REFERENCES products(prodcode)
+);
+
+First 3 rows:
+batchtag    prodlink    mfg_ts               exp_ts               store_cond      tempmin    tempmax  tempsense    pack_type      pack_cnt  valusd         insusd
+----------  ----------  -------------------  -------------------  ------------  ---------  ---------  -----------  -----------  ----------  -----------  --------
+BT909380    PH75271     2024-08-02 00:00:00  2026-09-30 00:00:00  2-8°C                 2         12  Medium       Ampoule             936  $57,421.85        nan
+BT468883    PH70163     2024-07-22 00:00:00  2025-11-29 00:00:00  -20°C               -70        -55  High         Container           899  $188,736.45    226484
+BT980454    PH42851     2024-08-05 00:00:00  2026-03-01 00:00:00  15-25°C              15         30  Medium       Vial                778  $680,991.64    817190
+...
+
+
+CREATE TABLE "carriers" (
+carriertag text NOT NULL,
+carriercert text NULL,
+    PRIMARY KEY (carriertag)
+);
+
+First 3 rows:
+carriertag                        carriercert
+--------------------------------  -------------
+Rodriguez, Mcintyre and Richards
+Lawson PLC                        GDP
+Howard PLC                        GDP
+...
+
+
+CREATE TABLE "vehicles" (
+vehref text NOT NULL,
+carrierbond text NULL,
+vehtype text NULL,
+veh_qual text NULL,
+temp_mon_sys text NULL,
+    PRIMARY KEY (vehref),
+    FOREIGN KEY (carrierbond) REFERENCES carriers(carriertag)
+);
+
+First 3 rows:
+vehref    carrierbond                       vehtype    veh_qual    temp_mon_sys
+--------  --------------------------------  ---------  ----------  --------------
+VH6122    Rodriguez, Mcintyre and Richards  Aircraft   Validated   Interval
+VH3281    Lawson PLC                        Aircraft   Qualified   Continuous
+VH6131    Howard PLC                        Container  Qualified   Interval
+...
+
+
+CREATE TABLE "monitoringdevices" (
+mondevref text NOT NULL,
+calibts timestamp without time zone NULL,
+devacc text NULL,
+recintmin bigint NULL,
+temppts bigint NULL,
+    PRIMARY KEY (mondevref)
+);
+
+First 3 rows:
+mondevref    calibts                devacc    recintmin    temppts
+-----------  -------------------  --------  -----------  ---------
+MD9886       2024-10-06 00:00:00      0.31          nan        891
+MD8695       2024-09-04 00:00:00      0.19            5        812
+MD3440       2024-11-12 00:00:00      0.39           15        650
+...
+
+
+CREATE TABLE "qualitycompliance" (
+reckeyqc text NOT NULL,
+qc_checklist jsonb NULL,
+    PRIMARY KEY (reckeyqc),
+    FOREIGN KEY (reckeyqc) REFERENCES shipments(reckey)
+);
+
+First 3 rows:
+reckeyqc    qc_checklist
+----------  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CC880430    {'release': {'release_ts': '2025-02-19T00:00:00', 'quarantine_reason': None, 'product_release_status': 'Rejected'}, 'security': {'seal_status': 'Broken', 'security_incident': '2'}, 'gdp_quality': {'gdp_compliance': 'Full', 'sop_compliance': 'Full', 'responsible_person': 'Sarah Sharp', 'quality_approval_ts': '2025-01-25T00:00:00', 'quality_review_status': 'Pending', 'quality_agreement_status': 'Active'}, 'documentation': {'certification_status': 'Complete', 'documentation_complete': 'Complete'}, 'product_integrity': {'pack_condition': 'Good', 'label_condition': 'Clear', 'product_intact_check': 'Conditional'}, 'customs_and_regulatory': {'import_permit_status': 'Pending', 'custom_clearance_status': 'Cleared', 'regulatory_compliance_status': 'Non-compliant'}}
+CC808096    {'release': {'release_ts': '2025-02-19T00:00:00', 'quarantine_reason': 'Damage', 'product_release_status': 'Rejected'}, 'security': {'seal_status': None, 'security_incident': '1'}, 'gdp_quality': {'gdp_compliance': 'Partial', 'sop_compliance': 'Full', 'responsible_person': 'Donna Day', 'quality_approval_ts': None, 'quality_review_status': 'Approved', 'quality_agreement_status': 'Pending'}, 'documentation': {'certification_status': 'Complete', 'documentation_complete': 'Partial'}, 'product_integrity': {'pack_condition': 'Damaged', 'label_condition': 'Illegible', 'product_intact_check': 'Failed'}, 'customs_and_regulatory': {'import_permit_status': 'Not Required', 'custom_clearance_status': 'Pending', 'regulatory_compliance_status': 'Under Review'}}
+CC299394    {'release': {'release_ts': '2025-02-19T00:00:00', 'quarantine_reason': 'Damage', 'product_release_status': 'Released'}, 'security': {'seal_status': 'Broken', 'security_incident': '0'}, 'gdp_quality': {'gdp_compliance': 'Non-compliant', 'sop_compliance': 'Full', 'responsible_person': 'James Chan', 'quality_approval_ts': '2025-01-26T00:00:00', 'quality_review_status': 'Pending', 'quality_agreement_status': 'Expired'}, 'documentation': {'certification_status': 'Expired', 'documentation_complete': 'Partial'}, 'product_integrity': {'pack_condition': 'Damaged', 'label_condition': 'Illegible', 'product_intact_check': 'Passed'}, 'customs_and_regulatory': {'import_permit_status': 'Valid', 'custom_clearance_status': 'Pending', 'regulatory_compliance_status': 'Under Review'}}
+...
+
+
+CREATE TABLE "incidentandriskmanagement" (
+reckeyrisk text NOT NULL,
+incident_risk_record jsonb NULL,
+    PRIMARY KEY (reckeyrisk),
+    FOREIGN KEY (reckeyrisk) REFERENCES shipments(reckey)
+);
+
+First 3 rows:
+reckeyrisk    incident_risk_record
+------------  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CC808096      {'risk': {'risk_level': 'Medium', 'risk_assessment_status': 'Ongoing'}, 'impact': {'market_impact': 'Limited', 'patient_impact': None, 'reputation_impact': 'Major'}, 'batch_decision': {'batch_release_decision': 'Rejected'}, 'lessons_learned': 'No', 'stability_and_quality': {'stability_data_review': 'Not Required', 'product_quality_impact': 'Confirmed', 'stability_impact_assessment': None}, 'reporting_notification': {'customer_response': None, 'authority_response': 'Investigation', 'customer_notification': 'Completed', 'incident_report_status': 'Reviewed', 'health_authority_notification': 'Pending'}, 'deviation_investigation': {'corrective_actions': 'Pending', 'preventive_actions': 'Implemented', 'investigation_status': None}}
+CC299394      {'risk': {'risk_level': None, 'risk_assessment_status': 'Completed'}, 'impact': {'market_impact': 'Limited', 'patient_impact': 'Confirmed', 'reputation_impact': None}, 'batch_decision': {'batch_release_decision': 'Approved'}, 'lessons_learned': 'No', 'stability_and_quality': {'stability_data_review': 'Pending', 'product_quality_impact': None, 'stability_impact_assessment': None}, 'reporting_notification': {'customer_response': 'Accepted', 'authority_response': 'Investigation', 'customer_notification': 'Pending', 'incident_report_status': 'Draft', 'health_authority_notification': 'Completed'}, 'deviation_investigation': {'corrective_actions': 'Implemented', 'preventive_actions': 'Implemented', 'investigation_status': 'Completed'}}
+CC122014      {'risk': {'risk_level': 'Low', 'risk_assessment_status': 'Required'}, 'impact': {'market_impact': None, 'patient_impact': 'Possible', 'reputation_impact': None}, 'batch_decision': {'batch_release_decision': 'Approved'}, 'lessons_learned': 'In Progress', 'stability_and_quality': {'stability_data_review': 'Not Required', 'product_quality_impact': 'Confirmed', 'stability_impact_assessment': None}, 'reporting_notification': {'customer_response': None, 'authority_response': None, 'customer_notification': 'Pending', 'incident_report_status': 'Draft', 'health_authority_notification': 'Completed'}, 'deviation_investigation': {'corrective_actions': None, 'preventive_actions': 'Implemented', 'investigation_status': None}}
+...
+
+
+CREATE TABLE "insuranceclaims" (
+reckeyclaim text NOT NULL,
+claimneed text NULL,
+claimstat text NULL,
+claimusd real NULL,
+costimpactusd real NULL,
+respparty text NULL,
+    PRIMARY KEY (reckeyclaim),
+    FOREIGN KEY (reckeyclaim) REFERENCES shipments(reckey)
+);
+
+First 3 rows:
+reckeyclaim    claimneed    claimstat      claimusd    costimpactusd  respparty
+-------------  -----------  -----------  ----------  ---------------  -----------
+CC381686       No                           79419.2         47835.3   Unknown
+CC880430       Yes          Approved        41425.4          9683.92  Shipper
+CC808096       Yes          Rejected        93706.9           321.82  Receiver
+...
+
+
+CREATE TABLE "reviewsandimprovements" (
+reckeyrev text NOT NULL,
+procimprove text NULL,
+trainneeds text NULL,
+sop_update text NULL,
+vendorimpact text NULL,
+nextshipchg text NULL,
+monfreqchg text NULL,
+routeriskreassess text NULL,
+packspecrev text NULL,
+lanequalstat text NULL,
+techupgrade text NULL,
+costoptpot text NULL,
+sustainimpact text NULL,
+carbonkg real NULL,
+energyscore text NULL,
+docformat text NULL,
+dataintegrity text NULL,
+audittrailcomplete text NULL,
+e_sigstat text NULL,
+sysaccessctrl text NULL,
+databackupstat text NULL,
+reportgenstat text NULL,
+distlist text NULL,
+archivestat text NULL,
+reviewnotes text NULL,
+nextrevts timestamp without time zone NULL,
+closestat text NULL,
+    PRIMARY KEY (reckeyrev),
+    FOREIGN KEY (reckeyrev) REFERENCES shipments(reckey)
+);
+
+First 3 rows:
+reckeyrev    procimprove    trainneeds    sop_update    vendorimpact      nextshipchg    monfreqchg    routeriskreassess    packspecrev    lanequalstat    techupgrade       costoptpot    sustainimpact      carbonkg    energyscore  docformat    dataintegrity      audittrailcomplete  e_sigstat     sysaccessctrl    databackupstat    reportgenstat    distlist    archivestat    reviewnotes                                                                                    nextrevts            closestat
+-----------  -------------  ------------  ------------  ----------------  -------------  ------------  -------------------  -------------  --------------  ----------------  ------------  ---------------  ----------  -------------  -----------  ---------------  --------------------  ------------  ---------------  ----------------  ---------------  ----------  -------------  ---------------------------------------------------------------------------------------------  -------------------  ------------
+CC381686     No             Under Review  Under Review  Warning                          Increased     Not Required         Required       Invalid         Under Evaluation  Medium        Positive             2617.3           81    Hybrid       Under Review                     91    Invalid       Adequate         Pending           Pending          Extended    Pending        Agent usually ten food focus. Throughout return mean.                                          2025-03-13 00:00:00  Under Review
+CC880430     No             Yes           Under Review  Disqualification  Major          No Change     Required             Required       Invalid         No                Low           Positive             1825.7           86.1  Paper        Verified                         93.2  Invalid       Compromised      Current           Pending          Extended    Completed      Protect reason ask child month. President stuff back point kitchen.                            2025-03-13 00:00:00  Open
+CC808096     No             Yes           Under Review  Disqualification                 Decreased     Required             Completed      Valid           No                High          Positive              nan             75.5  Hybrid       Under Review                     93.8  Not Required  Adequate         Current           Completed        Extended    Not Required   Tend third child discuss draw message rock. Source development offer sing person stage night.  2025-03-07 00:00:00  Closed
+...
+
+
+CREATE TABLE "shipsensorlink" (
+shpnode text NOT NULL,
+devnode text NOT NULL,
+    PRIMARY KEY (shpnode, devnode),
+    FOREIGN KEY (shpnode) REFERENCES shipments(reckey),
+    FOREIGN KEY (devnode) REFERENCES monitoringdevices(mondevref)
+);
+
+First 3 rows:
+shpnode    devnode
+---------  ---------
+CC381686   MD9886
+CC880430   MD8695
+CC808096   MD3440
+...

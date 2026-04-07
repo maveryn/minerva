@@ -1,0 +1,189 @@
+{
+  "insider_trading|traders|TR_KEY": "TEXT. Unique identifier for a trader account. PK. Example: TR73442.",
+  "insider_trading|traders|typeFlag": "TEXT. Classification flag indicating trader type . Possible values: Broker, Individual, Institution, Market Maker.",
+  "insider_trading|instruments|SYM_KEY": "TEXT. Unique symbol key identifying a financial instrument. PK. Possible values: AAPL, AMZN, GOOGL, META, MSFT.",
+  "insider_trading|trader_relationships|rel_root": "TEXT. Root trader referenced in the relationship map. PK. FK to traders(TR_KEY).",
+  "insider_trading|trader_relationships|map_state": "TEXT. Current mapping state of the relationship graph. Possible values: Complete, Partial, Pending.",
+  "insider_trading|trader_relationships|addrHits": "BIGINT. Count of address matches across linked traders. Possible values: 0, 1, 2, 3, 4, 5.",
+  "insider_trading|trader_relationships|commPath": "TEXT. Primary communication pathway identified. **NULL means communication path has not been mapped.**. Possible values: Irregular, Regular.",
+  "insider_trading|trader_relationships|circ_size": "BIGINT. Size of the trader-relationship circle. Example: 32.",
+  "insider_trading|order_status_types|STAT_TOKEN": "TEXT. Unique token representing an order-status type. PK.",
+  "insider_trading|trade_records|REC_KEY": "TEXT. Unique key identifying an individual trade record. PK. Example: IT291460.",
+  "insider_trading|trade_records|snap_ts": "TIMESTAMP. Snapshot timestamp capturing the trade state. **NULL means snapshot time was not captured.**. Example: 2024-11-24 23:31:04.103260.",
+  "insider_trading|trade_records|tr_anchor": "TEXT. Trader key involved in the trade. FK to traders(TR_KEY).",
+  "insider_trading|trade_records|sym_anchor": "TEXT. Instrument symbol key traded. FK to instruments(SYM_KEY).",
+  "insider_trading|trade_records|freq_tag": "TEXT. Frequency-band tag for the trader’s activity. Possible values: High, Low, Medium.",
+  "insider_trading|trade_records|vol_day": "REAL. Average daily trading volume for the trader-instrument pair. Example: 693469.34.",
+  "insider_trading|trade_records|pos_avg": "REAL. Average position size held by the trader. Example: 63384.3.",
+  "insider_trading|trade_records|hold_span": "TEXT. Typical holding-period span . Possible values: Intraday, Long-term, Position, Swing.",
+  "insider_trading|trade_records|margin_pct": "REAL. Margin percentage utilised in the trades. Example: 74.62.",
+  "insider_trading|market_conditions|REC_PIN": "TEXT. Primary key linking market-condition metrics to a trade record. PK.",
+  "insider_trading|market_conditions|vol_ano": "REAL. Volume-anomaly indicator. Example: 2.12.",
+  "insider_trading|market_conditions|mov_pct": "REAL. Percentage price movement over the observation window. Example: 9.6.",
+  "insider_trading|market_conditions|spreadTag": "REAL. Bid-ask-spread metric for the instrument. Example: 0.471.",
+  "insider_trading|market_conditions|impactVal": "TEXT. Estimated market-impact value. Example: 0.05%.",
+  "insider_trading|market_conditions|mkt_corr": "REAL. Correlation with the broader market index. Example: -0.327.",
+  "insider_trading|market_conditions|rot_imp": "REAL. Rotation-impact score on sector rotation. Example: -0.793.",
+  "insider_trading|order_behaviour|REC_NODE": "TEXT. Identifier linking order-behaviour stats to a market-condition set. PK. FK to market_conditions(REC_PIN).",
+  "insider_trading|order_behaviour|OST_ref": "TEXT. Reference to the order-status type token. FK to order_status_types(STAT_TOKEN).",
+  "insider_trading|order_behaviour|dark_use": "REAL. Proportion of volume routed to dark pools. **NULL means dark-pool usage data not collected.**. Example: 0.009.",
+  "insider_trading|order_behaviour|off_mkt": "REAL. Fraction of executions occurring off-exchange. Example: 0.197.",
+  "insider_trading|order_behaviour|x_freq": "REAL. Execution frequency (orders filled per unit time). Example: 0.069.",
+  "insider_trading|manipulation_signals|REC_TAG": "TEXT. Identifier linking manipulation-signal metrics to a market-condition set. PK. FK to market_conditions(REC_PIN).",
+  "insider_trading|manipulation_signals|layer_idx": "TEXT. Index measuring order-layering activity. **NULL means layering index not assigned.**. Possible values: Confirmed, Suspected.",
+  "insider_trading|manipulation_signals|stuff_idx": "REAL. Quote-stuffing index. Example: 0.409.",
+  "insider_trading|manipulation_signals|ignite_sig": "TEXT. Signal denoting rapid-ignite trading tactics. **NULL means ignition signal not detected.**. Possible values: Strong, Weak.",
+  "insider_trading|manipulation_signals|close_mark": "TEXT. Indicator of closing-price manipulation. **NULL means close-price marker not set.**. Possible values: Frequent, Occasional.",
+  "insider_trading|sentiment_analytics|REC_SA": "TEXT. Identifier linking sentiment analytics to a market-condition set. PK. FK to market_conditions(REC_PIN).",
+  "insider_trading|sentiment_analytics|ins_hold": "REAL. Percentage of insider holdings in the float. Example: 45.91.",
+  "insider_trading|sentiment_analytics|inst_own": "REAL. Percentage of institutional ownership. **NULL means institutional-ownership data unavailable.**. Example: 78.29.",
+  "insider_trading|sentiment_analytics|short_rt": "REAL. Short-interest rate for the instrument. **NULL means short-interest rate not provided.**. Example: 17.24.",
+  "insider_trading|sentiment_analytics|opt_vol": "REAL. Options-trading volume on the instrument. **NULL means options volume value is missing.**. Example: 2.91.",
+  "insider_trading|sentiment_analytics|pc_ratio": "REAL. Put-call ratio for the instrument. Example: 1.17.",
+  "insider_trading|sentiment_analytics|iv_rank": "TEXT. Implied-volatility rank classification. Example: 11.39%.",
+  "insider_trading|sentiment_analytics|uo_act": "TEXT. Unusual-options-activity descriptor. **NULL means no unusual-options activity recorded.**. Possible values: High, Moderate.",
+  "insider_trading|corporate_events|REC_EVT": "TEXT. Identifier linking corporate-event data to a market-condition set. PK. FK to market_conditions(REC_PIN).",
+  "insider_trading|corporate_events|evt_near": "TEXT. Flag indicating proximity of an upcoming corporate event. **NULL means no upcoming event recorded.**. Possible values: Earnings, M&A, Restructuring.",
+  "insider_trading|corporate_events|announce_time": "TEXT. Scheduled or actual announcement time of the event. Possible values: Intraday hrs before, Post-market hrs before, Pre-market hrs before.",
+  "insider_trading|corporate_events|leak_score": "REAL. Score estimating likelihood of information leakage before the event. Example: 34.04.",
+  "insider_trading|reg_compliance|REC_COMP": "TEXT. Identifier linking regulatory-compliance data to a market-condition set. PK. FK to market_conditions(REC_PIN).",
+  "insider_trading|reg_compliance|file_state": "TEXT. Filing-status state. Possible values: Current, Delayed, Missing.",
+  "insider_trading|reg_compliance|disc_state": "TEXT. Disclosure-status state. Possible values: Full, Non-compliant, Partial.",
+  "insider_trading|reg_compliance|restrict_win": "TEXT. Trading-restriction window status. **NULL means restriction window not defined.**. Possible values: Blackout, Special.",
+  "insider_trading|reg_compliance|broker_flag": "TEXT. Flag indicating broker-dealer involvement. **NULL means broker-flag unset.**. Possible values: Complete, Incomplete, Late.",
+  "insider_trading|reg_compliance|exch_note": "TEXT. Exchange note or comment. **NULL means no exchange note present.**. Possible values: Inquiry, Warning.",
+  "insider_trading|reg_compliance|invest_stat": "TEXT. Current investment-status designation. **NULL means investment status not specified.**. Possible values: Active, Preliminary.",
+  "insider_trading|reg_compliance|alert_lvl": "TEXT. Alert-level assigned by compliance monitoring. Possible values: Critical, High, Low, Medium.",
+  "insider_trading|reg_compliance|invest_prior": "TEXT. Investigation-priority indicator. Possible values: High, Low, Medium.",
+  "insider_trading|reg_compliance|case_flag": "TEXT. Flag indicating an open compliance case. Possible values: Closed, Investigation, Monitoring.",
+  "insider_trading|reg_compliance|review_freq": "TEXT. Recommended frequency of compliance reviews. **NULL means review frequency not defined.**. Possible values: Daily, Monthly, Weekly.",
+  "insider_trading|reg_compliance|last_rev": "DATE. Date of the most recent compliance review. Example: 2025/02/02.",
+  "insider_trading|reg_compliance|next_rev": "DATE. Scheduled date of the next compliance review. Example: March 19, 2025.",
+  "insider_trading|reg_compliance|mon_inten": "TEXT. Monitoring-intensity setting. Possible values: Enhanced, Intensive, Standard.",
+  "insider_trading|reg_compliance|sv_sys": "TEXT. Surveillance system used. Possible values: Multiple, Primary, Secondary.",
+  "insider_trading|reg_compliance|det_meth": "TEXT. Detection method applied. Possible values: Automated, Hybrid, Manual.",
+  "insider_trading|reg_compliance|fp_rate": "REAL. False-positive rate of the detection system. Example: 0.033.",
+  "insider_trading|reg_compliance|model_conf": "REAL. Confidence score of the detection model. Example: 0.883.",
+  "insider_trading|reg_compliance|pat_rec": "REAL. Pattern-recognition metric for compliance. Example: 42.51.",
+  "insider_trading|reg_compliance|behav_score": "REAL. Behavioural risk score from compliance analytics. Example: 37.76.",
+  "insider_trading|reg_compliance|net_score": "REAL. Network-based compliance risk score. Example: 68.91.",
+  "insider_trading|enforcement_actions|REC_ENF": "TEXT. Identifier linking enforcement actions to a market-condition set. PK. FK to market_conditions(REC_PIN).",
+  "insider_trading|enforcement_actions|abuse_prob": "REAL. Probability that abusive activity occurred. **NULL means abuse probability not calculated.**. Example: 0.177.",
+  "insider_trading|enforcement_actions|evid_pow": "TEXT. Evidentiary strength supporting enforcement action. Possible values: Moderate, Strong, Weak.",
+  "insider_trading|enforcement_actions|doc_stat": "TEXT. Status of supporting documentation. Possible values: Complete, Incomplete, Partial.",
+  "insider_trading|enforcement_actions|act_taken": "TEXT. Enforcement action taken. **NULL means no action recorded.**. Possible values: Restriction, Suspension, Warning.",
+  "insider_trading|enforcement_actions|esc_lvl": "TEXT. Escalation level applied to the case. **NULL means escalation level not set.**. Possible values: Compliance, Legal, Supervisor.",
+  "insider_trading|enforcement_actions|legal_state": "TEXT. Current legal-proceeding state. **NULL means legal case state not recorded.**. Possible values: Active, Pending.",
+  "insider_trading|enforcement_actions|settle_state": "TEXT. Settlement state of the enforcement action. **NULL means settlement state unknown.**. Possible values: Negotiating, Settled.",
+  "insider_trading|enforcement_actions|rep_impact": "TEXT. Reputational impact assessment. Possible values: Minimal, Moderate, Severe.",
+  "insider_trading|enforcement_actions|biz_restrict": "TEXT. Business-restriction imposed (if any). **NULL means business restriction not documented.**. Possible values: Full, Partial.",
+  "insider_trading|enforcement_actions|rem_status": "TEXT. Remediation-status update. Possible values: Completed, Not Required, Pending.",
+  "insider_trading|enforcement_actions|sys_need": "TEXT. Required system changes identified. Possible values: Major, Minor, No.",
+  "insider_trading|enforcement_actions|policy_need": "TEXT. Required policy changes identified. Possible values: No, Urgent, Yes.",
+  "insider_trading|enforcement_actions|train_req": "TEXT. Mandatory training requirement specified. **NULL means training requirement not specified.**. Possible values: Comprehensive, Refresher.",
+  "insider_trading|enforcement_actions|report_state": "TEXT. Reporting-obligation state. Possible values: Automated, Hybrid, Manual.",
+  "insider_trading|enforcement_actions|retain_stat": "TEXT. Data-retention status. **NULL means retention status not indicated.**. Possible values: Archived, Current, Deleted.",
+  "insider_trading|enforcement_actions|audit_stat": "TEXT. Audit-status indicator. Possible values: Complete, Missing, Partial.",
+  "insider_trading|enforcement_actions|conf_lvl": "TEXT. Confidence level in enforcement findings. **NULL means confidence level not assigned.**. Possible values: Highly Sensitive, Normal, Sensitive.",
+  "insider_trading|enforcement_actions|access_res": "TEXT. Access-restriction outcome after enforcement. Possible values: Internal, Public, R.",
+  "insider_trading|enforcement_actions|share_state": "TEXT. Data-sharing state following enforcement. Possible values: Allowed, Limited, Prohibited.",
+  "insider_trading|market_conditions|price_accel": "TEXT. Rate of change in the price volatility per hour squared. A higher value indicates a more volatile price movement over time. Example: 2.32 %/(hour²).",
+  "insider_trading|market_conditions|liq_imp": "TEXT. The liquidity impact rate, calculated as the USD value of trades per minute. Reflects the instantaneous impact on market liquidity by trading volume. Example: 12,534.56 USD/min.",
+  "insider_trading|trade_records|bal_turnover": "TEXT. The turnover rate of the trader's balance per day, calculated as the ratio of daily trading volume to the account balance. Example: 2.34 times/day.",
+  "insider_trading|trade_records|risk_adj_lev": "TEXT. The risk-adjusted leverage ratio, indicating the amount of leverage relative to the trader's risk tolerance. Example: 16.98 USD/risk-point.",
+  "insider_trading|corporate_events|info_leak_rate": "TEXT. The rate at which information leakage occurs before a corporate event's announcement, measured in score per hour. Example: 0.45 score/hour.",
+  "insider_trading|sentiment_analytics|short_press_int": "TEXT. The intensity of short selling pressure as a percentage per hour, reflecting how quickly short interest builds up near corporate events. Example: 2.57 %/hour.",
+  "insider_trading|reg_compliance|reg_resp_spd": "TEXT. The speed of regulatory response, measured in hours per case. A lower value indicates faster response times. Example: 42.3 hours/case.",
+  "insider_trading|trade_records|vol_adj_lev": "TEXT. The volatility-adjusted leverage, indicating the amount of leverage in relation to market volatility. Example: 0.34 leverage-point/vol-point.",
+  "insider_trading|market_conditions|ofi_density": "TEXT. The order flow impact density, measured in basis points per million USD of trade volume. Example: 8.76 bps/million USD.",
+  "insider_trading|reg_compliance|reg_alert_conc": "TEXT. The concentration of regulatory alerts per billion USD of trading volume. Helps identify market manipulation risks. Example: 45.2 alerts/billion USD.",
+  "insider_trading|trader_relationships|insider_net_str": "TEXT. The strength of the insider network, calculated by the number of connected entities per percentage of insider ownership. Example: 12.45 connection-point/ownership%.",
+  "insider_trading|traders|trader_fin_data": {
+    "column_meaning": "JSONB column. Trader financial details including balance and risk.",
+    "fields_meaning": {
+      "usd_bal": "TEXT. Current account balance denominated in U.S. dollars. Example: $4,692,991.",
+      "risk_lvl": "TEXT. Qualitative risk-tone category assigned to the trader. Possible values: Aggressive, Conservative, Moderate.",
+      "age_days": "BIGINT. Number of days since the trader account was created. Example: 1532."
+    }
+  },
+  "insider_trading|instruments|inst_info": {
+    "column_meaning": "JSONB column. Instrument data including cap and sector.",
+    "fields_meaning": {
+      "cap": "REAL. Market-capitalisation value of the instrument. **NULL means market-cap could not be determined or is not reported.**. Example: 155167483887.68.",
+      "sector": "TEXT. Sector classification (padded string for alignment). Possible values: Consumer, Energy, Finance, Healthcare, Technology.",
+      "stream": "TEXT. Industry-stream or sub-sector classification. Possible values: Banking, Biotech, Oil & Gas, Retail, Software."
+    }
+  },
+  "insider_trading|trader_relationships|trader_links": {
+    "column_meaning": "JSONB column. Relationship data for traders including contact and links.",
+    "fields_meaning": {
+      "link_count": "BIGINT. Number of direct relationship links. **NULL means link count has not been recorded.**. Example: 19.0.",
+      "contact_share": "TEXT. Shared contact information among related traders. **NULL means no shared-contact data available.**. Possible values: Email, Multiple, Phone.",
+      "fin_link": "TEXT. Indicator of financial linkage between traders. **NULL means financial linkage data not provided.**. Possible values: Business, Personal.",
+      "grp_score": "REAL. Group influence or cohesion score. Example: 41.87."
+    }
+  },
+  "insider_trading|order_status_types|order_status": {
+    "column_meaning": "JSONB column. Order status types with tracking and spread.",
+    "fields_meaning": {
+      "tick_type": "TEXT. Tick-tracking state that the status token maps to (NOT NULL). Possible values: Irregular, Regular, Suspicious.",
+      "spread_type": "TEXT. Spread-classification that the status token maps to (NOT NULL). Possible values: Limit, Market, Mixed."
+    }
+  },
+  "insider_trading|trade_records|trade_perf": {
+    "column_meaning": "JSONB column. Trade performance including win/loss and leverage.",
+    "fields_meaning": {
+      "win_pct": "REAL. Percentage of profitable trades for the record. **NULL means win percentage has not been calculated.**. Example: 55.83.",
+      "pl_ratio": "REAL. Profit-to-loss ratio for the set of trades. Example: 1.18.",
+      "lev_ratio": "REAL. Leverage ratio applied by the trader. **NULL means leverage ratio is not available.**. Example: 1.81."
+    }
+  },
+  "insider_trading|market_conditions|market_metrics": {
+    "column_meaning": "JSONB column. Market conditions data including volatility and correlation.",
+    "fields_meaning": {
+      "px_vol": "REAL. Price-weighted volume metric. Example: 0.348.",
+      "liq_ratio": "REAL. Liquidity ratio for the instrument. **NULL means liquidity ratio could not be determined.**. Example: 0.58.",
+      "peer_corr": "REAL. Correlation with peer instruments. **NULL means peer correlation metric not computed.**. Example: 0.525."
+    }
+  },
+  "insider_trading|order_behaviour|order_metrics": {
+    "column_meaning": "JSONB column. Order behaviour metrics including size and cancellation.",
+    "fields_meaning": {
+      "size_var": "REAL. Variance of order sizes placed. Example: 0.791.",
+      "cancel_pct": "REAL. Percentage of orders cancelled. **NULL means cancellation percentage not computed.**. Example: 0.129.",
+      "mod_freq": "REAL. Frequency at which orders are modified. Example: 0.46."
+    }
+  },
+  "insider_trading|manipulation_signals|manip_signals": {
+    "column_meaning": "JSONB column. Signals related to market manipulation like spoofing.",
+    "fields_meaning": {
+      "spoof_prob": "TEXT. Estimated probability of spoofing behaviour. Example: 0.88%.",
+      "wash_flag": "TEXT. Flag indicating suspected wash-trading. **NULL means wash-trade flag not determined.**. Possible values: High, Low, Medium.",
+      "front_run": "REAL. Score indicating likelihood of front-running. Example: 39.75."
+    }
+  },
+  "insider_trading|sentiment_analytics|sentiment_data": {
+    "column_meaning": "JSONB column. Sentiment data from news, social media, and analysts.",
+    "fields_meaning": {
+      "news_score": "REAL. Sentiment score derived from news sources. Example: 0.874.",
+      "soc_sent": "REAL. Aggregate social-media sentiment score. Example: 0.613.",
+      "analyst_cnt": "BIGINT. Number of analyst reports considered. Example: 18."
+    }
+  },
+  "insider_trading|reg_compliance|compliance_data": {
+    "column_meaning": "JSONB column. Regulatory compliance data including violations and risk.",
+    "fields_meaning": {
+      "prev_viol": "BIGINT. Count of previous regulatory violations. Possible values: 0, 1, 2, 3, 4, 5.",
+      "comp_rate": "TEXT. Compliance rate category. Possible values: A, B, C, D.",
+      "risk_val": "REAL. Quantitative risk value for compliance breaches. Example: 58.84."
+    }
+  },
+  "insider_trading|enforcement_actions|enf_actions": {
+    "column_meaning": "JSONB column. Enforcement actions including penalties and resolutions.",
+    "fields_meaning": {
+      "pen_amt": "REAL. Monetary amount of the penalty imposed. Example: 290459.21.",
+      "res_state": "TEXT. Resolution state of the enforcement case. Possible values: In Progress, Pending, Resolved.",
+      "pen_flag": "TEXT. Indicator that a penalty was imposed. **NULL means penalty flag not decided.**. Possible values: Ban, Fine, Warning."
+    }
+  }
+}

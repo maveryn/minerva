@@ -1,0 +1,307 @@
+CREATE TABLE "projects" (
+arcregistry text NOT NULL,
+vesseltag text NULL,
+fundflux text NULL,
+authpin text NULL,
+authhalt text NULL,
+    PRIMARY KEY (arcregistry)
+);
+
+First 3 rows:
+arcregistry    vesseltag        fundflux    authpin    authhalt
+-------------  ---------------  ----------  ---------  ----------
+PR7509         Project Happy    Government  PMT4719    05/12/2025
+PR8078         Project Off      Government  PMT4944    20/09/2025
+PR9973         Project Central  University  PMT5400    18/03/2025
+...
+
+
+CREATE TABLE "pointcloud" (
+cloudregistry bigint NOT NULL DEFAULT nextval('pointcloud_cloudregistry_seq'::regclass),
+crewref text NOT NULL,
+arcref text NOT NULL,
+cloud_metrics jsonb NULL,
+    PRIMARY KEY (cloudregistry),
+    FOREIGN KEY (arcref) REFERENCES projects(arcregistry),
+    FOREIGN KEY (crewref) REFERENCES personnel(crewregistry)
+);
+
+First 3 rows:
+  cloudregistry  crewref    arcref    cloud_metrics
+---------------  ---------  --------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+              1  OP4641     PR7509    {'Lap_Pct': 31.3, 'Ref_Pct': 11, 'Noise_Db': 1.318, 'Cover_Pct': 91.2, 'Total_Pts': 46562436, 'Cloud_Dense': 9449, 'Point_Dense': 42812, 'Scan_Resol_Mm': 2.4}
+              2  OP7199     PR9973    {'Lap_Pct': 31.7, 'Ref_Pct': 53.8, 'Noise_Db': 1.79, 'Cover_Pct': 98.1, 'Total_Pts': 87734478, 'Cloud_Dense': 1746, 'Point_Dense': 934361, 'Scan_Resol_Mm': 4.9}
+              3  OP5563     PR8865    {'Lap_Pct': 39.9, 'Ref_Pct': 67.4, 'Noise_Db': 1.041, 'Cover_Pct': 88.3, 'Total_Pts': 40047207, 'Cloud_Dense': 7553, 'Point_Dense': 411433, 'Scan_Resol_Mm': 1.41}
+...
+
+
+CREATE TABLE "registration" (
+logregistry bigint NOT NULL DEFAULT nextval('registration_logregistry_seq'::regclass),
+crewref text NOT NULL,
+arcref text NOT NULL,
+reg_accuracy jsonb NULL,
+    PRIMARY KEY (logregistry),
+    FOREIGN KEY (arcref) REFERENCES projects(arcregistry),
+    FOREIGN KEY (crewref) REFERENCES personnel(crewregistry)
+);
+
+First 3 rows:
+  logregistry  crewref    arcref    reg_accuracy
+-------------  ---------  --------  --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            1  OP4641     PR7509    {'Ctrl_Pts': '73', 'Ref_Mark': '40', 'Err_Scale': 'Cloud-to-Mesh', 'Transform': 'Matrix-47', 'Err_Val_Mm': 6.962, 'Log_Method': 'Hybrid', 'Log_Accu_Mm': 0.84}
+            2  OP8435     PR8078    {'Ctrl_Pts': '6', 'Ref_Mark': '21', 'Err_Scale': 'Cloud-to-Mesh', 'Transform': 'Matrix-712', 'Err_Val_Mm': 4.442, 'Log_Method': 'Target-based', 'Log_Accu_Mm': 3.44}
+            3  OP5563     PR8865    {'Ctrl_Pts': '99', 'Ref_Mark': '31', 'Err_Scale': 'RMSE', 'Transform': 'Matrix-543', 'Err_Val_Mm': 2.963, 'Log_Method': 'Hybrid', 'Log_Accu_Mm': 0.17}
+...
+
+
+CREATE TABLE "mesh" (
+facetregistry bigint NOT NULL DEFAULT nextval('mesh_facetregistry_seq'::regclass),
+zoneref text NOT NULL,
+equipref text NOT NULL,
+mesh_specs jsonb NULL,
+    PRIMARY KEY (facetregistry),
+    FOREIGN KEY (equipref) REFERENCES equipment(equipregistry),
+    FOREIGN KEY (zoneref) REFERENCES sites(zoneregistry)
+);
+
+First 3 rows:
+  facetregistry  zoneref    equipref    mesh_specs
+---------------  ---------  ----------  ---------------------------------------------------------------------------------------------------------------------------------------------------------
+              1  SC9081     SN29799     {'Tex_Pix': 8192, 'Tex_Dist': '2K', 'Facet_Faces': 7708278, 'Facet_Verts': 2361491, 'UV_Map_Qual': 'High', 'Facet_Res_Mm': 9.79, 'Geom_Delta_Mm': 3.79}
+              2  SC4817     SN83019     {'Tex_Pix': 4096, 'Tex_Dist': '1K', 'Facet_Faces': 1973487, 'Facet_Verts': 542100, 'UV_Map_Qual': 'Low', 'Facet_Res_Mm': 2.33, 'Geom_Delta_Mm': 0.48}
+              3  SC4082     SN60801     {'Tex_Pix': 4096, 'Tex_Dist': '4K', 'Facet_Faces': 8715696, 'Facet_Verts': 5250157, 'UV_Map_Qual': 'Medium', 'Facet_Res_Mm': 3.76, 'Geom_Delta_Mm': 4.27}
+...
+
+
+CREATE TABLE "personnel" (
+crewregistry text NOT NULL,
+crewlabel text NULL,
+leadregistry text NULL,
+leadlabel text NULL,
+    PRIMARY KEY (crewregistry)
+);
+
+First 3 rows:
+crewregistry    crewlabel      leadregistry    leadlabel
+--------------  -------------  --------------  -----------------
+OP4641          Joel Wallace   SV7658          Michael Kaiser
+OP8435          Latoya Abbott  SV2189          Stephanie Marquez
+OP7199          Aaron Knight   SV6920          Victoria George
+...
+
+
+CREATE TABLE "processing" (
+flowregistry bigint NOT NULL DEFAULT nextval('processing_flowregistry_seq'::regclass),
+equipref text NOT NULL,
+zoneref text NOT NULL,
+flowsoft text NULL,
+stashloc text NULL,
+safebak text NULL,
+datalevel text NULL,
+metabench text NULL,
+coordframe text NULL,
+elevref text NULL,
+flowstage text NULL,
+processing_rate text NULL,
+system_usage jsonb NULL,
+calib_status jsonb NULL,
+    PRIMARY KEY (flowregistry),
+    FOREIGN KEY (equipref) REFERENCES equipment(equipregistry),
+    FOREIGN KEY (zoneref) REFERENCES sites(zoneregistry)
+);
+
+First 3 rows:
+  flowregistry  equipref    zoneref    flowsoft        stashloc    safebak      datalevel     metabench    coordframe    elevref    flowstage    processing_rate    system_usage                                                                                  calib_status
+--------------  ----------  ---------  --------------  ----------  -----------  ------------  -----------  ------------  ---------  -----------  -----------------  --------------------------------------------------------------------------------------------  -----------------------------------------------------------------------------------------------------
+             1  SN20065     SC9016     RealityCapture  Local       In Progress  Confidential  Dublin Core  Local         Arbitrary  Aligned      2.3 MB/s           {'Flow_Hrs': 21.9, 'Proc_CPU': 81, 'Proc_GPU': 84, 'Remain_Gb': 983.5, 'Mem_Usage_Gb': 70.3}  {'Cam_Cal': 'Invalid', 'Lens_Dist': 'Corrected', 'Color_Tune': 'Required', 'Station_Link': 'Partial'}
+             2  SN83019     SC4817                     Network     Pending      Confidential  CIDOC CRM    Custom        Sea Level  Meshed       4.0 MB/s           {'Flow_Hrs': 25.7, 'Proc_CPU': 67, 'Proc_GPU': 66, 'Remain_Gb': 306.1, 'Mem_Usage_Gb': 51.7}  {'Cam_Cal': 'Required', 'Lens_Dist': 'Unknown', 'Color_Tune': 'Adjusted', 'Station_Link': 'Partial'}
+             3  SN60801     SC4082     RealityCapture  Cloud       Completed    Restricted    Custom       Local         Arbitrary  Final        5.7 MB/s           {'Flow_Hrs': 16.5, 'Proc_CPU': 80, 'Proc_GPU': 78, 'Remain_Gb': 487.3, 'Mem_Usage_Gb': 79.5}  {'Cam_Cal': 'Invalid', 'Lens_Dist': 'Corrected', 'Color_Tune': 'Required', 'Station_Link': 'Partial'}
+...
+
+
+CREATE TABLE "sites" (
+zoneregistry text NOT NULL,
+zonelabel text NULL,
+digunit text NULL,
+gridtrace text NULL,
+phasefactor text NULL,
+guessdate text NULL,
+typesite text NULL,
+guardhint text NULL,
+geo_position jsonb NULL,
+site_status jsonb NULL,
+    PRIMARY KEY (zoneregistry)
+);
+
+First 3 rows:
+zoneregistry    zonelabel                  digunit    gridtrace    phasefactor    guessdate    typesite    guardhint    geo_position                                                                     site_status
+--------------  -------------------------  ---------  -----------  -------------  -----------  ----------  -----------  -------------------------------------------------------------------------------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+SC9016          Site-North Alexanderville  Unit-C9    S29-E8       Iron Age       -2929 BCE    Bur.                     {'Geo_X': -9.602135, 'Geo_Y': -2.756411, 'Depth_C': 329.9, 'Height_M': 4391.4}   {'Env_Haz': 'Low', 'Pres_Stat': 'Excellent', 'Risk_Eval': 'Req.', 'Safe_Rank': 'Minimal', 'Entry_Stat': 'Closed', 'Insur_Stat': 'Expired', 'Health_Eval': 'Approved'}
+SC9081          Site-Grahammouth           Unit-A14   N44-W27      Middle Ages    1335 BCE     Industrial  Temporary    {'Geo_X': 57.10752, 'Geo_Y': 70.03605, 'Depth_C': 97.5, 'Height_M': 429.28}      {'Env_Haz': 'Low', 'Pres_Stat': 'Fair', 'Risk_Eval': 'Pending', 'Safe_Rank': 'Standard', 'Entry_Stat': 'Restricted', 'Insur_Stat': 'Pending', 'Health_Eval': 'Pending'}
+SC4817          Site-Port Brianside        Unit-D19   S48-W26      IRON AGE       -4985 BCE    Burial                   {'Geo_X': 73.605545, 'Geo_Y': 141.71112, 'Depth_C': 499.9, 'Height_M': 4934.58}  {'Env_Haz': 'High', 'Pres_Stat': 'Critical', 'Risk_Eval': 'Completed', 'Safe_Rank': 'High', 'Entry_Stat': 'Closed', 'Insur_Stat': 'Expired', 'Health_Eval': 'Review'}
+...
+
+
+CREATE TABLE "spatial" (
+domainregistry bigint NOT NULL DEFAULT nextval('spatial_domainregistry_seq'::regclass),
+arcref text NOT NULL,
+crewref text NOT NULL,
+spatial_dims jsonb NULL,
+    PRIMARY KEY (domainregistry),
+    FOREIGN KEY (arcref) REFERENCES projects(arcregistry),
+    FOREIGN KEY (crewref) REFERENCES personnel(crewregistry)
+);
+
+First 3 rows:
+  domainregistry  arcref    crewref    spatial_dims
+----------------  --------  ---------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+               1  PR7509    OP4641     {'Angles': {'Angle_Az': 342.4, 'Angle_Tilt': 23.9}, 'Vol_M3': 76.7, 'Area_M2': 78.01, 'Ground_Span': 4.13, 'Bounding_Box': {'Box_X': 40.12, 'Box_Y': 1.06, 'Box_Z': 8.74}}
+               2  PR8865    OP5563     {'Angles': {'Angle_Az': 91.3, 'Angle_Tilt': -14.5}, 'Vol_M3': 49.88, 'Area_M2': 286.85, 'Ground_Span': 9.52, 'Bounding_Box': {'Box_X': 32.93, 'Box_Y': 5.25, 'Box_Z': 18.09}}
+               3  PR5905    OP2517     {'Angles': {'Angle_Az': 147.9, 'Angle_Tilt': 19.6}, 'Vol_M3': 41.68, 'Area_M2': 993.96, 'Ground_Span': 1.83, 'Bounding_Box': {'Box_X': 32.52, 'Box_Y': 47.08, 'Box_Z': 16.6}}
+...
+
+
+CREATE TABLE "qualitycontrol" (
+qualregistry bigint NOT NULL DEFAULT nextval('qualitycontrol_qualregistry_seq'::regclass),
+arcref text NOT NULL,
+crewref text NOT NULL,
+accucheck text NULL,
+ctrlstate text NULL,
+valimeth text NULL,
+valistate text NULL,
+archstat text NULL,
+pubstat text NULL,
+copystat text NULL,
+refmention text NULL,
+remark text NULL,
+    PRIMARY KEY (qualregistry),
+    FOREIGN KEY (arcref) REFERENCES projects(arcregistry),
+    FOREIGN KEY (crewref) REFERENCES personnel(crewregistry)
+);
+
+First 3 rows:
+  qualregistry  arcref    crewref    accucheck                                                 ctrlstate    valimeth    valistate                                            archstat    pubstat                                   copystat     refmention     remark
+--------------  --------  ---------  --------------------------------------------------------  -----------  ----------  ---------------------------------------------------  ----------  ----------------------------------------  -----------  -------------  -----------------------------------------
+             1  PR7509    OP4641     Accuracy check not required, standard quality sufficient  Pending      Automated   Validation rejected, data quality issues identified  Verified    Draft status, preparation for submission               Citation-8447
+             2  PR8078    OP8435     Accuracy check completed, validation successful           Pending      Visual      Validation rejected, data quality issues identified  Verified    Submitted status, under editorial review  Open Access  Citation-6197
+             3  PR8865    OP5563     Accuracy check pending, validation in progress            Pending      Automated   Validation approved, data quality meets standards    Verified    Submitted status, under editorial review  restricted   Citation-2238  Bed something performance leader realize.
+...
+
+
+CREATE TABLE "equipment" (
+equipregistry text NOT NULL,
+equipform text NULL,
+equipdesign text NULL,
+equiptune date NULL,
+equipstatus text NULL,
+powerlevel text NULL,
+transport_speed text NULL,
+coverage_rate text NULL,
+point_generation_rate text NULL,
+cost_per_area text NULL,
+accuracy_per_time text NULL,
+power_consumption text NULL,
+battery_drain text NULL,
+storage_usage_rate text NULL,
+    PRIMARY KEY (equipregistry)
+);
+
+First 3 rows:
+equipregistry    equipform                                                  equipdesign    equiptune    equipstatus                                          powerlevel                                 transport_speed    coverage_rate    point_generation_rate    cost_per_area    accuracy_per_time    power_consumption    battery_drain    storage_usage_rate
+---------------  ---------------------------------------------------------  -------------  -----------  ---------------------------------------------------  -----------------------------------------  -----------------  ---------------  -----------------------  ---------------  -------------------  -------------------  ---------------  --------------------
+SN20065          LiDAR scanner, precise 3D measurement technology           Model-669      2024-11-01   Excellent condition, optimal performance guaranteed  62% battery, extended operation available  82 km/h            15 m²/hr         62000 pts/min            58 USD/m²        8 mm/hr              124 W/hr             13%/hr           6 GB/hr
+SN29799          Structured light scanner, high-resolution surface capture  Model-835      2024-09-09   Good condition, reliable operation expected          21% battery, limited operation time        41 km/h            5 m²/hr          21000 pts/min            99 USD/m²        3 mm/hr              42 W/hr              21%/hr           2 GB/hr
+SN83019          Photogrammetry system, image-based 3D reconstruction       Model-566      2025-02-08   Good condition, reliable operation expected          46% battery, moderate operation time       66 km/h            11 m²/hr         46000 pts/min            74 USD/m²        6 mm/hr              92 W/hr              16%/hr           4 GB/hr
+...
+
+
+CREATE TABLE "features" (
+traitregistry bigint NOT NULL DEFAULT nextval('features_traitregistry_seq'::regclass),
+zoneref text NOT NULL,
+equipref text NOT NULL,
+traitextract text NULL,
+feature_analysis jsonb NULL,
+    PRIMARY KEY (traitregistry),
+    FOREIGN KEY (equipref) REFERENCES equipment(equipregistry),
+    FOREIGN KEY (zoneref) REFERENCES sites(zoneregistry)
+);
+
+First 3 rows:
+  traitregistry  zoneref    equipref    traitextract    feature_analysis
+---------------  ---------  ----------  --------------  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+              1  SC9016     SN20065     Manual          {'Mat_Kind': 'Organic', 'Arti_Count': 71, 'Struct_Kind': 'Artifact', 'Trait_Count': 516, 'Analysis_Status': {'Hue_Study': 'Partial', 'Pattern_Note': 'Not Required', 'Texture_Study': 'Partial'}}
+              2  SC4817     SN83019     Manual          {'Mat_Kind': 'Ceramic', 'Arti_Count': 69, 'Struct_Kind': 'Complex', 'Trait_Count': 103, 'Analysis_Status': {'Hue_Study': 'Completed', 'Pattern_Note': 'Not Required', 'Texture_Study': 'Partial'}}
+              3  SC4082     SN60801     Automatic       {'Mat_Kind': 'Mixed', 'Arti_Count': 8, 'Struct_Kind': 'Wall', 'Trait_Count': 820, 'Analysis_Status': {'Hue_Study': 'Not Required', 'Pattern_Note': 'Completed', 'Texture_Study': 'Completed'}}
+...
+
+
+CREATE TABLE "scans" (
+questregistry text NOT NULL,
+chronotag text NULL,
+arcref text NOT NULL,
+crewref text NOT NULL,
+zoneref text NOT NULL,
+scancount text NULL,
+climtune text NULL,
+huecatch text NULL,
+fmtfile text NULL,
+size text NULL,
+scan_cost text NULL,
+scanning_rate text NULL,
+    PRIMARY KEY (questregistry),
+    FOREIGN KEY (arcref) REFERENCES projects(arcregistry),
+    FOREIGN KEY (crewref) REFERENCES personnel(crewregistry),
+    FOREIGN KEY (zoneref) REFERENCES sites(zoneregistry)
+);
+
+First 3 rows:
+questregistry    chronotag                         arcref    crewref    zoneref    scancount                                climtune                                                huecatch    fmtfile    size      scan_cost    scanning_rate
+---------------  --------------------------------  --------  ---------  ---------  ---------------------------------------  ------------------------------------------------------  ----------  ---------  --------  -----------  ---------------
+ASD409481        2024-09-03 07:20:28.479288 GMT+8  PR7509    OP4641     SC9016     5 scans, moderate coverage session       Windy conditions, potential equipment stability issues  RGB         PTS        24.71 GB  3.22 USD/GB  63 MB/min
+ASD648638        2024-07-27 08:52:12.479479 GMT+8  PR8078    OP8435     SC9081     2 scans, moderate coverage session       Rainy weather, equipment protection required            RGB         PLY        21.63 GB  6.86 USD/GB  240 MB/min
+ASD535327        2025-01-24 12:45:10.479479 GMT+8  PR9973    OP7199     SC4817     7 scans, comprehensive coverage session  Windy conditions, potential equipment stability issues  RGB         PLY        41.48 GB  4.2 USD/GB   37 MB/min
+...
+
+
+CREATE TABLE "conservation" (
+cureregistry bigint NOT NULL DEFAULT nextval('conservation_cureregistry_seq'::regclass),
+arcref text NOT NULL,
+zoneref text NOT NULL,
+harmassess text NULL,
+curerank text NULL,
+structstate text NULL,
+intervhistory text NULL,
+priordocs text NULL,
+    PRIMARY KEY (cureregistry),
+    FOREIGN KEY (arcref) REFERENCES projects(arcregistry),
+    FOREIGN KEY (zoneref) REFERENCES sites(zoneregistry)
+);
+
+First 3 rows:
+  cureregistry  arcref    zoneref    harmassess    curerank                                             structstate                                      intervhistory    priordocs
+--------------  --------  ---------  ------------  ---------------------------------------------------  -----------------------------------------------  ---------------  -----------
+             1  PR7509    SC9016                   Critical priority, immediate conservation required   Moderate condition, careful monitoring required  Minor
+             2  PR8078    SC9081     Severe        Low priority, routine maintenance sufficient         Moderate condition, careful monitoring required  Major            Partial
+             3  PR3991    SC4460     Minor         High priority, urgent conservation attention needed  Moderate condition, careful monitoring required  Major
+...
+
+
+CREATE TABLE "environment" (
+airregistry bigint NOT NULL DEFAULT nextval('environment_airregistry_seq'::regclass),
+zoneref text NOT NULL,
+equipref text NOT NULL,
+photomap text NULL,
+imgcount text NULL,
+ambient_cond jsonb NULL,
+    PRIMARY KEY (airregistry),
+    FOREIGN KEY (equipref) REFERENCES equipment(equipregistry),
+    FOREIGN KEY (zoneref) REFERENCES sites(zoneregistry)
+);
+
+First 3 rows:
+  airregistry  zoneref    equipref    photomap    imgcount       ambient_cond
+-------------  ---------  ----------  ----------  -------------  ------------------------------------------------------------------------------------------------------------------------------------
+          523  SC1896     SN93781     60%         241 imgs/mins  {'Hume_Pct': 52.3, 'Ambic_Temp': 22.3, 'Geo_Signal': 'Good', 'Illume_Lux': 99474, 'Link_Status': 'Limited', 'Track_Status': 'Fixed'}
+          606  SC1426     SN63826     60%         240 imgs/mins  {'Hume_Pct': 71.2, 'Ambic_Temp': 4.6, 'Geo_Signal': 'Poor', 'Illume_Lux': 10046, 'Link_Status': 'Connected', 'Track_Status': None}
+            1  SC9016     SN20065     80%         248 imgs/mins  {'Hume_Pct': 60.4, 'Ambic_Temp': 25.3, 'Geo_Signal': None, 'Illume_Lux': 86054, 'Link_Status': 'Disconnected', 'Track_Status': None}
+...

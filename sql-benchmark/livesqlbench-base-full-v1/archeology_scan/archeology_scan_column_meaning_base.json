@@ -1,0 +1,217 @@
+{
+  "archeology_scan|projects|arcregistry": "TEXT. Unique identifier for archeologys project registration. PK = Projects(ArcRegistry). Example: PR7509.",
+  "archeology_scan|projects|vesseltag": "TEXT. Project name or designation label. Example: Project Happy.",
+  "archeology_scan|projects|fundflux": "TEXT. Source of project funding or financial backing. Possible values: Government, Grant, Private, University.",
+  "archeology_scan|projects|authpin": "TEXT. Official permit or authorization number for excavation. Example: PMT4719.",
+  "archeology_scan|projects|authhalt": "TEXT. Permit expiration date or authorization termination date. Example: 05/12/2025.",
+  "archeology_scan|personnel|crewregistry": "TEXT. Unique identifier for operator personnel registration. PK = Personnel(CrewRegistry). Example: OP4641.",
+  "archeology_scan|personnel|crewlabel": "TEXT. Name or designation of the operator personnel. Example: Joel Wallace.",
+  "archeology_scan|personnel|leadregistry": "TEXT. Unique identifier for supervisor personnel registration. Example: SV7658.",
+  "archeology_scan|personnel|leadlabel": "TEXT. Name or designation of the supervisor personnel. Example: Michael Kaiser.",
+  "archeology_scan|sites|zoneregistry": "TEXT. Unique site code identifier for archeologys zone. PK = Sites(ZoneRegistry). Example: SC9016.",
+  "archeology_scan|sites|zonelabel": "TEXT. Descriptive name of the archeologys site. Example: Site-North Alexanderville.",
+  "archeology_scan|sites|digunit": "TEXT. Excavation unit designation within the site. Example: Unit-C9.",
+  "archeology_scan|sites|gridtrace": "TEXT. Grid reference system coordinates for site location. Example: S29-E8.",
+  "archeology_scan|sites|phasefactor": "TEXT. Cultural period or chronological phase classification. **NULL means cultural period classification is undetermined or analysis incomplete.**. Example: Iron Age.",
+  "archeology_scan|sites|guessdate": "TEXT. Estimated date or age of archeologys materials. Example: -2929 BCE.",
+  "archeology_scan|sites|typesite": "TEXT. Classification of archeologys site type. **NULL means site type classification is pending or cannot be determined.**. Example: Bur..",
+  "archeology_scan|sites|guardhint": "TEXT. Weather protection measures in place at site. **NULL means weather protection assessment not completed or not applicable.**. Possible values: Permanent, Temporary.",
+  "archeology_scan|equipment|equipregistry": "TEXT. Unique serial number identifier for scanning equipment. PK = Equipment(EquipRegistry). Example: SN20065.",
+  "archeology_scan|equipment|equipform": "TEXT. Type classification of scanning equipment. Example: LiDAR scanner, precise 3D measurement technology.",
+  "archeology_scan|equipment|equipdesign": "TEXT. Model designation of scanning equipment. Example: Model-669.",
+  "archeology_scan|equipment|equiptune": "DATE. Date of last equipment calibration or maintenance. Examprle: 2024-11-01.",
+  "archeology_scan|equipment|equipstatus": "TEXT. Current operational condition of equipment. Excellent condition, optimal performance guaranteed.",
+  "archeology_scan|equipment|powerlevel": "TEXT. Battery charge level as percentage. Example: 62% battery, extended operation available.",
+  "archeology_scan|equipment|transport_speed": "TEXT. Transportation speed for equipment delivery. Example: 85 km/h.",
+  "archeology_scan|equipment|coverage_rate": "TEXT. Area coverage rate during scanning. Example: 12 m²/hr.",
+  "archeology_scan|equipment|point_generation_rate": "TEXT. Point cloud generation efficiency. Example: 62000 pts/min.",
+  "archeology_scan|equipment|cost_per_area": "TEXT. Cost efficiency per unit area. Example: 45 USD/m².",
+  "archeology_scan|equipment|accuracy_per_time": "TEXT. Accuracy improvement over scanning time. Example: 3 mm/hr.",
+  "archeology_scan|equipment|power_consumption": "TEXT. Equipment power consumption rate. Example: 125 W/hr.",
+  "archeology_scan|equipment|battery_drain": "TEXT. Battery consumption rate during operation. Example: 8%/hr.",
+  "archeology_scan|equipment|storage_usage_rate": "TEXT. Storage space consumption during scanning. Example: 2.8 GB/hr.",
+  "archeology_scan|scans|questregistry": "TEXT. Unique identifier for scan session record. PK = Scans(QuestRegistry). Example: ASD409481.",
+  "archeology_scan|scans|chronotag": "TEXT. Precise timestamp when scan was performed. Example: 2024-09-03 07:20:28.479288 GMT+8.",
+  "archeology_scan|scans|arcref": "TEXT. Reference to associated archeologys project. FK to Projects.",
+  "archeology_scan|scans|crewref": "TEXT. Reference to operator who performed the scan. FK to Personnel.",
+  "archeology_scan|scans|zoneref": "TEXT. Reference to site where scan was conducted. FK to Sites.",
+  "archeology_scan|scans|scancount": "TEXT. Total number of individual scans in session. Example: 5 scans, moderate coverage session.",
+  "archeology_scan|scans|climtune": "TEXT. Weather conditions during scanning session. **NULL means weather conditions not recorded or monitoring equipment unavailable.**. Example: Windy conditions, potential equipment stability issues.",
+  "archeology_scan|scans|huecatch": "TEXT. Color capture mode or settings used during scan. **NULL means color capture not enabled or settings not recorded.**. Possible values: Grayscale, RGB.",
+  "archeology_scan|scans|fmtfile": "TEXT. File format used for storing scan data. Example: PTS.",
+  "archeology_scan|scans|size": "TEXT. Total file size of scan data in gigabytes. Example: 24.71 GB.",
+  "archeology_scan|scans|scan_cost": "TEXT. Equipment cost per GB. Example: 3.22 USD/GB.",
+  "archeology_scan|scans|scanning_rate": "TEXT. Data acquisition rate during scanning. Example: 63 MB/min.",
+  "archeology_scan|environment|airregistry": "BIGSERIAL. Auto-generated unique identifier for environmental record. PK = Environment(AirRegistry).",
+  "archeology_scan|environment|zoneref": "TEXT. Reference to site where environmental data was recorded. FK to Sites.",
+  "archeology_scan|environment|equipref": "TEXT. Reference to equipment used for environmental monitoring. FK to Equipment.",
+  "archeology_scan|environment|photomap": "TEXT. Photogrammetry overlap percentage settings. Possible values: 60%, 70%, 80%, 90%.",
+  "archeology_scan|environment|imgcount": "TEXT. Number of images captured during session per minutes. Example: 248 imgs/mins.",
+  "archeology_scan|pointcloud|cloudregistry": "BIGSERIAL. Auto-generated unique identifier for point cloud record. PK = PointCloud(CloudRegistry).",
+  "archeology_scan|pointcloud|crewref": "TEXT. Reference to operator who generated point cloud. FK to Personnel.",
+  "archeology_scan|pointcloud|arcref": "TEXT. Reference to associated archeologys project. FK to Projects.",
+  "archeology_scan|mesh|facetregistry": "BIGSERIAL. Auto-generated unique identifier for mesh record. PK = Mesh(FacetRegistry).",
+  "archeology_scan|mesh|zoneref": "TEXT. Reference to site where mesh was generated. FK to Sites.",
+  "archeology_scan|mesh|equipref": "TEXT. Reference to equipment used for mesh generation. FK to Equipment.",
+  "archeology_scan|spatial|domainregistry": "BIGSERIAL. Auto-generated unique identifier for spatial measurement record. PK = Spatial(DomainRegistry).",
+  "archeology_scan|spatial|arcref": "TEXT. Reference to associated archeologys project. FK to Projects.",
+  "archeology_scan|spatial|crewref": "TEXT. Reference to operator who performed spatial measurements. FK to Personnel.",
+  "archeology_scan|features|traitregistry": "BIGSERIAL. Auto-generated unique identifier for feature analysis record. PK = Features(TraitRegistry).",
+  "archeology_scan|features|zoneref": "TEXT. Reference to site where features were analyzed. FK to Sites.",
+  "archeology_scan|features|equipref": "TEXT. Reference to equipment used for feature extraction. FK to Equipment.",
+  "archeology_scan|features|traitextract": "TEXT. Method used for feature extraction analysis. Possible values: Automatic, Manual, Semi-automatic.",
+  "archeology_scan|conservation|cureregistry": "BIGSERIAL. Auto-generated unique identifier for conservation record. PK = Conservation(CureRegistry).",
+  "archeology_scan|conservation|arcref": "TEXT. Reference to associated archeologys project. FK to Projects.",
+  "archeology_scan|conservation|zoneref": "TEXT. Reference to site requiring conservation attention. FK to Sites.",
+  "archeology_scan|conservation|harmassess": "TEXT. Damage assessment evaluation results. **NULL means damage assessment not conducted or evaluation pending.**. Possible values: Minor, Moderate, Severe.",
+  "archeology_scan|conservation|curerank": "TEXT. Conservation priority ranking classification. Possible values: Critical priority, immediate conservation required.",
+  "archeology_scan|conservation|structstate": "TEXT. Structural stability assessment status. Possible values: Moderate condition, careful monitoring required.",
+  "archeology_scan|conservation|intervhistory": "TEXT. History of previous conservation interventions. **NULL means no prior conservation interventions recorded or documentation unavailable.**. Possible values: Major, Minor.",
+  "archeology_scan|conservation|priordocs": "TEXT. Previous documentation and records available. **NULL means no previous documentation exists or records not accessible.**. Possible values: Complete, Partial.",
+  "archeology_scan|registration|logregistry": "BIGSERIAL. Auto-generated unique identifier for registration record. PK = Registration(LogRegistry).",
+  "archeology_scan|registration|crewref": "TEXT. Reference to operator who performed registration. FK to Personnel.",
+  "archeology_scan|registration|arcref": "TEXT. Reference to associated archeologys project. FK to Projects.",
+  "archeology_scan|processing|flowregistry": "BIGSERIAL. Auto-generated unique identifier for processing record. PK = Processing(FlowRegistry).",
+  "archeology_scan|processing|equipref": "TEXT. Reference to equipment used for data processing. FK to Equipment.",
+  "archeology_scan|processing|zoneref": "TEXT. Reference to site where data was processed. FK to Sites.",
+  "archeology_scan|processing|flowsoft": "TEXT. Software application used for data processing. **NULL means processing software not specified or custom processing pipeline used.**. Example: RealityCapture.",
+  "archeology_scan|processing|stashloc": "TEXT. Storage location for processed data files. Possible values: Cloud, Local, Network.",
+  "archeology_scan|processing|safebak": "TEXT. Backup status and redundancy measures. Possible values: Completed, In Progress, Pending.",
+  "archeology_scan|processing|datalevel": "TEXT. Data access level and security classification. Possible values: Confidential, Public, Restricted.",
+  "archeology_scan|processing|metabench": "TEXT. Metadata standard compliance and format. Possible values: CIDOC CRM, Custom, Dublin Core.",
+  "archeology_scan|processing|coordframe": "TEXT. Coordinate system used for spatial reference. Possible values: CUSTOM, Custom, LOCAL, Local, WGS84, Wgs84, custom, local, wgs84.",
+  "archeology_scan|processing|elevref": "TEXT. Elevation reference datum used for measurements. Possible values: Arbitrary, Local, Sea Level.",
+  "archeology_scan|processing|flowstage": "TEXT. Current processing stage or workflow step. Possible values: Aligned, Final, Meshed, Raw, Textured.",
+  "archeology_scan|processing|processing_rate": "TEXT. Data processing throughput rate. Example: 2.3 MB/s.",
+  "archeology_scan|qualitycontrol|qualregistry": "BIGSERIAL. Auto-generated unique identifier for quality control record. PK = QualityControl(QualRegistry).",
+  "archeology_scan|qualitycontrol|arcref": "TEXT. Reference to associated archeologys project. FK to Projects.",
+  "archeology_scan|qualitycontrol|crewref": "TEXT. Reference to operator who performed quality control. FK to Personnel.",
+  "archeology_scan|qualitycontrol|accucheck": "TEXT. Accuracy assessment evaluation results. Possible values: Accuracy check not required, standard quality sufficient.",
+  "archeology_scan|qualitycontrol|ctrlstate": "TEXT. Quality control status and validation state. Possible values: Failed, Passed, Pending.",
+  "archeology_scan|qualitycontrol|valimeth": "TEXT. Validation method used for quality assessment. Possible values: Automated, Hybrid, Visual.",
+  "archeology_scan|qualitycontrol|valistate": "TEXT. Validation status and completion state. Possible values: Validation rejected, data quality issues identified.",
+  "archeology_scan|qualitycontrol|archstat": "TEXT. Archival status for long-term data preservation. **NULL means archival process not initiated or status not determined.**. Example: Verified.",
+  "archeology_scan|qualitycontrol|pubstat": "TEXT. Publication status and dissemination readiness. Possible values: Draft status, preparation for submission.",
+  "archeology_scan|qualitycontrol|copystat": "TEXT. Copyright status and intellectual property rights. **NULL means copyright status not established or legal review pending.**. Example: Open Access.",
+  "archeology_scan|qualitycontrol|refmention": "TEXT. Data citation format and attribution requirements. Example: Citation-8447.",
+  "archeology_scan|qualitycontrol|remark": "TEXT. Additional notes and observations for quality control. **NULL means no additional notes recorded or observations not documented.**. Example: Sell shoulder understand serious degree particular game..",
+  "archeology_scan|sites|Geo_Position": {
+    "column_meaning": "JSONB column. Geographic positioning data including coordinates, elevation, and excavation depth measurements",
+    "fields_meaning": {
+      "Geo_X": "REAL. Latitude coordinate in decimal degrees. Example: -9.602135.",
+      "Geo_Y": "REAL. Longitude coordinate in decimal degrees. Example: -2.756411.",
+      "Height_M": "REAL. Altitude above sea level in meters. Example: 4391.4.",
+      "Depth_C": "REAL. Excavation depth below surface in centimeters. Example: 329.9."
+    }
+  },
+  "archeology_scan|sites|Site_Status": {
+    "column_meaning": "JSONB column. Site condition and security assessment including preservation, access, safety, and risk evaluation status",
+    "fields_meaning": {
+      "Pres_Stat": "TEXT. Current preservation status of archeologys remains. Possible values: Critical, Excellent, Fair, Good, Poor.",
+      "Entry_Stat": "TEXT. Site accessibility status for personnel and equipment. Possible values: Closed, Open, Restricted.",
+      "Safe_Rank": "TEXT. Security level classification for site protection. **NULL means security assessment not completed or classification pending.**. Example: Minimal.",
+      "Insur_Stat": "TEXT. Insurance coverage status for site operations. Possible values: Active, Expired, Pending.",
+      "Risk_Eval": "TEXT. Risk assessment status for site safety evaluation. **NULL means risk assessment not conducted or evaluation incomplete.**. Example: Req..",
+      "Health_Eval": "TEXT. Health and safety evaluation status for site conditions. Possible values: Approved, Pending, Review.",
+      "Env_Haz": "TEXT. Environmental risk factors present at the site. Possible values: High, Low, Medium."
+    }
+  },
+  "archeology_scan|environment|Ambient_Cond": {
+    "column_meaning": "JSONB column. Environmental conditions during scanning including temperature, humidity, lighting, and connectivity status",
+    "fields_meaning": {
+      "Ambic_Temp": "REAL. Ambient air temperature in degrees Celsius. Example: 25.3.",
+      "Hume_Pct": "REAL. Relative humidity percentage during scanning. Example: 60.4.",
+      "Illume_Lux": "BIGINT. Light intensity conditions in lux units. Example: 86054.",
+      "Geo_Signal": "TEXT. GPS signal quality and reception status. **NULL means GPS signal monitoring not available or receiver malfunction.**. Possible values: Excellent, Good, Poor.",
+      "Track_Status": "TEXT. RTK positioning system status and accuracy. **NULL means RTK system not operational or status monitoring unavailable.**. Possible values: Fixed, Float.",
+      "Link_Status": "TEXT. Network connectivity status during scanning. Possible values: Connected, Disconnected, Limited."
+    }
+  },
+  "archeology_scan|pointcloud|Cloud_Metrics": {
+    "column_meaning": "JSONB column. Point cloud quality and density measurements including resolution, coverage, overlap, and noise analysis",
+    "fields_meaning": {
+      "Scan_Resol_Mm": "REAL. Scanning resolution in millimeters. Example: 2.4.",
+      "Point_Dense": "BIGINT. Point density per square meter. Example: 42812.",
+      "Cover_Pct": "REAL. Percentage of surface area covered by scan. Example: 91.2.",
+      "Total_Pts": "BIGINT. Total number of points in the point cloud. Example: 46562436.",
+      "Cloud_Dense": "BIGINT. Point cloud density measurement. Example: 9449.",
+      "Lap_Pct": "REAL. Overlap percentage between scan segments. Example: 31.3.",
+      "Noise_Db": "REAL. Noise level measurement in decibels. Example: 1.318.",
+      "Ref_Pct": "REAL. Surface reflectivity percentage measurement. Example: 11.0."
+    }
+  },
+  "archeology_scan|mesh|Mesh_Specs": {
+    "column_meaning": "JSONB column. 3D mesh specifications including geometry, texture properties, and accuracy measurements",
+    "fields_meaning": {
+      "Facet_Verts": "BIGINT. Number of vertices in the 3D mesh. Example: 7234721.",
+      "Facet_Faces": "BIGINT. Number of faces in the 3D mesh. Example: 5997318.",
+      "Facet_Res_Mm": "REAL. Mesh resolution in millimeters. Example: 3.2.",
+      "Tex_Dist": "TEXT. Texture resolution classification or setting. **NULL means texture resolution not specified or texture mapping not applied.**. Possible values: 1K, 2K, 4K.",
+      "Tex_Pix": "BIGINT. Texture size in pixels. Possible values: 1024, 2048, 4096, 8192.",
+      "UV_Map_Qual": "TEXT. UV mapping quality assessment. Possible values: High, Low, Medium.",
+      "Geom_Delta_Mm": "REAL. Geometric accuracy measurement in millimeters. Example: 2.74."
+    }
+  },
+  "archeology_scan|spatial|Spatial_Dims": {
+    "column_meaning": "JSONB column. Spatial dimensions and measurements including area, volume, bounding box coordinates, and orientation angles",
+    "fields_meaning": {
+      "Area_M2": "REAL. Surface area measurement in square meters. Example: 78.01.",
+      "Vol_M3": "REAL. Volume measurement in cubic meters. Example: 76.7.",
+      "Bounding_Box": {
+        "Box_X": "REAL. Bounding box X-dimension in meters. Example: 40.12.",
+        "Box_Y": "REAL. Bounding box Y-dimension in meters. Example: 1.06.",
+        "Box_Z": "REAL. Bounding box Z-dimension in meters. Example: 8.74."
+      },
+      "Angles": {
+        "Angle_Az": "REAL. Azimuth orientation angle in degrees. Example: 342.4.",
+        "Angle_Tilt": "REAL. Tilt angle measurement in degrees. Example: 23.9."
+      },
+      "Ground_Span": "REAL. Ground sampling distance in millimeters. Example: 4.13."
+    }
+  },
+  "archeology_scan|features|Feature_Analysis": {
+    "column_meaning": "JSONB column. Archaeological feature analysis results including counts, material classification, and analysis completion status",
+    "fields_meaning": {
+      "Trait_Count": "BIGINT. Number of features identified in analysis. Example: 516.",
+      "Arti_Count": "BIGINT. Number of artifacts detected or counted. Example: 71.",
+      "Struct_Kind": "TEXT. Type of structure identified in analysis. Possible values: Artifact, Complex, Floor, Foundation, Wall.",
+      "Mat_Kind": "TEXT. Material type classification of analyzed features. Possible values: Ceramic, Metal, Mixed, Organic, Stone.",
+      "Analysis_Status": {
+        "Hue_Study": "TEXT. Color analysis results and classification. Possible values: Completed, Not Required, Partial.",
+        "Texture_Study": "TEXT. Texture analysis results and patterns. Possible values: Completed, Not Required, Partial.",
+        "Pattern_Note": "TEXT. Pattern recognition analysis and observations. Possible values: Completed, Not Required, Partial."
+      }
+    }
+  },
+  "archeology_scan|processing|System_Usage": {
+    "column_meaning": "JSONB column. Computing system resource utilization during data processing including CPU, memory, GPU usage and processing time",
+    "fields_meaning": {
+      "Flow_Hrs": "REAL. Processing time duration in hours. Example: 21.9.",
+      "Proc_CPU": "BIGINT. CPU usage percentage during processing. Example: 81.",
+      "Mem_Usage_Gb": "REAL. Memory usage in gigabytes during processing. Example: 70.3.",
+      "Proc_GPU": "BIGINT. GPU usage percentage during processing. Example: 84.",
+      "Remain_Gb": "REAL. Remaining storage space in gigabytes. Example: 983.5."
+    }
+  },
+  "archeology_scan|processing|Calib_Status": {
+    "column_meaning": "JSONB column. Calibration and correction status for various processing components including camera, lens, and color adjustments",
+    "fields_meaning": {
+      "Station_Link": "TEXT. Total station integration status and connectivity. **NULL means total station not integrated or integration status not monitored.**. Example: Partial.",
+      "Cam_Cal": "TEXT. Camera calibration status and accuracy. Possible values: Calibrated, Invalid, Required.",
+      "Lens_Dist": "TEXT. Lens distortion correction status. Possible values: Corrected, Uncorrected, Unknown.",
+      "Color_Tune": "TEXT. Color balance and calibration status. **NULL means color calibration not performed or status not documented.**. Possible values: Adjusted, Required."
+    }
+  },
+  "archeology_scan|registration|Reg_Accuracy": {
+    "column_meaning": "JSONB column. Registration accuracy metrics including reference points, error measurements, and transformation parameters",
+    "fields_meaning": {
+      "Log_Accu_Mm": "REAL. Registration accuracy measurement in millimeters. Example: 0.84.",
+      "Ref_Mark": "TEXT. Reference markers used for registration process. Example: 40.",
+      "Ctrl_Pts": "TEXT. Control points used for geometric registration. Example: 73.",
+      "Log_Method": "TEXT. Registration method or algorithm used. Possible values: Feature-based, Hybrid, Target-based.",
+      "Transform": "TEXT. Transformation matrix applied during registration. Example: Matrix-47.",
+      "Err_Scale": "TEXT. Error metrics and measurement standards. Possible values: Cloud-to-Cloud, Cloud-to-Mesh, RMSE.",
+      "Err_Val_Mm": "REAL. Error value measurement in millimeters. Example: 6.962."
+    }
+  }
+}

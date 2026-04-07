@@ -1,0 +1,127 @@
+CREATE TABLE "companies" (
+entity_key bigint NOT NULL,
+chanref bigint NULL,
+company_name text NULL,
+short_name text NULL,
+canonical_name text NULL,
+brandingassets jsonb NULL,
+    PRIMARY KEY (entity_key)
+);
+
+First 3 rows:
+  entity_key    chanref  company_name             short_name     canonical_name           brandingassets
+------------  ---------  -----------------------  -------------  -----------------------  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+           8          2  FBC                      FOX            fox                      {'KeyArt_URL': 'https://ib1.hulu.com/company_key_art/8?size=1600x600&region=US', 'HasLogo_Flag': 'True', 'NetworkLogo_URL': 'https://ib1.hulu.com/company_logo/8?bg=dim&color=0&format=png&region=US'}
+          99        129  ComedyCentral            ComedyCentral  comedy-central           {'KeyArt_URL': 'https://ib4.hulu.com/company_key_art/99?size=1600x600&region=US', 'HasLogo_Flag': 'True', 'NetworkLogo_URL': 'https://ib4.hulu.com/company_logo/99?bg=dim&color=0&format=png&region=US'}
+          10         45  Fox Television Classics                 FOX-TELEVISION-CLASSICS  {'KeyArt_URL': 'https://ib2.hulu.com/company_key_art/10?size=1600x600&region=US', 'HasLogo_Flag': 'True', 'NetworkLogo_URL': 'https://ib2.hulu.com/company_logo/10?bg=dim&color=0&format=png&region=US'}
+...
+
+
+CREATE TABLE "show_rollups" (
+srkeys bigint NOT NULL,
+srlinks bigint NOT NULL,
+launchmoment text NULL,
+latestadd text NULL,
+contentvols jsonb NULL,
+html5metrics jsonb NULL,
+ratinginfo jsonb NULL,
+    PRIMARY KEY (srkeys, srlinks),
+    FOREIGN KEY (srkeys) REFERENCES core(content_key),
+    FOREIGN KEY (srlinks) REFERENCES rollups(tierkey)
+);
+
+First 3 rows:
+  srkeys    srlinks  launchmoment    latestadd    contentvols                                                                                                                                                           html5metrics                                                                                                                                            ratinginfo
+--------  ---------  --------------  -----------  --------------------------------------------------------------------------------------------------------------------------------------------------------------------  ------------------------------------------------------------------------------------------------------------------------------------------------------  -------------------------------------------------------------
+    6979          2  2011-06-15      12/8/2016    {'standard_content': {'Ep_Vol': 274, 'Clip_Vol': 3874, 'Game_Vol': 0, 'Season_Vol': 20, 'Feature_Vol': 0, 'Media_Total': 4148, 'Trailer_Vol': 0, 'FilmClip_Vol': 0}}  {'html5_volumes': {'H5_Clips': 3874, 'H5_Games': 0, 'H5_Episodes': 274, 'H5_Features': 0, 'H5_Trailers': 0, 'H5_FilmClips': 0, 'H5_MediaTotal': 4148}}  {'TV_Rating': None, 'Peak_Rating': 'TV-MA', 'Unrated_Vol': 0}
+    6979          3  2011-06-15      12/8/2016    {'standard_content': {'Ep_Vol': 274, 'Clip_Vol': 3874, 'Game_Vol': 0, 'Season_Vol': 20, 'Feature_Vol': 0, 'Media_Total': 4148, 'Trailer_Vol': 0, 'FilmClip_Vol': 0}}  {'html5_volumes': {'H5_Clips': 3874, 'H5_Games': 0, 'H5_Episodes': 274, 'H5_Features': 0, 'H5_Trailers': 0, 'H5_FilmClips': 0, 'H5_MediaTotal': 4148}}  {'TV_Rating': None, 'Peak_Rating': 'TVMA', 'Unrated_Vol': 0}
+    6979          4  2011-06-15      12/29/2016   {'standard_content': {'Ep_Vol': 10, 'Clip_Vol': 3865, 'Game_Vol': 0, 'Season_Vol': 6, 'Feature_Vol': 0, 'Media_Total': 3875, 'Trailer_Vol': 0, 'FilmClip_Vol': 0}}    {'html5_volumes': {'H5_Clips': 3865, 'H5_Games': 0, 'H5_Episodes': 10, 'H5_Features': 0, 'H5_Trailers': 0, 'H5_FilmClips': 0, 'H5_MediaTotal': 3875}}   {'TV_Rating': None, 'Peak_Rating': 'MA', 'Unrated_Vol': 0}
+...
+
+
+CREATE TABLE "rollups" (
+tierkey bigint NOT NULL DEFAULT nextval('rollups_tierkey_seq'::regclass),
+tiertype USER-DEFINED NOT NULL,
+    PRIMARY KEY (tierkey)
+);
+
+First 3 rows:
+  tierkey  tiertype
+---------  ----------
+        1  free
+        2  subscriber
+        3  current
+...
+
+
+CREATE TABLE "core" (
+content_key bigint NOT NULL,
+canonical_name text NULL,
+content_title text NULL,
+series_id bigint NULL,
+studiolink bigint NULL,
+annotations text NULL,
+genreclass jsonb NULL,
+    PRIMARY KEY (content_key),
+    FOREIGN KEY (studiolink) REFERENCES companies(entity_key)
+);
+
+First 3 rows:
+  content_key  canonical_name    content_title      series_id    studiolink  annotations    genreclass
+-------------  ----------------  ---------------  -----------  ------------  -------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+           54  family-guy        Family Guy             11730             8                 {'User_Score': '4.35370739', 'Content_Type': 'show', 'Primary_Genre': 'Animation and Cartoons', 'Hierarchical_Genres': 'Animation and Cartoons~Primetime Animation|Teen|Comedy~Sitcoms'}
+         6979  south-park        South Park          50003814            99                 {'User_Score': '4.36303207', 'Content_Type': 'show', 'Primary_Genre': 'Comedy', 'Hierarchical_Genres': 'Comedy|Animation and Cartoons~Primetime Animation'}
+       364490  frasier           Frasier             50009965           430                 {'User_Score': '4.252930323', 'Content_Type': 'show', 'Primary_Genre': 'Comedy', 'Hierarchical_Genres': 'Comedy~Sitcoms'}
+...
+
+
+CREATE TABLE "content_info" (
+content_key bigint NOT NULL,
+story_outline text NULL,
+mediacounts jsonb NULL,
+visualassets jsonb NULL,
+    PRIMARY KEY (content_key),
+    FOREIGN KEY (content_key) REFERENCES core(content_key)
+);
+
+First 3 rows:
+  content_key  story_outline                                                                                                 mediacounts                                                                                                                                     visualassets
+-------------  ------------------------------------------------------------------------------------------------------------  ----------------------------------------------------------------------------------------------------------------------------------------------  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+           54  The adventures of an endearingly ignorant dad and his hilariously odd family of middle-class New Englanders.  {'content_volumes': {'Film_Clips': 0, 'Clips_Total': 288, 'Videos_Total': 566, 'Episode_Total': 288, 'Feature_Films': 0, 'Seasons_Total': 15}}  {'Link_Desc': 'For insider news, photos, and more visit the official <a href="http://www.fox.com/familyguy/" target="_blank">Family Guy website</a>', 'KeyArt_URL': 'https://ib.hulu.com/show_key_art/54?size=1600x600&region=US', 'Art_Copyright': None, 'Thumbnail_URL': 'https://ib.hulu.com/show/54?size=476x268&region=US'}
+          969  America votes in the ultimate talent show to determine which act deserves a million dollars.                  {'content_volumes': {'Film_Clips': 0, 'Clips_Total': 171, 'Videos_Total': 183, 'Episode_Total': 12, 'Feature_Films': 0, 'Seasons_Total': 1}}    {'Link_Desc': None, 'KeyArt_URL': 'https://ib3.hulu.com/show_key_art/969?size=1600x600&region=US', 'Art_Copyright': None, 'Thumbnail_URL': 'https://ib3.hulu.com/show/969?size=476x268&region=US'}
+       340097  Blue Bloods is a drama about a multi-generational family of cops dedicated to New York City law enforcement.  {'content_volumes': {'Film_Clips': 0, 'Clips_Total': 0, 'Videos_Total': 147, 'Episode_Total': 155, 'Feature_Films': 0, 'Seasons_Total': 7}}     {'Link_Desc': None, 'KeyArt_URL': 'https://ib.hulu.com/show_key_art/18114?size=1600x600&region=US', 'Art_Copyright': None, 'Thumbnail_URL': None}
+...
+
+
+CREATE TABLE "availabilitys" (
+content_key bigint NOT NULL,
+cache_time text NULL,
+auth_name text NULL,
+accessflags jsonb NULL,
+    PRIMARY KEY (content_key),
+    FOREIGN KEY (content_key) REFERENCES core(content_key)
+);
+
+First 3 rows:
+  content_key  cache_time                 auth_name    accessflags
+-------------  -------------------------  -----------  --------------------------------------------------------------------------------------------------------------
+           54  2017-08-10T14:53:04+00:00               {'Web_Only': False, 'COPPA_Comp': False, 'Movie_Flag': 'no', 'Showtime_Only': False, 'Subscriber_Only': False}
+         6979  2017-08-10T14:14:33+00:00               {'Web_Only': False, 'COPPA_Comp': False, 'Movie_Flag': 'no', 'Showtime_Only': False, 'Subscriber_Only': False}
+           53  2017-08-10T14:46:51+00:00               {'Web_Only': False, 'COPPA_Comp': False, 'Movie_Flag': 'no', 'Showtime_Only': False, 'Subscriber_Only': False}
+...
+
+
+CREATE TABLE "promo_info" (
+content_key bigint NOT NULL,
+tiernotices jsonb NULL,
+    PRIMARY KEY (content_key),
+    FOREIGN KEY (content_key) REFERENCES core(content_key)
+);
+
+First 3 rows:
+  content_key  tiernotices
+-------------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+           54  {'free_tier': {'Alert_Note': None, 'Avail_Note': 'New episodes are available 8 days after air.', 'Promo_Note': None, 'Expire_Note': None}, 'member_tier': {'Alert_Note': None, 'Avail_Note': 'seasons 1-14 and the current season episodes the day after air', 'Promo_Note': None, 'Expire_Note': None}}
+         6979  {'free_tier': {'Alert_Note': None, 'Avail_Note': None, 'Promo_Note': None, 'Expire_Note': None}, 'member_tier': {'Alert_Note': None, 'Avail_Note': 'the entire series', 'Promo_Note': 'Season 5, Episode 3 and Season 14, Episodes 5 and 6 are not available at this time.', 'Expire_Note': 'Episodes from the new season will be available the day after air.'}}
+       837041  {'free_tier': {'Alert_Note': None, 'Avail_Note': None, 'Promo_Note': None, 'Expire_Note': None}, 'member_tier': {'Alert_Note': None, 'Avail_Note': None, 'Promo_Note': None, 'Expire_Note': None}}
+...

@@ -1,0 +1,155 @@
+{
+  "labor_certification_applications|employer|corpHandle": "TEXT. Unique identifier for the employer. PK.",
+  "labor_certification_applications|employer_poc|contactMail": "TEXT. Employer point of contact email address. PK. Example: skaul@avanthealthcare.com.",
+  "labor_certification_applications|employer_poc|firmLink": "TEXT. Reference to the employer’s firm. FK to employer.corpHandle.",
+  "labor_certification_applications|employer_poc|firmZip": "TEXT. Reference to the employer’s postal code. FK to employer.ZipRef.",
+  "labor_certification_applications|attorney|lawMail": "TEXT. Attorney's email address. PK.",
+  "labor_certification_applications|preparer|prepMail": "TEXT. Preparer’s email address. PK.",
+  "labor_certification_applications|preparer|PrepLname": "TEXT. Last name of the preparer. Example: Peace.",
+  "labor_certification_applications|preparer|PrepFname": "TEXT. First name of the preparer. Example: Tyler.",
+  "labor_certification_applications|preparer|PrepMI": "TEXT. Middle initial of the preparer. Example: J.",
+  "labor_certification_applications|preparer|prepBiz": "TEXT. Business name of the preparer. **NULL means no business name provided.**. Example: Musillo Unkenholt, LLC..",
+  "labor_certification_applications|worksite|w_addr1": "TEXT. Primary address line of the worksite. PK.",
+  "labor_certification_applications|worksite|wCITY": "TEXT. City of the worksite. PK.",
+  "labor_certification_applications|worksite|wSTATE": "TEXT. State of the worksite. PK.",
+  "labor_certification_applications|worksite|wZip": "TEXT. Postal code of the worksite. PK.",
+  "labor_certification_applications|worksite|SecEnt": "TEXT. Secondary entity associated with the worksite. **NULL means no secondary entity specified.**. Possible values: No, Yes.",
+  "labor_certification_applications|worksite|SecEntName": "TEXT. Name of the secondary entity. **NULL means no secondary entity name provided.**. Example: Billings Clinic Health System.",
+  "labor_certification_applications|worksite|Waddr_2": "TEXT. Secondary address line of the worksite. **NULL means no secondary address provided.**. Example: 800.",
+  "labor_certification_applications|worksite|wCnty": "TEXT. County of the worksite. **NULL means no county specified.**. Example: YELLOWSTONE.",
+  "labor_certification_applications|prevailing_wage|trackNo": "TEXT. Unique tracking number for the prevailing wage record. PK.",
+  "labor_certification_applications|cases|fileKey": "TEXT. Unique case number identifier. PK.",
+  "labor_certification_applications|cases|statusTag": "TEXT. Current status of the case. Possible values: CERTIFIED, Certified, certified.",
+  "labor_certification_applications|cases|recvDay": "TEXT. Date the case was received. Possible values: 2023/12/21.",
+  "labor_certification_applications|cases|decisionDAY": "TEXT. Date the case decision was made. **NULL means decision date not provided.**. Possible values: 2023-12-29.",
+  "labor_certification_applications|cases|OrigCertDay": "DATE. Original certification date. **NULL means certification date not provided.**. Possible values: .",
+  "labor_certification_applications|cases|visaCls": "enum_visa_class. Visa class for the case. Possible values: E-3 Australian, H-1B, H-1B1 Chile, H-1B1 Singapore.",
+  "labor_certification_applications|cases|jobTag": "TEXT. Job title associated with the case. Example: Registered Nurse.",
+  "labor_certification_applications|cases|SocCd": "TEXT. Standard Occupational Classification (SOC) code. Example: 29-1141.00.",
+  "labor_certification_applications|cases|socTitle": "TEXT. SOC title for the job role. Example: Registered Nurses.",
+  "labor_certification_applications|cases|FullTimeInd": "TEXT. Full-time employment indicator (Y/N). Possible values: 0, 1, N, Y.",
+  "labor_certification_applications|cases|beginDay": "TEXT. Start date of employment. Example: 21/12/2023.",
+  "labor_certification_applications|cases|endDay": "TEXT. End date of employment. **NULL means no end date provided.**. Example: 2026 20th Dec..",
+  "labor_certification_applications|cases|headCt": "BIGINT. Total number of worker positions in the case. Possible values: 1, 3, 4, 5, 6, 10, 25, 50.",
+  "labor_certification_applications|cases|newEmp": "BIGINT. Number of new employment positions. Possible values: 0, 1, 2, 5, 10, 20.",
+  "labor_certification_applications|cases|contEmp": "BIGINT. Number of continued employment positions. Possible values: 0, 1, 2, 5, 10.",
+  "labor_certification_applications|cases|changePrev": "BIGINT. Number of changes from previous employment. Possible values: 0, 1, 2, 5.",
+  "labor_certification_applications|cases|concurrentlyNew": "BIGINT. Number of concurrent new employment positions. Possible values: 0, 1.",
+  "labor_certification_applications|cases|changeFirm": "BIGINT. Number of employer changes. Possible values: 0, 1, 2, 5, 10.",
+  "labor_certification_applications|cases|amendFlag": "BIGINT. Flag indicating if the petition is amended. Possible values: 0, 1, 2, 5.",
+  "labor_certification_applications|cases|siteSlots": "BIGINT. Total number of worksite locations. Possible values: 1, 2, 3, 4, 5, 10.",
+  "labor_certification_applications|cases|AgreeLC": "TEXT. Agreement to the labor condition statement. Possible values: Yes.",
+  "labor_certification_applications|cases|h1bDep": "enum_h1b_dependent. Indicates if the applicant is a dependent under H-1B. Possible values: No, Yes.",
+  "labor_certification_applications|cases|willfulV": "enum_willful_violator. Indicates if the employer is a willful violator. Possible values: No.",
+  "labor_certification_applications|cases|SupportH": "enum_support_h1b. Indicates if the employer supports H-1B. Possible values: Yes.",
+  "labor_certification_applications|cases|statBasis": "TEXT. Statutory basis for the case. Possible values: $60,000 or higher annual wage, Both $60,000 or higher in annual wage and Masters Degree or higher in related specialty.",
+  "labor_certification_applications|cases|appA": "TEXT. Indicates if Appendix A is attached. Possible values: .",
+  "labor_certification_applications|cases|pubDisc": "TEXT. Public disclosure status. Possible values: Disclose Business, Disclose Business and Employment, Disclose Employment.",
+  "labor_certification_applications|cases|homeFirm": "TEXT. Employer reference. FK to employer.corpHandle. Example: Avant Healthcare Professionals, LLC..",
+  "labor_certification_applications|cases|homeZip": "TEXT. Employer postal code reference. FK to employer.ZipRef. Example: 32751.",
+  "labor_certification_applications|cases|prepLink": "TEXT. Preparer’s email address. FK to preparer.prepMail. Example: tyler.peace@muimmigration.com.",
+  "labor_certification_applications|case_attorney|docketKey": "TEXT. Case number reference. FK to cases.fileKey.",
+  "labor_certification_applications|case_attorney|counselMail": "TEXT. Attorney's email address. FK to attorney.lawMail. Example: tyler.peace@muimmigration.com.",
+  "labor_certification_applications|case_attorney|counselFor": "enum_agent_representing_employer. Indicates if the attorney is representing the employer. Possible values: No, Yes.",
+  "labor_certification_applications|case_worksite|dockKey": "TEXT. Case number reference. FK to cases.fileKey. PK. Example: I-200-23355-584296.",
+  "labor_certification_applications|case_worksite|ws_addr1": "TEXT. Primary worksite address line. PK. Example: 2800 10th Avenue North.",
+  "labor_certification_applications|case_worksite|wsCity": "TEXT. Worksite city. PK. Example: Billings.",
+  "labor_certification_applications|case_worksite|wsState": "TEXT. Worksite state. PK. Example: MT.",
+  "labor_certification_applications|case_worksite|wsZip": "TEXT. Worksite postal code. PK. Example: 59101.",
+  "labor_certification_applications|case_worksite|wsHeads": "BIGINT. Number of workers at the worksite. Possible values: 1, 3, 4, 5, 6, 10, 25, 50.",
+  "labor_certification_applications|case_worksite|wageTrack": "TEXT. Wage tracking number reference. FK to prevailing_wage.trackNo. Example: 1.",
+  "labor_certification_applications|employer|employer_contact_info": {
+    "column_meaning": "JSONB column. Groups the employer's full address, contact details, and classification data into a structured JSONB format.",
+    "fields_meaning": {
+      "address": {
+        "line1": "TEXT. Employer’s primary address line. Example: 2301 Lucien Way.",
+        "line2": "TEXT. Employer’s secondary address line. **NULL means no secondary address provided.**. Example: Suite 360.",
+        "city": "TEXT. City of the employer’s location. Example: Maitland.",
+        "state": "TEXT. State of the employer’s location. Example: FL.",
+        "zip": "TEXT. Postal code for the employer’s address. PK.",
+        "country": "TEXT. Country of the employer. **NULL means no country specified.**. Possible values: UNITED STATES OF AMERICA.",
+        "province": "TEXT. Province or region of the employer. **NULL means no province specified.**. Example: TX."
+      },
+      "phone": {
+        "number": "BIGINT. Employer’s main phone number. Example: (140) 768 12999.",
+        "extension": "BIGINT. Extension number for the employer's phone. **NULL means no extension provided.**. Example: 0.0."
+      },
+      "naics_code": "BIGINT. North American Industry Classification System (NAICS) code for the employer. Example: 561320.",
+      "alternate_name": "TEXT. Alternate name or trade name of the employer. **NULL means no alternate name provided.**. Example: Lattice."
+    }
+  },
+  "labor_certification_applications|attorney|attorney_profile": {
+    "column_meaning": "JSONB column. Captures identifying details of the attorney, including name, address, firm, and court affiliation.",
+    "fields_meaning": {
+      "name": {
+        "first": "TEXT. First name of the attorney. Example: Maria.",
+        "middle": "TEXT. Middle initial of the attorney. **NULL means no middle initial provided.**. Example: T..",
+        "last": "TEXT. Last name of the attorney. Example: Schneider."
+      },
+      "address": {
+        "line1": "TEXT. Primary address line for the attorney. Example: 302 West Third Street.",
+        "line2": "TEXT. Secondary address line for the attorney. **NULL means no secondary address provided.**. Example: Suite 710.",
+        "city": "TEXT. City of the attorney. Example: Cincinnati.",
+        "state": "TEXT. State of the attorney. Example: OH.",
+        "zip": "TEXT. Postal code for the attorney. Example: 45202.",
+        "country": "TEXT. Country of the attorney. Possible values: CANADA, UNITED STATES OF AMERICA.",
+        "province": "TEXT. Province or region of the attorney. **NULL means no province specified.**. Example: Ontario."
+      },
+      "contact": {
+        "phone": "BIGINT. Phone number for the attorney. Example: 15133818472.0.",
+        "extension": "BIGINT. Extension number for the attorney’s phone. **NULL means no extension provided.**. Example: 7375.0."
+      },
+      "firm": "TEXT. Law firm name or business name. Example: Musillo Unkenholt, LLC..",
+      "highest_court": {
+        "state": "TEXT. State of the highest court the attorney is registered with. **NULL means no state provided.**. Example: OH.",
+        "name": "TEXT. Name of the highest court the attorney is registered with. **NULL means no court name provided.**. Example: Supreme Court of Ohio."
+      }
+    }
+  },
+  "labor_certification_applications|prevailing_wage|wage_details": {
+    "column_meaning": "JSONB column. Summarizes offered and prevailing wage details including ranges, units, and source information.",
+    "fields_meaning": {
+      "offered_wage": {
+        "from": "TEXT. Minimum wage rate of pay from. Example: $35.42.",
+        "to": "REAL. Maximum wage rate of pay to. **NULL means maximum wage not provided.**. Example: 150000.0.",
+        "unit": "enum_wage_unit_of_pay. Unit of pay for the wage rate (e.g., Hour, Week, Year). Possible values: Hour, Week, Year."
+      },
+      "prevailing_wage": {
+        "value": "TEXT. Prevailing wage value. Example: USD 35.42.",
+        "unit": "enum_pw_unit_of_pay. Unit of pay for the prevailing wage. Possible values: Hour, Month, Week, Year.",
+        "level": "enum_pw_wage_level. Wage level classification for the position. Possible values: I, II, III, IV.",
+        "oes_year": "TEXT. OES year for the prevailing wage survey. **NULL means no OES span provided.**. Possible values: 7/1/2023 - 6/30/2024."
+      },
+      "alternate_source": {
+        "source_type": "enum_pw_other_source. Source of the prevailing wage information. Possible values: CBA, Survey.",
+        "source_year": "BIGINT. Year of the alternative wage source. **NULL means no year specified.**. Possible values: 2016.0, 2017.0, 2022.0, 2023.0.",
+        "publisher": "TEXT. Name of the prevailing wage survey publisher. Example: Willis Towers Watson.",
+        "survey_title": "TEXT. Title of the prevailing wage survey. Example: Gen. Industry Professional (Technical and Operations) Report."
+      }
+    }
+  },
+  "labor_certification_applications|employer_poc|poc_contact_info": {
+    "column_meaning": "JSONB column. Encapsulates personal and location-based contact details for the employer’s point of contact.",
+    "fields_meaning": {
+      "name": {
+        "first": "TEXT. First name of the employer’s point of contact. Example: Saloni.",
+        "middle": "TEXT. Middle name of the employer’s point of contact. **NULL means no middle name provided.**. Example: R..",
+        "last": "TEXT. Last name of the employer’s point of contact. Example: Kaul."
+      },
+      "title": "TEXT. Job title of the employer’s point of contact. Example: Director of Immigration.",
+      "address": {
+        "line1": "TEXT. Primary address line for the employer’s point of contact. Example: 2301 Lucien Way.",
+        "line2": "TEXT. Secondary address line for the employer’s point of contact. **NULL means no secondary address provided.**. Example: Suite 360.",
+        "city": "TEXT. City of the employer’s point of contact. Example: Maitland.",
+        "state": "TEXT. State of the employer’s point of contact. Example: FL.",
+        "zip": "TEXT. Postal code of the employer’s point of contact. Example: 32751.",
+        "country": "TEXT. Country of the employer’s point of contact. Possible values: UNITED STATES OF AMERICA.",
+        "province": "TEXT. Province or region of the employer’s point of contact. **NULL means no province specified.**. Possible values: CALIFORNIA, California, GEORGIA, New York, TEXAS, TX."
+      },
+      "phone": {
+        "number": "TEXT. Phone number for the employer’s point of contact. Example: 14076812999.",
+        "extension": "BIGINT. Extension number for the employer’s point of contact’s phone. **NULL means no extension provided.**. Example: 0.0."
+      }
+    }
+  }
+}

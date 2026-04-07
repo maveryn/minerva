@@ -1,0 +1,186 @@
+{
+  "fake_account|platforms|PLT_CODE": "TEXT. Unique platform code. PK. Example: PL331.",
+  "fake_account|platforms|PLT_KIND": "TEXT. Type of the platform. Not NULL. Possible values: Forum, Microblog, Social Network, Video Platform.",
+  "fake_account|accounts|acct_ref": "TEXT. Unique account reference. PK. Example: ACC7210284.",
+  "fake_account|accounts|plt_key": "TEXT. Platform code reference. FK to platforms.",
+  "fake_account|accounts|OrigStamp": "DATE. Original account creation timestamp. **NULL means account creation timestamp not provided.**. Example: 26-Dec-23.",
+  "fake_account|accounts|AGE_D": "BIGINT. Age of the account in days. Example: 393.",
+  "fake_account|accounts|StateFlag": "TEXT. Current state of the account. Possible values: Active, Deleted, Dormant, Suspended.",
+  "fake_account|accounts|acct_form": "TEXT. Account form or type. Possible values: Bot, Business, Hybrid, Personal.",
+  "fake_account|accounts|VerifyMark": "TEXT. Verification status of the account. Possible values: Failed, Pending, Suspicious, Unverified.",
+  "fake_account|accounts|ProfileScore": "REAL. Profile score of the account. Example: 0.167.",
+  "fake_account|profiles|acct_anchor": "TEXT. Account reference. PK. FK to accounts.",
+  "fake_account|profiles|HandleMask": "TEXT. Masked handle of the user. Possible values: Natural, Random, Sequential, Template.",
+  "fake_account|profiles|usrn_Ent": "REAL. User entry value. Example: 0.835.",
+  "fake_account|profiles|USR_LEN": "BIGINT. Length of the username. Example: 13.",
+  "fake_account|profiles|UsrPtn": "TEXT. User pattern description. Possible values: AlphaNum, Generated, Meaningful, Random.",
+  "fake_account|profiles|DispChg": "BIGINT. Displacement change value. **NULL means displacement change not recorded.**. Example: 8.0.",
+  "fake_account|profiles|pic_form": "TEXT. Picture format. **NULL means picture format not specified.**. Possible values: AI Generated, Celebrity, Real, Stock.",
+  "fake_account|profiles|PicScore": "REAL. Profile picture score. Example: 0.772.",
+  "fake_account|profiles|BIO_L": "BIGINT. Length of bio information. Example: 118.0.",
+  "fake_account|profiles|BioLang": "TEXT. Bio language type. Possible values: en, mixed, multiple, unknown.",
+  "fake_account|profiles|BioLinks": "BIGINT. Number of bio links. Possible values: 0, 1, 2, 3, 4, 5.",
+  "fake_account|profiles|BioKwHit": "TEXT. Bio keyword hits. **NULL means bio keyword hits not counted.**. Possible values: Normal, Promo, Spam, Suspicious.",
+  "fake_account|profiles|LocFlag": "TEXT. Location flag status. Possible values: Fake, Multiple, No, Yes.",
+  "fake_account|profiles|LOC_MOV": "BIGINT. Location movement count. Example: 2.",
+  "fake_account|profiles|mail_dom": "TEXT. Email domain. Possible values: Custom, Disposable, Free, Unknown.",
+  "fake_account|profiles|TelState": "TEXT. Telephone state. **NULL means telephone state not recorded.**. Possible values: Invalid, VOIP, Valid.",
+  "fake_account|security_sessions|acct_gate": "TEXT. Account reference for session. PK. FK to accounts.",
+  "fake_account|content_activity|acct_slot": "TEXT. Account reference for content activity. PK. FK to accounts.",
+  "fake_account|network_metrics|acct_node": "TEXT. Account reference for network metrics. PK. FK to accounts.",
+  "fake_account|network_metrics|FollowNum": "BIGINT. Number of followers. Example: 32353.",
+  "fake_account|network_metrics|FollowgNum": "BIGINT. Number of followees. Example: 53330.",
+  "fake_account|network_metrics|FollGrow": "REAL. Follower growth rate. Example: 0.697.",
+  "fake_account|network_metrics|FingGrow": "REAL. Following growth rate. Example: 0.899.",
+  "fake_account|network_metrics|FollRatio": "REAL. Follower-followee ratio. Example: 5.162.",
+  "fake_account|network_metrics|MutConn": "REAL. Mutual connections count. Example: 0.964.",
+  "fake_account|network_metrics|ConnGrowPtn": "TEXT. Connection growth pattern. Possible values: Bot-like, Burst, Organic, Suspicious.",
+  "fake_account|network_metrics|ConnQual": "REAL. Connection quality score. Example: 0.819.",
+  "fake_account|network_metrics|EngRate": "REAL. Engagement rate. Example: 0.132.",
+  "fake_account|network_metrics|EngAuth": "REAL. Engagement authority score. Example: 0.954.",
+  "fake_account|network_metrics|LikeRt": "REAL. Like rate score. Example: 0.738.",
+  "fake_account|network_metrics|ComRt": "REAL. Comment rate score. **NULL means comment rate not recorded.**. Example: 0.282.",
+  "fake_account|network_metrics|ShareRt": "REAL. Share rate score. Example: 0.696.",
+  "fake_account|network_metrics|IntRecip": "REAL. Interaction reciprocity score. Example: 0.817.",
+  "fake_account|network_metrics|IntDiv": "REAL. Interaction diversity score. Example: 0.681.",
+  "fake_account|network_metrics|TempIntPtn": "TEXT. Temporary interaction pattern. Possible values: Automated, Natural, Periodic, Random.",
+  "fake_account|interaction_metrics|acct_dm": "TEXT. Account reference for direct messaging metrics. PK. FK to accounts.",
+  "fake_account|interaction_metrics|MsgSim": "REAL. Message similarity score. Example: 0.041.",
+  "fake_account|interaction_metrics|MsgFreq": "REAL. Message frequency. Example: 60.1.",
+  "fake_account|interaction_metrics|MsgTargetDiv": "REAL. Message target diversity. Example: 0.498.",
+  "fake_account|interaction_metrics|RespTimePtn": "TEXT. Response time pattern. **NULL means response time pattern not recorded.**. Possible values: Delayed, Instant, Natural, Random.",
+  "fake_account|interaction_metrics|ConvNat": "REAL. Conversation nature score. Example: 0.825.",
+  "fake_account|interaction_metrics|SentVar": "REAL. Sentiment variance score. Example: 0.005.",
+  "fake_account|interaction_metrics|LangSoph": "REAL. Language sophistication score. Example: 0.03.",
+  "fake_account|interaction_metrics|TxtUniq": "REAL. Text uniqueness score. Example: 0.44.",
+  "fake_account|interaction_metrics|KeyPtnHit": "REAL. Key pattern hit score. **NULL means key pattern hit not recorded.**. Example: 0.589.",
+  "fake_account|interaction_metrics|TopCoh": "REAL. Top coherence score. Example: 0.856.",
+  "fake_account|behavioral_scores|acct_beh": "TEXT. Account reference for behavioral scores. PK. FK to accounts.",
+  "fake_account|risk_and_moderation|acct_risk": "TEXT. Account reference for risk and moderation data. PK. FK to accounts.",
+  "fake_account|cluster_analysis|CLSTR_PIN": "TEXT. Unique cluster identifier. PK. Example: CL0029.",
+  "fake_account|cluster_analysis|ClusterQty": "BIGINT. Number of accounts in the cluster. Example: 5.",
+  "fake_account|cluster_analysis|CluRole": "TEXT. Role or function of the cluster. Possible values: Botnet, Community, InfluenceNetwork, SocialGroup, SpamRing.",
+  "fake_account|cluster_analysis|NetInfl": "REAL. Network influence score. Example: 0.362.",
+  "fake_account|cluster_analysis|CoordScore": "REAL. Coordination score. Example: 0.363.",
+  "fake_account|account_clusters|acct_bridge": "TEXT. Account reference for the cluster. PK. FK to accounts.",
+  "fake_account|account_clusters|clu_ref": "TEXT. Cluster reference identifier. PK. FK to cluster_analysis.",
+  "fake_account|monitoring|RecKey": "TEXT. Unique monitoring record key. PK. Example: FA410087.",
+  "fake_account|monitoring|snap_ts": "TIMESTAMPTZ. Snapshot timestamp. **NULL means snapshot timestamp not recorded.**. Example: 2024-08-21T08:30:21.",
+  "fake_account|monitoring|acct_mon": "TEXT. Account reference for monitoring. FK to accounts.",
+  "fake_account|monitoring|DetectSrc": "TEXT. Source of detection. Possible values: Algorithm, Manual Review, Pattern Match, User Report.",
+  "fake_account|monitoring|DetectConf": "REAL. Detection confidence score. **NULL means detection confidence not recorded.**. Example: 0.132.",
+  "fake_account|monitoring|MonPrio": "TEXT. Monitoring priority. Possible values: High, Low, Medium, Urgent.",
+  "fake_account|monitoring|InvestState": "TEXT. Investigation state. Possible values: Active, Completed, Pending.",
+  "fake_account|monitoring|ActionDone": "TEXT. Action taken. **NULL means no action recorded.**. Possible values: Restriction, Suspension, Warning.",
+  "fake_account|monitoring|RevFreq": "TEXT. Review frequency. Possible values: Daily, Monthly, Quarterly, Weekly.",
+  "fake_account|monitoring|LastRev": "DATE. Last review date. Example: 2025/1/1.",
+  "fake_account|monitoring|NextRev": "DATE. Next review date. Example: 2025/4/10.",
+  "fake_account|monitoring|ConfScore": "REAL. Confidence score. **NULL means confidence score not assigned.**. Example: 0.253.",
+  "fake_account|monitoring|FPP": "REAL. False positive probability. Example: 0.692.",
+  "fake_account|monitoring|MethRel": "REAL. Method reliability score. Example: 0.927.",
+  "fake_account|monitoring|ModelVer": "TEXT. Model version used. Example: v1.5.",
+  "fake_account|monitoring|FeatVer": "TEXT. Feature version used. Example: f1.7.",
+  "fake_account|monitoring|LastUp": "TIMESTAMPTZ. Last update timestamp. Example: 2025/2/18 12:00.",
+  "fake_account|monitoring|UpFreqH": "BIGINT. Update frequency in hours. Example: 3.",
+  "fake_account|security_sessions|session_telemetry": {
+    "column_meaning": "JSONB column. Aggregates IP reputation, device-mix, VPN / proxy usage and log-in behaviour so threat-detection jobs can retrieve the full session context from one JSONB column.",
+    "fields_meaning": {
+      "ip_reputation": {
+        "registration_ip": "INET. Registered IP address. **NULL means IP not recorded.**. Example: 186.221.8.216.",
+        "ip_reputation_score": "REAL. IP reputation score. Example: 0.729.",
+        "country_count": "BIGINT. Country of the IP address. Example: 14.",
+        "proxy_hits": "BIGINT. Proxy hits during session. **NULL means proxy hits not recorded.**. Example: 98.0.",
+        "tor_flag": "TEXT. Tor usage flag. Possible values: No, Suspected, Yes."
+      },
+      "vpn_usage_pct": "TEXT. VPN usage percentage. Example: 0.00%.",
+      "device_profile": {
+        "device_count": "BIGINT. Device number. Example: 20.",
+        "device_mix_json": "JSONB. Device mix used in session. Example: {'Mobile': 0.8966897433246256, 'Desktop': 0.5115558690500416, 'Tablet': 0.3299024746948329}.",
+        "browser_diversity_idx": "REAL. Browser mix score. Example: 0.016.",
+        "ua_consistency": "REAL. User agent consistency score. Example: 0.639."
+      },
+      "login_behavior": {
+        "login_chronology": "TEXT. Login chronology or history. **NULL means login chronology not available.**. Possible values: Bot-like, Burst, Random, Regular.",
+        "login_freq_per_day": "TEXT. Login frequency descriptor. Possible values: High, Low, Medium, Suspicious.",
+        "location_variability": "REAL. Location variance during session. Example: 0.311."
+      },
+      "session_stats": {
+        "avg_session_duration_min": "REAL. Session duration. Example: 2766.0.",
+        "session_count": "BIGINT. Number of sessions during the account lifecycle. Example: 419."
+      },
+      "activity_pattern": {
+        "activity_regularity": "REAL. Activity registration score. Example: 0.313.",
+        "activity_spread_code": "TEXT. Activity spread during the session. Example: {'Morning': 0.08864600070960105, 'Afternoon': 0.7421617693224358, 'Night': 0.3718840943461962}."
+      }
+    }
+  },
+  "fake_account|content_activity|content_metrics": {
+    "column_meaning": "JSONB column. Packs post-rate, linguistic diversity, hashtag / mention patterns and media-sharing ratios into one JSONB blob for real-time content-quality scoring.",
+    "fields_meaning": {
+      "posting": {
+        "total_posts": "BIGINT. Total number of posts. Example: 3713.",
+        "posts_per_day": "REAL. Posting frequency. Example: 28.6.",
+        "post_gap_variability": "REAL. Variation in post gaps. Example: 0.835."
+      },
+      "content_quality": {
+        "content_similarity": "REAL. Content similarity score. Example: 0.789.",
+        "content_uniqueness": "REAL. Content uniqueness score. Example: 0.858.",
+        "content_diversity": "REAL. Content diversity score. Example: 0.153.",
+        "topic_entropy": "REAL. Top entity identification score. Example: 0.859."
+      },
+      "language_tags": {
+        "language_count": "BIGINT. Number of languages used. Possible values: 1, 2, 3, 4, 5.",
+        "hashtag_pattern": "TEXT. Tag pattern description. Possible values: Normal, Random, Spam, Trending.",
+        "hashtag_ratio": "REAL. Tag relevance score. Example: 0.829.",
+        "mention_pattern": "TEXT. Mention pattern. Possible values: Normal, Random, Spam, Targeted.",
+        "mention_ratio": "TEXT. Mention response rate. Example: 0.40%."
+      },
+      "link_media": {
+        "url_freq": "REAL. URL frequency in content. **NULL means URL frequency not recorded.**. Example: 0.734.",
+        "url_diversity": "REAL. URL diversity score. Example: 0.028.",
+        "media_upload_rate": "REAL. Media upload rate. Example: 0.733.",
+        "media_reuse_rate": "REAL. Media response rate. **NULL means media response rate not recorded.**. Example: 0.109."
+      }
+    }
+  },
+  "fake_account|behavioral_scores|behavioral_anomaly_scores": {
+    "column_meaning": "JSONB column. Consolidates all automated-behaviour, spam, pattern-anomaly and commercial-intent scores so model pipelines can ingest a single JSONB document per account.",
+    "fields_meaning": {
+      "automation_spam": {
+        "automated_behavior": "REAL. Automatic behavior score. Example: 0.789.",
+        "bot_likelihood": "REAL. Bot likelihood score. **NULL means bot likelihood not calculated.**. Example: 0.203.",
+        "spam_score": "REAL. Spam score. Example: 0.315."
+      },
+      "commercial_intent_score": "REAL. Communication intensity score. **NULL means communication intensity not recorded.**. Example: 0.558.",
+      "pattern_scores": {
+        "behavior_pattern": "REAL. Behavior pattern score. Example: 0.087.",
+        "temporal_pattern": "REAL. Temporary behavior pattern score. **NULL means temporary pattern not recorded.**. Example: 0.883.",
+        "network_pattern": "REAL. Network behavior pattern score. Example: 0.307.",
+        "content_pattern": "REAL. Content pattern score. Example: 0.178.",
+        "profile_pattern": "REAL. Profile behavior pattern score. Example: 0.869.",
+        "technical_pattern": "REAL. Technical behavior pattern score. Example: 0.246."
+      }
+    }
+  },
+  "fake_account|risk_and_moderation|risk_profile": {
+    "column_meaning": "JSONB column. Bundles risk, authenticity / credibility, violation history and overall reputation into one JSONB field for faster trust-and-safety look-ups and enforcement rules.",
+    "fields_meaning": {
+      "risk_scores": {
+        "risk_value": "REAL. Risk value score. **NULL means risk value not assigned.**. Example: 0.155.",
+        "threat_level": "TEXT. Threat level description. Possible values: Critical, High, Low, Medium.",
+        "authenticity_score": "REAL. Authorization score. Example: 0.15.",
+        "credibility_score": "REAL. Credit score. Example: 0.441.",
+        "reputation_score": "REAL. Reputation score. Example: 0.23.",
+        "trust_score": "REAL. Trust value score. Example: 0.353.",
+        "impact_score": "REAL. Impact value score. Example: 0.544."
+      },
+      "violation_history": {
+        "abuse_count": "BIGINT. Abuse count against the account. Example: 24.",
+        "violation_distribution_json": "JSONB. Violations distribution details. Example: {'Spam': 0.9353273606557855, 'Fake': 0.4490233249279981, 'Abuse': 0.08219689664928109}.",
+        "suspension_history_json": "JSONB. Suspension history data. Possible values: 0, 1, 2, 3, 4, 5.",
+        "warning_count": "BIGINT. Warning count. Example: 0.",
+        "appeal_count": "BIGINT. Appeal count. Possible values: 0, 1, 2, 3, 4, 5."
+      }
+    }
+  }
+}

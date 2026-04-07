@@ -1,0 +1,210 @@
+{
+  "robot_fault_prediction|robot_record|RecReg": "TEXT. Unique record registration identifier. PK. Example: RF100725.",
+  "robot_fault_prediction|robot_record|RecTS": "TIMESTAMP. Timestamp of the record creation. Not nullable. Possible values: 2025-02-18, 2025-02-19.",
+  "robot_fault_prediction|robot_record|BotCode": "TEXT. Unique robot code identifier. PK. Example: RB2073.",
+  "robot_fault_prediction|robot_details|BotDetReg": "TEXT. Foreign key to the robot_record table (BotCode). PK, FK to robot_record.",
+  "robot_fault_prediction|robot_details|MfgNameVal": "TEXT. Manufacturer name of the robot. Possible values: ABB, FANUC, KUKA, Universal Robots, Yaskawa.",
+  "robot_fault_prediction|robot_details|ModelSeriesVal": "TEXT. Model series of the robot. Example: Series_784.",
+  "robot_fault_prediction|robot_details|BotTypeVal": "CHAR(15). Type of the robot (e.g., industrial, collaborative). Possible values: Articulated, Cartesian, Collaborative, Delta, SCARA.",
+  "robot_fault_prediction|robot_details|PayloadCapKG": "REAL. Payload capacity of the robot in kilograms. Possible values: 3, 5, 10, 20, 50, 100, 200.",
+  "robot_fault_prediction|robot_details|ReachMMVal": "BIGINT. Reach distance of the robot in millimeters. Example: 1592.",
+  "robot_fault_prediction|robot_details|InstDateVal": "DATE. Installation date of the robot. Example: 10 Jun 2023.",
+  "robot_fault_prediction|robot_details|FWVersionVal": "TEXT. Firmware version of the robot. Example: 9.6.6.",
+  "robot_fault_prediction|robot_details|CtrlTypeVal": "TEXT. Control type of the robot (e.g., manual, automatic). Example: Controller_C2.",
+  "robot_fault_prediction|operation|OperReg": "TEXT. Unique operation record identifier. PK.",
+  "robot_fault_prediction|operation|OperRecRef": "TEXT. Foreign key to the robot_record table (BotCode). FK to robot_record.",
+  "robot_fault_prediction|operation|TotOpsHrVal": "REAL. Total operational hours of the robot. **NULL means no operational hours data available.**. Example: 20009.0.",
+  "robot_fault_prediction|operation|AppTypeVal": "TEXT. Application type for the operation. **NULL means no application type specified.**. Possible values: Assembly, Material Handling, Painting, Palletizing, Welding.",
+  "robot_fault_prediction|operation|OperModeVal": "CHAR(25). Operating mode of the robot (e.g., automatic, manual). Possible values: MANU.",
+  "robot_fault_prediction|operation|CurrProgVal": "TEXT. Current program being executed by the robot. **NULL means no program is active.**. Example: PRG_4901.",
+  "robot_fault_prediction|operation|ProgCycleCount": "BIGINT. Number of cycles executed by the robot. Example: 177681.",
+  "robot_fault_prediction|operation|CycleTimeSecVal": "REAL. Cycle time of the robot operation in seconds. **NULL means no cycle time data available.**. Example: 211.82.",
+  "robot_fault_prediction|operation|AxisCountVal": "BIGINT. Number of axes in the robot. Possible values: 4, 5, 6, 7.",
+  "robot_fault_prediction|joint_performance|JPerfID": "BIGSERIAL. Unique identifier for the joint performance record. PK.",
+  "robot_fault_prediction|joint_performance|JPerfOperRef": "TEXT. Foreign key to the operation table (OperReg). FK to operation.",
+  "robot_fault_prediction|joint_performance|JPerfDetRef": "TEXT. Foreign key to the robot_details table (BotDetReg). FK to robot_details.",
+  "robot_fault_prediction|joint_condition|JCondID": "BIGSERIAL. Unique identifier for the joint condition record. PK.",
+  "robot_fault_prediction|joint_condition|JCondOperRef": "TEXT. Foreign key to the operation table (OperReg). FK to operation.",
+  "robot_fault_prediction|joint_condition|JCDetRef": "TEXT. Foreign key to the robot_details table (BotDetReg). FK to robot_details.",
+  "robot_fault_prediction|actuation_data|ActReg": "TEXT. Unique actuation record identifier. PK.",
+  "robot_fault_prediction|actuation_data|ActOperRef": "TEXT. Foreign key to the operation table (OperReg). FK to operation.",
+  "robot_fault_prediction|actuation_data|ActRecRef": "TEXT. Foreign key to the robot_record table (BotCode). FK to robot_record.",
+  "robot_fault_prediction|actuation_data|TCPXVal": "REAL. TCP X-coordinate in mm. **NULL means TCP pose data unavailable.**. Example: 1275.23.",
+  "robot_fault_prediction|actuation_data|TCPYVal": "REAL. TCP Y-coordinate in mm. **NULL means TCP pose data unavailable.**. Example: 873.0.",
+  "robot_fault_prediction|actuation_data|TCPZVal": "REAL. TCP Z-coordinate in mm. **NULL means TCP pose data unavailable.**. Example: 1618.63.",
+  "robot_fault_prediction|actuation_data|TCP_RxVal": "REAL. TCP rotation around the X-axis in radians. Example: -156.28.",
+  "robot_fault_prediction|actuation_data|TCP_RyVal": "REAL. TCP rotation around the Y-axis in radians. Example: -150.3.",
+  "robot_fault_prediction|actuation_data|TCP_RzVal": "REAL. TCP rotation around the Z-axis in radians. Example: -6.26.",
+  "robot_fault_prediction|actuation_data|TCPSpeedVal": "REAL. Speed of the TCP in mm/s. Example: 1231.14.",
+  "robot_fault_prediction|actuation_data|TCPAccelVal": "REAL. Acceleration of the TCP in mm/s². Example: 6.65.",
+  "robot_fault_prediction|actuation_data|PathAccMMVal": "REAL. Path accuracy in mm. Example: 0.797.",
+  "robot_fault_prediction|actuation_data|PosErrMMVal": "REAL. Position error in mm. **NULL means no position error data available.**. Example: 0.069.",
+  "robot_fault_prediction|actuation_data|OrientErrDegVal": "REAL. Orientation error in degrees. **NULL means no orientation error data available.**. Example: 0.471.",
+  "robot_fault_prediction|actuation_data|PayloadWVal": "REAL. Payload weight in kg. **NULL means no payload data available.**. Example: 144.85.",
+  "robot_fault_prediction|actuation_data|PayloadIVal": "REAL. Payload current in Amps. Example: 1.78.",
+  "robot_fault_prediction|actuation_data|M1CurrVal": "REAL. Motor 1 current in Amps. **NULL means no motor 1 data available.**. Example: 6.58.",
+  "robot_fault_prediction|actuation_data|M2CurrVal": "REAL. Motor 2 current in Amps. **NULL means no motor 2 data available.**. Example: 8.61.",
+  "robot_fault_prediction|actuation_data|M3CurrVal": "REAL. Motor 3 current in Amps. **NULL means no motor 3 data available.**. Example: 3.31.",
+  "robot_fault_prediction|actuation_data|M4CurrVal": "REAL. Motor 4 current in Amps. **NULL means no motor 4 data available.**. Example: 14.16.",
+  "robot_fault_prediction|actuation_data|M5CurrVal": "REAL. Motor 5 current in Amps. **NULL means no motor 5 data available.**. Example: 6.16.",
+  "robot_fault_prediction|actuation_data|M6CurrVal": "REAL. Motor 6 current in Amps. **NULL means no motor 6 data available.**. Example: 1.81.",
+  "robot_fault_prediction|actuation_data|M1VoltVal": "REAL. Motor 1 voltage in Volts. Example: 1.26.",
+  "robot_fault_prediction|actuation_data|M2VoltVal": "REAL. Motor 2 voltage in Volts. Example: 15.66.",
+  "robot_fault_prediction|actuation_data|M3VoltVal": "REAL. Motor 3 voltage in Volts. Example: 10.6.",
+  "robot_fault_prediction|actuation_data|M4VoltVal": "REAL. Motor 4 voltage in Volts. Example: 9.13.",
+  "robot_fault_prediction|actuation_data|M5VoltVal": "REAL. Motor 5 voltage in Volts. Example: 28.47.",
+  "robot_fault_prediction|actuation_data|M6VoltVal": "REAL. Motor 6 voltage in Volts. Example: 32.12.",
+  "robot_fault_prediction|mechanical_status|MechActRef": "TEXT. Foreign key to the actuation_data table (ActReg). FK to actuation_data.",
+  "robot_fault_prediction|mechanical_status|MechOperRef": "TEXT. Foreign key to the operation table (OperReg). PK, FK to operation.",
+  "robot_fault_prediction|mechanical_status|MechDetRef": "TEXT. Foreign key to the robot_details table (BotDetReg). FK to robot_details.",
+  "robot_fault_prediction|system_controller|SystemOverseerActuation": "TEXT. Foreign key to the actuation_data table (ActReg). PK, FK to actuation_data.",
+  "robot_fault_prediction|system_controller|SystemOverseerOperation": "TEXT. Foreign key to the operation table (OperReg). FK to operation.",
+  "robot_fault_prediction|system_controller|OverseerLoadValue": "REAL. Load value of the system overseer. Example: 0.99.",
+  "robot_fault_prediction|system_controller|MemUseVal": "REAL. Memory usage of the system overseer. Example: 32.07.",
+  "robot_fault_prediction|system_controller|OverseerThermalLevel": "TEXT. Thermal level of the system overseer. Example: 38.5°C.",
+  "robot_fault_prediction|system_controller|CabTempVal": "REAL. Cabinet temperature of the system overseer. Example: 33.84.",
+  "robot_fault_prediction|system_controller|CabHumidityLevel": "TEXT. Humidity level in the cabinet of the system overseer. Example: 47%.",
+  "robot_fault_prediction|maintenance_and_fault|UpkeepActuation": "TEXT. Foreign key to the actuation_data table (ActReg). PK, FK to actuation_data.",
+  "robot_fault_prediction|maintenance_and_fault|UpkeepOperation": "TEXT. Foreign key to the operation table (OperReg). FK to operation.",
+  "robot_fault_prediction|maintenance_and_fault|FaultCodeVal": "TEXT. Fault code identifier. **NULL means no fault code provided.**. Example: E8902.",
+  "robot_fault_prediction|maintenance_and_fault|IssueCategoryVal": "TEXT. Category of the issue in the fault. Possible values: COM, ELE, MEC, NON, SOF.",
+  "robot_fault_prediction|maintenance_and_fault|IssueLevelVal": "TEXT. Level of the issue in the fault. Possible values: Critical level, High level, Low level, Medium level, None level.",
+  "robot_fault_prediction|maintenance_and_fault|FaultPredScore": "REAL. Fault prediction score. **NULL means no fault prediction score available.**. Example: 0.021.",
+  "robot_fault_prediction|maintenance_and_fault|FaultTypeEstimation": "TEXT. Fault type estimation. **NULL means no fault type estimation available.**. Possible values: Controller, Gearbox, Joint, Motor.",
+  "robot_fault_prediction|maintenance_and_fault|RULHours": "BIGINT. Remaining useful life in hours. Example: 1601.",
+  "robot_fault_prediction|maintenance_and_fault|UpkeepDueDays": "BIGINT. Days until the next maintenance is due. Example: 16.",
+  "robot_fault_prediction|maintenance_and_fault|UpkeepCostEst": "TEXT. Estimated upkeep cost. Example: $7,299.59.",
+  "robot_fault_prediction|performance_and_safety|EffectivenessActuation": "TEXT. Foreign key to the actuation_data table (ActReg). PK, FK to actuation_data.",
+  "robot_fault_prediction|performance_and_safety|EffectivenessRobot": "TEXT. Foreign key to the robot_details table (BotDetReg). FK to robot_details.",
+  "robot_fault_prediction|performance_and_safety|ConditionIndexVal": "REAL. Condition index value of the robot. **NULL means no condition index data available.**. Example: 0.152.",
+  "robot_fault_prediction|performance_and_safety|EffectivenessIndexVal": "REAL. Effectiveness index value of the robot. **NULL means no effectiveness index data available.**. Example: 0.603.",
+  "robot_fault_prediction|performance_and_safety|QualityMeasureVal": "REAL. Quality measure value for the robot. **NULL means no quality measure data available.**. Example: 0.337.",
+  "robot_fault_prediction|performance_and_safety|EnergyUseKWHVal": "TEXT. Energy use in KWH. **NULL means no energy usage data available.**. Example: 70.54 kWh.",
+  "robot_fault_prediction|performance_and_safety|PwrFactorVal": "TEXT. Power factor value. **NULL means no power factor data available.**. Example: PF=0.82.",
+  "robot_fault_prediction|performance_and_safety|AirPressVal": "REAL. Air pressure value in the system. Example: 6.69.",
+  "robot_fault_prediction|performance_and_safety|SafetyStateVal": "TEXT. Safety state value of the robot. Possible values: Warning, ✓ Normal, ✗ Emergency.",
+  "robot_fault_prediction|performance_and_safety|ZoneViolNum": "BIGINT. Number of zone violations. Example: 1.",
+  "robot_fault_prediction|performance_and_safety|EmergencyStopCount": "BIGINT. Count of emergency stops. Possible values: 0, 1, 2, 3, 4, 5.",
+  "robot_fault_prediction|performance_and_safety|CollisionCount": "BIGINT. Count of collisions. Possible values: 0, 1, 2, 3.",
+  "robot_fault_prediction|performance_and_safety|OverloadCnt": "BIGINT. Count of overloads. Possible values: 0, 1, 2, 3, 4, 5.",
+  "robot_fault_prediction|performance_and_safety|SpeedViolNum": "BIGINT. Number of speed violations. Example: 5.",
+  "robot_fault_prediction|performance_and_safety|CalibStateVal": "CHAR(20). Calibration state value of the robot. Possible values: 0, N, Y.",
+  "robot_fault_prediction|performance_and_safety|ToolChangeCount": "BIGINT. Number of tool changes. **NULL means no tool change data available.**. Example: 940.0.",
+  "robot_fault_prediction|joint_performance|joint_metrics": {
+    "column_meaning": "JSONB column. Captures the kinematic performance of every joint (angle, speed, and torque) in a single hierarchical JSON structure for quick retrieval.",
+    "fields_meaning": {
+      "J1": {
+        "angle_deg": "REAL. Joint 1 angle value in degrees. Example: -37.72.",
+        "speed_dps": "REAL. Joint 1 speed value in radians per second. Example: 36.74.",
+        "torque_nm": "REAL. Joint 1 torque value in Nm. Example: 12.0."
+      },
+      "J2": {
+        "angle_deg": "REAL. Joint 2 angle value in degrees. Example: 177.36.",
+        "speed_dps": "REAL. Joint 2 speed value in radians per second. Example: 65.06.",
+        "torque_nm": "REAL. Joint 2 torque value in Nm. Example: 79.88."
+      },
+      "J3": {
+        "angle_deg": "REAL. Joint 3 angle value in degrees. Example: 83.27.",
+        "speed_dps": "REAL. Joint 3 speed value in radians per second. Example: 174.45.",
+        "torque_nm": "REAL. Joint 3 torque value in Nm. Example: 55.91."
+      },
+      "J4": {
+        "angle_deg": "REAL. Joint 4 angle value in degrees. Example: -151.1.",
+        "speed_dps": "REAL. Joint 4 speed value in radians per second. Example: 96.65.",
+        "torque_nm": "REAL. Joint 4 torque value in Nm. Example: 75.22."
+      },
+      "J5": {
+        "angle_deg": "REAL. Joint 5 angle value in degrees. Example: -162.94.",
+        "speed_dps": "REAL. Joint 5 speed value in radians per second. Example: 167.12.",
+        "torque_nm": "REAL. Joint 5 torque value in Nm. Example: 2.14."
+      },
+      "J6": {
+        "angle_deg": "REAL. Joint 6 angle value in degrees. Example: -72.08.",
+        "speed_dps": "REAL. Joint 6 speed value in radians per second. Example: 69.94.",
+        "torque_nm": "REAL. Joint 6 torque value in Nm. Example: 45.07."
+      }
+    }
+  },
+  "robot_fault_prediction|joint_condition|joint_health": {
+    "column_meaning": "JSONB column. Consolidates thermal, vibration, and backlash indicators that describe the health of each joint at the time of capture.",
+    "fields_meaning": {
+      "J1": {
+        "temperature_C": "REAL. Joint 1 temperature value in Celsius. Example: 20.57.",
+        "vibration_mmps": "REAL. Joint 1 vibration value in mm/s. Example: 1.14.",
+        "backlash_deg": "REAL. Joint 1 backlash value in mm. Example: 0.0352."
+      },
+      "J2": {
+        "temperature_C": "REAL. Joint 2 temperature value in Celsius. Example: 39.54.",
+        "vibration_mmps": "REAL. Joint 2 vibration value in mm/s. Example: 1.636.",
+        "backlash_deg": "REAL. Joint 2 backlash value in mm. Example: 0.0272."
+      },
+      "J3": {
+        "temperature_C": "REAL. Joint 3 temperature value in Celsius. Example: 42.16.",
+        "vibration_mmps": "REAL. Joint 3 vibration value in mm/s. Example: 1.687.",
+        "backlash_deg": "REAL. Joint 3 backlash value in mm. Example: 0.0946."
+      },
+      "J4": {
+        "temperature_C": "REAL. Joint 4 temperature value in Celsius. Example: 34.88.",
+        "vibration_mmps": "REAL. Joint 4 vibration value in mm/s. Example: 3.264.",
+        "backlash_deg": "REAL. Joint 4 backlash value in mm. Example: 0.056."
+      },
+      "J5": {
+        "temperature_C": "REAL. Joint 5 temperature value in Celsius. Example: 70.15.",
+        "vibration_mmps": "REAL. Joint 5 vibration value in mm/s. Example: 2.052.",
+        "backlash_deg": "REAL. Joint 5 backlash value in mm. Example: 0.0907."
+      },
+      "J6": {
+        "temperature_C": "REAL. Joint 6 temperature value in Celsius. Example: 64.39.",
+        "vibration_mmps": "REAL. Joint 6 vibration value in mm/s. Example: 6.422.",
+        "backlash_deg": "REAL. Joint 6 backlash value in mm. Example: 0.046."
+      }
+    }
+  },
+  "robot_fault_prediction|mechanical_status|component_status": {
+    "column_meaning": "JSONB column. Bundles together the real-time status of brakes, encoders, and gearbox health for easier diagnostics and alerting.",
+    "fields_meaning": {
+      "brakes": {
+        "J1": "TEXT. Brake 1 status. **NULL means no brake 1 status data available.**. Possible values: Error, Normal, Warning.",
+        "J2": "TEXT. Brake 2 status. Possible values: Error, Normal, Warning.",
+        "J3": "TEXT. Brake 3 status. Possible values: Error, Normal, Warning.",
+        "J4": "TEXT. Brake 4 status. Possible values: Error, Normal, Warning.",
+        "J5": "TEXT. Brake 5 status. Possible values: Error, Normal, Warning.",
+        "J6": "TEXT. Brake 6 status. Possible values: Error, Normal, Warning."
+      },
+      "encoders": {
+        "J1": "TEXT. Encoder 1 status. **NULL means no encoder 1 status data available.**. Possible values: Error, Normal, Warning.",
+        "J2": "TEXT. Encoder 2 status. Possible values: Error, Normal, Warning.",
+        "J3": "TEXT. Encoder 3 status. Possible values: Error, Normal, Warning.",
+        "J4": "TEXT. Encoder 4 status. Possible values: Error, Normal, Warning.",
+        "J5": "TEXT. Encoder 5 status. Possible values: Error, Normal, Warning.",
+        "J6": "TEXT. Encoder 6 status. Possible values: Error, Normal, Warning."
+      },
+      "gearboxes": {
+        "J1": {
+          "temperature_C": "REAL. Gearbox 1 temperature in Celsius. Example: 24.92.",
+          "vibration_mmps": "REAL. Gearbox 1 vibration in mm/s. Example: 3.273."
+        },
+        "J2": {
+          "temperature_C": "REAL. Gearbox 2 temperature in Celsius. Example: 79.14.",
+          "vibration_mmps": "REAL. Gearbox 2 vibration in mm/s. Example: 1.912."
+        },
+        "J3": {
+          "temperature_C": "REAL. Gearbox 3 temperature in Celsius. Example: 56.76.",
+          "vibration_mmps": "REAL. Gearbox 3 vibration in mm/s. Example: 1.361."
+        },
+        "J4": {
+          "temperature_C": "REAL. Gearbox 4 temperature in Celsius. Example: 35.39.",
+          "vibration_mmps": "REAL. Gearbox 4 vibration in mm/s. Example: 5.302."
+        },
+        "J5": {
+          "temperature_C": "REAL. Gearbox 5 temperature in Celsius. Example: 60.72.",
+          "vibration_mmps": "REAL. Gearbox 5 vibration in mm/s. Example: 7.001."
+        },
+        "J6": {
+          "temperature_C": "REAL. Gearbox 6 temperature in Celsius. Example: 48.18.",
+          "vibration_mmps": "REAL. Gearbox 6 vibration in mm/s. Example: 5.74."
+        }
+      }
+    }
+  }
+}

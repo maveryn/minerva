@@ -1,0 +1,409 @@
+"CREATE" TABLE "EquipmentType" (
+"EquipType" text NOT NULL,
+type_indices jsonb NULL,
+    "PRIMARY" KEY (EquipType)
+);
+
+
+
+"First" 3 rows:
+EquipType    type_indices
+-----------  ----------------------------------------------------------------------------------------------------------------
+Shelter      {'safety_idx': 75.9, 'performance_score': 72.8, 'energy_efficiency_idx': 47.1, 'environmental_impact_idx': 36.7}
+Scientific   {'safety_idx': 35.9, 'performance_score': 48.8, 'energy_efficiency_idx': 72.2, 'environmental_impact_idx': 74.7}
+Safety       {'safety_idx': 34.6, 'performance_score': 93, 'energy_efficiency_idx': 36.8, 'environmental_impact_idx': 87.3}
+...
+
+
+"CREATE" TABLE "PowerBattery" (
+"PWR_BATT_ID" bigint NOT NULL DEFAULT nextval('"PowerBattery_PWR_BATT_ID_seq"'::regclass),
+equip_ref text NOT NULL,
+battery_telemetry jsonb NULL,
+    "PRIMARY" KEY (PWR_BATT_ID),
+    "FOREIGN" KEY (equip_ref) REFERENCES Equipment(EQUIP_CODE)
+);
+
+
+
+"First" 3 rows:
+  PWR_BATT_ID  equip_ref    battery_telemetry
+-------------  -----------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            1  PE593707     {'charging': {'current_a': None, 'voltage_v': 26.5, 'charge_state': 'Error'}, 'power_state': {'system_state': 'Sleep', 'primary_source': 'Wind', 'conversion_eff_pct': 81.8, 'instant_consumption_w': 4383.2}, 'battery_pack': {'soc_pct': 19, 'health_pct': 93, 'cycle_count': 79, 'temperature_c': -22.9}}
+            2  PE292528     {'charging': {'current_a': 24.12, 'voltage_v': 19.8, 'charge_state': 'Not Charging'}, 'power_state': {'system_state': 'Charging', 'primary_source': 'Solar', 'conversion_eff_pct': 74.4, 'instant_consumption_w': 2710.9}, 'battery_pack': {'soc_pct': 32, 'health_pct': 74, 'cycle_count': 617, 'temperature_c': 31.6}}
+            3  PE617633     {'charging': {'current_a': 15.94, 'voltage_v': 39.1, 'charge_state': 'Charging'}, 'power_state': {'system_state': 'On', 'primary_source': 'Wind', 'conversion_eff_pct': 87.7, 'instant_consumption_w': 3552.2}, 'battery_pack': {'soc_pct': 42, 'health_pct': 67, 'cycle_count': 667, 'temperature_c': -12}}
+...
+
+
+"CREATE" TABLE "Equipment" (
+"EQUIP_CODE" text NOT NULL,
+"EquipType" text NOT NULL,
+model_name text NULL,
+"MakerName" text NULL,
+"SERVICE_YRS" bigint NULL,
+"utilPercent" real NULL,
+"RELIAB_IDX" real NULL,
+    "PRIMARY" KEY (EQUIP_CODE),
+    "FOREIGN" KEY ("EquipType") REFERENCES EquipmentType("EquipType")
+);
+
+
+
+"First" 3 rows:
+EQUIP_CODE    EquipType    model_name    MakerName                   SERVICE_YRS    utilPercent    RELIAB_IDX
+------------  -----------  ------------  ------------------------  -------------  -------------  ------------
+PE593707      Shelter      Model-925     Lee, Meyers and Hamilton              4             53          97.8
+PE292528      Scientific   Model-454     Wiggins Inc                           6             60          97.7
+PE617633      Safety                     Graves-Cox                           10             81          97
+...
+
+
+"CREATE" TABLE "EngineAndFluids" (
+"ENGINE_ID" bigint NOT NULL DEFAULT nextval('"EngineAndFluids_ENGINE_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+batt_link bigint NULL,
+opmaint_link bigint NULL,
+engine_fluids_snapshot jsonb NULL,
+    "PRIMARY" KEY (ENGINE_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE),
+    "FOREIGN" KEY (batt_link) REFERENCES PowerBattery(PWR_BATT_ID),
+    "FOREIGN" KEY (opmaint_link) REFERENCES OperationMaintenance(OP_MAINT_ID)
+);
+
+
+
+"First" 3 rows:
+  ENGINE_ID  equipRef      batt_link  opmaint_link    engine_fluids_snapshot
+-----------  ----------  -----------  --------------  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+          1  PE593707              1                  {'oil': {'level_pct': 49, 'pressure_kpa': 331, 'temperature_c': 6.6}, 'fuel': {'level_pct': 49, 'temperature_c': -37.2, 'consumption_lph': 44.48, 'rail_pressure_kpa': None}, 'coolant': {'level_pct': 64, 'temperature_c': 69.3, 'pressure_kpa_or_code': '88.9 hPa'}, 'hydraulic': {'pressure_kpa': 19647.2, 'temperature_c': 39.2, 'fluid_level_pct': 59}, 'engine_core': {'rpm': 3133, 'load_pct': 61, 'block_temp_c': 4.1, 'lifetime_hours': 31452}}
+          2  PE292528              2                  {'oil': {'level_pct': 21, 'pressure_kpa': 141, 'temperature_c': 26.1}, 'fuel': {'level_pct': 68, 'temperature_c': 19.8, 'consumption_lph': 14.85, 'rail_pressure_kpa': 90}, 'coolant': {'level_pct': 58, 'temperature_c': -6.7, 'pressure_kpa_or_code': '147.2 hPa'}, 'hydraulic': {'pressure_kpa': 9189.7, 'temperature_c': 31.5, 'fluid_level_pct': 10}, 'engine_core': {'rpm': 1669, 'load_pct': 34, 'block_temp_c': 66.3, 'lifetime_hours': 45593}}
+          3  PE617633              3                  {'oil': {'level_pct': 71, 'pressure_kpa': 598, 'temperature_c': 49.2}, 'fuel': {'level_pct': 88, 'temperature_c': -1.7, 'consumption_lph': 30.24, 'rail_pressure_kpa': 421}, 'coolant': {'level_pct': 26, 'temperature_c': 59.5, 'pressure_kpa_or_code': '18.2 hPa'}, 'hydraulic': {'pressure_kpa': 18097.7, 'temperature_c': 38.4, 'fluid_level_pct': 92}, 'engine_core': {'rpm': 2447, 'load_pct': 40, 'block_temp_c': 28.2, 'lifetime_hours': 28148}}
+...
+
+
+"CREATE" TABLE "OperationMaintenance" (
+"OP_MAINT_ID" bigint NOT NULL DEFAULT nextval('"OperationMaintenance_OP_MAINT_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+"OPER_hours" real NULL,
+"maintCycleHrs" real NULL,
+"LAST_maint_date" date NULL,
+"NEXT_due_date" date NULL,
+"OPER_status" text NULL,
+"MAINT_COST_usd" real NULL,
+"repairCostUsd" real NULL,
+operating_cost_usd real NULL,
+"crewCertStatus" text NULL,
+inspect_status text NULL,
+"COMPLIANCE_state" text NULL,
+docu_status text NULL,
+comm_link bigint NULL,
+    "PRIMARY" KEY (OP_MAINT_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE)
+);
+
+
+
+"First" 3 rows:
+  OP_MAINT_ID  equipRef      OPER_hours    maintCycleHrs  LAST_maint_date    NEXT_due_date    OPER_status      MAINT_COST_usd    repairCostUsd    operating_cost_usd  crewCertStatus    inspect_status    COMPLIANCE_state    docu_status    comm_link
+-------------  ----------  ------------  ---------------  -----------------  ---------------  -------------  ----------------  ---------------  --------------------  ----------------  ----------------  ------------------  -------------  -----------
+            1  PE593707           17843             2047  2024-02-25         2025-11-16       Storage                 7632.51          3297.13                338.79  Valid             Failed            Review              Updated
+            2  PE292528           45000             2269  2024-07-02         2025-04-08       Standby                 3608.69          1688.51                483.45  Pending           Failed            Non-compliant       Incomplete
+            3  PE617633           49833             2335  2025-01-21         2025-11-21       Standby                 6231.56          1855.45                911.76  Valid             Passed            Review              Incomplete
+...
+
+
+"CREATE" TABLE "Transmission" (
+"TRANS_ID" bigint NOT NULL DEFAULT nextval('"Transmission_TRANS_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+engine_link bigint NULL,
+"transTempC" real NULL,
+"transPress_kpa" real NULL,
+"TRANS_gear" text NULL,
+"diffTempC" real NULL,
+"axleTempC" real NULL,
+opmaint_link bigint NULL,
+    "PRIMARY" KEY (TRANS_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE),
+    "FOREIGN" KEY (engine_link) REFERENCES EngineAndFluids(ENGINE_ID),
+    "FOREIGN" KEY (opmaint_link) REFERENCES OperationMaintenance(OP_MAINT_ID)
+);
+
+
+
+"First" 3 rows:
+  TRANS_ID  equipRef      engine_link    transTempC    transPress_kpa    TRANS_gear    diffTempC    axleTempC  opmaint_link
+----------  ----------  -------------  ------------  ----------------  ------------  -----------  -----------  --------------
+         1  PE593707                1          94.5             532.9             3         80.9         22.1
+         2  PE292528                2          30.6              82.8            -1         54.6         90.8
+         3  PE617633                3          68              1632.5             1        -19.8         43.1
+...
+
+
+"CREATE" TABLE "ChassisAndVehicle" (
+"CHASSIS_ID" bigint NOT NULL DEFAULT nextval('"ChassisAndVehicle_CHASSIS_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+trans_link bigint NULL,
+engine_link bigint NULL,
+ground_vehicle_status jsonb NULL,
+    "PRIMARY" KEY (CHASSIS_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE),
+    "FOREIGN" KEY (trans_link) REFERENCES Transmission(TRANS_ID),
+    "FOREIGN" KEY (engine_link) REFERENCES EngineAndFluids(ENGINE_ID)
+);
+
+
+
+"First" 3 rows:
+  CHASSIS_ID  equipRef      trans_link    engine_link  ground_vehicle_status
+------------  ----------  ------------  -------------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+           1  PE593707               1              1  {'tires': {'pressure_kpa': 345, 'temperature_c': 28.7, 'tread_depth_mm': 12.8}, 'tracks': {'wear_pct': 35, 'tension_kN': 21.9}, 'suspension': {'ride_height_mm': 351.9}, 'brake_system': {'pad_wear_pct': 69, 'fluid_level_pct': 97, 'pressure_kpa_or_code': '370.8 hPa'}, 'vehicle_motion': {'speed_kmh': '49.30 m/s', 'payload_kg': 9585.3, 'heading_deg': 89.3, 'attitude_angle_deg': 1.6}}
+           2  PE292528               2              2  {'tires': {'pressure_kpa': 441, 'temperature_c': -1.6, 'tread_depth_mm': 2.8}, 'tracks': {'wear_pct': None, 'tension_kN': 34.6}, 'suspension': {'ride_height_mm': 219.4}, 'brake_system': {'pad_wear_pct': 78, 'fluid_level_pct': 10, 'pressure_kpa_or_code': '616.0 hPa'}, 'vehicle_motion': {'speed_kmh': '39.60 m/s', 'payload_kg': 2335.2, 'heading_deg': 67.2, 'attitude_angle_deg': 40.1}}
+           3  PE617633               3              3  {'tires': {'pressure_kpa': 470, 'temperature_c': -4.3, 'tread_depth_mm': 18.2}, 'tracks': {'wear_pct': 47, 'tension_kN': 30.5}, 'suspension': {'ride_height_mm': 220.7}, 'brake_system': {'pad_wear_pct': 54, 'fluid_level_pct': 56, 'pressure_kpa_or_code': '847.0 hPa'}, 'vehicle_motion': {'speed_kmh': '55.40 m/s', 'payload_kg': None, 'heading_deg': 8.5, 'attitude_angle_deg': 44}}
+...
+
+
+"CREATE" TABLE "Communication" (
+"COMM_ID" bigint NOT NULL DEFAULT nextval('"Communication_COMM_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+loc_link text NULL,
+"GPS_signal" text NULL,
+sat_conn_stat text NULL,
+"radioSignal_dBm" real NULL,
+"radioFreq_mhz" real NULL,
+antenna_stat text NULL,
+"netLatency_ms" real NULL,
+"dataRate_kbps" real NULL,
+"wifiSignal_dBm" real NULL,
+"btStatus" text NULL,
+opmaint_link bigint NULL,
+    "PRIMARY" KEY (COMM_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE),
+    "FOREIGN" KEY (loc_link) REFERENCES Location(STATION_name),
+    "FOREIGN" KEY (opmaint_link) REFERENCES OperationMaintenance(OP_MAINT_ID)
+);
+
+
+
+"First" 3 rows:
+  COMM_ID  equipRef    loc_link    GPS_signal    sat_conn_stat      radioSignal_dBm    radioFreq_mhz  antenna_stat      netLatency_ms    dataRate_kbps    wifiSignal_dBm  btStatus    opmaint_link
+---------  ----------  ----------  ------------  ---------------  -----------------  ---------------  --------------  ---------------  ---------------  ----------------  ----------  --------------
+        1  PE593707    Station-14  Strong        Limited                      -97.8            731.2  Error                    1006              389.6             nan    On
+        2  PE292528    Station-8                 Limited                      -61.7            614.7  Normal                    984.1            575.5             nan    Error
+        3  PE617633    Station-19  Weak          Connected                    -79.6            779.8  Error                    1818.1            733.8             -61.7  Error
+...
+
+
+"CREATE" TABLE "Location" (
+"STATION_name" text NOT NULL,
+"TimeStamp" timestamp without time zone NULL,
+"locType" text NULL,
+"LAT_deg" real NULL,
+"LON_deg" real NULL,
+altitude_m real NULL,
+    "PRIMARY" KEY (STATION_name)
+);
+
+
+
+"First" 3 rows:
+STATION_name    TimeStamp            locType      LAT_deg    LON_deg    altitude_m
+--------------  -------------------  ---------  ---------  ---------  ------------
+Station-14      2024-10-29 17:30:55  Arctic       80.2552  -146.258         2054.5
+Station-8       2024-03-28 10:51:42  Antarctic   -61.9982  -153.401         1343.9
+Station-19      2024-02-23 01:26:41  Arctic       76.0172   -10.7953         479.1
+...
+
+
+"CREATE" TABLE "CabinEnvironment" (
+"CABIN_ID" bigint NOT NULL DEFAULT nextval('"CabinEnvironment_CABIN_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+loc_link text NULL,
+comm_link bigint NULL,
+cabin_env_snapshot jsonb NULL,
+    "PRIMARY" KEY (CABIN_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE),
+    "FOREIGN" KEY (loc_link) REFERENCES Location(STATION_name),
+    "FOREIGN" KEY (comm_link) REFERENCES Communication(COMM_ID)
+);
+
+
+
+"First" 3 rows:
+  CABIN_ID  equipRef    loc_link      comm_link  cabin_env_snapshot
+----------  ----------  ----------  -----------  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+         1  PE593707    Station-14            1  {'hvac': {'vent_state': 'On', 'heater_state': 'Off', 'heater_temp_c': 34.9, 'vent_speed_pct': 13, 'defroster_state': 'On'}, 'access': {'door_state': 'Closed', 'hatch_state': 'Closed', 'window_state': 'Partial'}, 'emergency': 'Active', 'air_metrics': {'o2_pct': 19.9, 'co2_ppm': 557, 'humidity_pct': 58.8, 'pressure_kpa': 99, 'temperature_c': -0.3, 'air_quality_idx': 237}}
+         2  PE292528    Station-8             2  {'hvac': {'vent_state': 'Auto', 'heater_state': 'On', 'heater_temp_c': 27, 'vent_speed_pct': 68, 'defroster_state': 'Auto'}, 'access': {'door_state': 'Closed', 'hatch_state': 'Closed', 'window_state': 'Closed'}, 'emergency': 'Standby', 'air_metrics': {'o2_pct': 19.8, 'co2_ppm': 1343, 'humidity_pct': 86.4, 'pressure_kpa': 104, 'temperature_c': 9.9, 'air_quality_idx': 340}}
+         3  PE617633    Station-19            3  {'hvac': {'vent_state': 'On', 'heater_state': 'On', 'heater_temp_c': 19.3, 'vent_speed_pct': 55, 'defroster_state': 'On'}, 'access': {'door_state': 'Locked', 'hatch_state': 'Open', 'window_state': 'Partial'}, 'emergency': 'Standby', 'air_metrics': {'o2_pct': 20, 'co2_ppm': 930, 'humidity_pct': 46.1, 'pressure_kpa': 99, 'temperature_c': -15, 'air_quality_idx': 235}}
+...
+
+
+"CREATE" TABLE "LightingAndSafety" (
+"LIGHT_ID" bigint NOT NULL DEFAULT nextval('"LightingAndSafety_LIGHT_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+"lightingStat" text NULL,
+"lightIntensityPct" real NULL,
+"extLightStat" text NULL,
+"emerLightStat" text NULL,
+"fireDetectStat" text NULL,
+"smokeDetectStat" text NULL,
+"COdetectStat" text NULL,
+"gasDetectStat" text NULL,
+"emerStopStat" text NULL,
+alarm_stat text NULL,
+"safetySysStat" text NULL,
+"lifeSupportStat" text NULL,
+"O2SupplyStat" text NULL,
+"medEquipStat" text NULL,
+"wasteMgmtStat" text NULL,
+"waterSupplyStat" text NULL,
+    "PRIMARY" KEY (LIGHT_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE)
+);
+
+
+
+"First" 3 rows:
+  LIGHT_ID  equipRef    lightingStat      lightIntensityPct  extLightStat    emerLightStat    fireDetectStat    smokeDetectStat    COdetectStat    gasDetectStat    emerStopStat    alarm_stat    safetySysStat    lifeSupportStat    O2SupplyStat    medEquipStat    wasteMgmtStat    waterSupplyStat
+----------  ----------  --------------  -------------------  --------------  ---------------  ----------------  -----------------  --------------  ---------------  --------------  ------------  ---------------  -----------------  --------------  --------------  ---------------  -----------------
+         1  PE593707    Off                              21  Off             On               Normal            Fault              Fault           Alert            Activated       Normal        Fault            Warning            Warning         Normal          Critical         Normal
+         2  PE292528    Off                              10                  Off              Alert             Alert              Alert           Fault            Activated       Critical      Fault            Warning            Normal          Normal          Critical         Warning
+         3  PE617633    Off                              96  On              Off              Normal            Normal             Fault           Fault            Activated       Warning       Fault            Critical           Normal          Critical        Critical         Critical
+...
+
+
+"CREATE" TABLE "WaterAndWaste" (
+"WATER_ID" bigint NOT NULL DEFAULT nextval('"WaterAndWaste_WATER_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+"waterLevelPct" real NULL,
+"waterPress_kpa" real NULL,
+"waterTempC" text NULL,
+"waterFlow_lpm" real NULL,
+"waterQualityIdx" bigint NULL,
+"wasteTankPct" real NULL,
+    "PRIMARY" KEY (WATER_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE)
+);
+
+
+
+"First" 3 rows:
+  WATER_ID  equipRef      waterLevelPct    waterPress_kpa  waterTempC      waterFlow_lpm    waterQualityIdx    wasteTankPct
+----------  ----------  ---------------  ----------------  ------------  ---------------  -----------------  --------------
+         1  PE593707                 77              66.4  58.4 °C                  28.6                 57              28
+         2  PE292528                 24             403.4  30.1 °C                   4.1                  5              45
+         3  PE617633                  3             453.2  20.3 °C                  28.7                 58              22
+...
+
+
+"CREATE" TABLE "Scientific" (
+"SCI_ID" bigint NOT NULL DEFAULT nextval('"Scientific_SCI_ID_seq"'::regclass),
+"equipRef" text NOT NULL,
+"sciEquipStat" text NULL,
+"dataLogStat" text NULL,
+"sensorStat" text NULL,
+"calibrStat" text NULL,
+"measureAccPct" real NULL,
+    "PRIMARY" KEY (SCI_ID),
+    "FOREIGN" KEY ("equipRef") REFERENCES Equipment(EQUIP_CODE)
+);
+
+
+
+"First" 3 rows:
+  SCI_ID  equipRef    sciEquipStat    dataLogStat    sensorStat    calibrStat      measureAccPct
+--------  ----------  --------------  -------------  ------------  ------------  ---------------
+       1  PE593707    Standby         Active         Error         Expired                  99.3
+       2  PE292528    Operating       Paused         Error         Valid                    96
+       3  PE617633                    Active         Warning       Due                      92.3
+...
+
+
+"CREATE" TABLE "WeatherAndStructure" (
+"WEATHER_ID" bigint NOT NULL DEFAULT nextval('"WeatherAndStructure_WEATHER_ID_seq"'::regclass),
+loc_link text NULL,
+opmaint_link bigint NULL,
+"extTempC" real NULL,
+"windSpeed_ms" real NULL,
+"windDir_deg" real NULL,
+"baroPress_hpa" real NULL,
+"solarRad_wm2" real NULL,
+"snowDepth_cm" bigint NULL,
+"iceThick_cm" real NULL,
+visibility_km real NULL,
+"precipType" text NULL,
+"precipRate_mmh" real NULL,
+"snowLoad_kgm2" bigint NULL,
+"structLoadPct" real NULL,
+"structIntegrityStat" text NULL,
+"vibrLevel_mms2" real NULL,
+"noiseLevel_dB" real NULL,
+    "PRIMARY" KEY (WEATHER_ID),
+    "FOREIGN" KEY (loc_link) REFERENCES Location(STATION_name),
+    "FOREIGN" KEY (opmaint_link) REFERENCES OperationMaintenance(OP_MAINT_ID)
+);
+
+
+
+"First" 3 rows:
+  WEATHER_ID  loc_link      opmaint_link    extTempC    windSpeed_ms    windDir_deg    baroPress_hpa    solarRad_wm2    snowDepth_cm    iceThick_cm    visibility_km  precipType      precipRate_mmh    snowLoad_kgm2    structLoadPct  structIntegrityStat      vibrLevel_mms2    noiseLevel_dB
+------------  ----------  --------------  ----------  --------------  -------------  ---------------  --------------  --------------  -------------  ---------------  ------------  ----------------  ---------------  ---------------  ---------------------  ----------------  ---------------
+           1  Station-14               1       -14.9            26.5           71.4            975.3           541               144          254.4             42.8  Blowing Snow               2.4              460               62  Warning                            8.61             38.5
+           2  Station-8                2       -57.9            30.6          202.6            931.2           280.6             273          123.6             46.1  Ice                        4.7              111               40  Critical                           5.85             66
+           3  Station-19               3       -41.7             4.1          259.8            913             370.8              76          282.6             12    Ice                       12.3              400               48  Critical                           0.31             68
+...
+
+
+"CREATE" TABLE "ThermalSolarWindAndGrid" (
+"THERMAL_ID" bigint NOT NULL DEFAULT nextval('"ThermalSolarWindAndGrid_THERMAL_ID_seq"'::regclass),
+comm_link bigint NULL,
+batt_link bigint NULL,
+"thermalImgStat" text NULL,
+"insulationStat" text NULL,
+"heatLoss_kwh" real NULL,
+"solarPanelStat" text NULL,
+"solarOutput_w" real NULL,
+"solarEffPct" real NULL,
+"solarTempC" real NULL,
+"windTurbineStat" text NULL,
+"windOutput_w" real NULL,
+"windRPM" bigint NULL,
+"powerGridStat" text NULL,
+"powerQualIdx" real NULL,
+"backupPowerStat" text NULL,
+"fuelCellStat" text NULL,
+"fuelCellOutput_w" real NULL,
+"fuelCellEffPct" real NULL,
+"H2LevelPct" real NULL,
+"O2LevelPct" real NULL,
+    "PRIMARY" KEY (THERMAL_ID),
+    "FOREIGN" KEY (comm_link) REFERENCES Communication(COMM_ID),
+    "FOREIGN" KEY (batt_link) REFERENCES PowerBattery(PWR_BATT_ID)
+);
+
+
+
+"First" 3 rows:
+  THERMAL_ID    comm_link    batt_link  thermalImgStat    insulationStat      heatLoss_kwh  solarPanelStat      solarOutput_w    solarEffPct    solarTempC  windTurbineStat      windOutput_w    windRPM  powerGridStat      powerQualIdx  backupPowerStat    fuelCellStat      fuelCellOutput_w    fuelCellEffPct    H2LevelPct    O2LevelPct
+------------  -----------  -----------  ----------------  ----------------  --------------  ----------------  ---------------  -------------  ------------  -----------------  --------------  ---------  ---------------  --------------  -----------------  --------------  ------------------  ----------------  ------------  ------------
+           1            1            1  Warning           Fair                        1.11  Fault                       746.1            2           -14.9  Fault                       656.8        130  Connected                    95  Fault              Standby                        185              48.2            95            82
+           2            2            2  Warning           Poor                        8.47  Inactive                    337.7           80.1         -16.1  Operating                  4084.9        221  Disconnected                 97                     Standby                       2564              42.1            41            68
+           3            3            3  Warning           Good                      nan     Active                      268             54.9          14    Stopped                    4514.5        210  Connected                    61  Active             Fault                          944              41.3            57            27
+...
+
+
+"CREATE" TABLE "StationEquipmentType" (
+station_name text NOT NULL,
+equip_type text NOT NULL,
+    "PRIMARY" KEY (station_name, equip_type),
+    "FOREIGN" KEY (station_name) REFERENCES Location(STATION_name),
+    "FOREIGN" KEY (equip_type) REFERENCES EquipmentType(EquipType)
+);
+
+
+
+"First" 3 rows:
+station_name    equip_type
+--------------  ------------
+Station-14      Shelter
+Station-8       Scientific
+Station-19      Safety
+...

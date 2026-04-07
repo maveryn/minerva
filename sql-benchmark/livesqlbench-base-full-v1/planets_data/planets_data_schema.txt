@@ -1,0 +1,150 @@
+CREATE TABLE "stars" (
+stellarref bigint NOT NULL DEFAULT nextval('stars_stellarref_seq'::regclass),
+hostplname text NOT NULL,
+stellardist real NULL,
+compcount bigint NULL,
+coordsys jsonb NULL,
+stellarprops jsonb NULL,
+    PRIMARY KEY (stellarref)
+);
+
+First 3 rows:
+  stellarref  hostplname      stellardist    compcount  coordsys                                                                                                    stellarprops
+------------  ------------  -------------  -----------  ----------------------------------------------------------------------------------------------------------  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+           1  11 Com               110.62            1  {'RA_Text': '12h20m43.03s', 'Dec_Text': '+17d47m34.3s', 'RA_Decimal': 185.17928, 'Dec_Decimal': 17.792868}  {'physical': {'Rad_Blend': 0, 'Mass_Blend': 0, 'Mass_Value': 2.7, 'Temp_Blend': 0, 'Temp_Value': 4742, 'Radius_Value': 19}, 'photometry': {'Opt_Mag': 4.74, 'Mag_Blend': 0, 'Photo_Band': 'V (Johnson)'}}
+           2  11 UMi               119.47            1  {'RA_Text': '15h17m05.89s', 'Dec_Text': '+71d49m26.0s', 'RA_Decimal': 229.27454, 'Dec_Decimal': 71.8239}    {'physical': {'Rad_Blend': 0, 'Mass_Blend': 0, 'Mass_Value': 1.8, 'Temp_Blend': 0, 'Temp_Value': 4340, 'Radius_Value': 24.08}, 'photometry': {'Opt_Mag': 5.016, 'Mag_Blend': 0, 'Photo_Band': 'V (Johnson)'}}
+           3  14 And                76.39            1  {'RA_Text': '23h31m17.42s', 'Dec_Text': '+39d14m10.3s', 'RA_Decimal': 352.82257, 'Dec_Decimal': 39.2362}    {'physical': {'Rad_Blend': 0, 'Mass_Blend': 0, 'Mass_Value': 2.2, 'Temp_Blend': 0, 'Temp_Value': 4813, 'Radius_Value': 11}, 'photometry': {'Opt_Mag': None, 'Mag_Blend': None, 'Photo_Band': None}}
+...
+
+
+CREATE TABLE "instruments_surveys" (
+instrumentref bigint NOT NULL DEFAULT nextval('instruments_surveys_instrumentref_seq'::regclass),
+facilityname character varying NOT NULL,
+    PRIMARY KEY (instrumentref)
+);
+
+First 3 rows:
+  instrumentref  facilityname
+---------------  --------------
+              1  ttv
+              2  kep
+              3  k2
+...
+
+
+CREATE TABLE "planets" (
+planetref bigint NOT NULL,
+hostlink bigint NULL,
+completter text NULL,
+notecount bigint NULL,
+discmethod text NULL,
+    PRIMARY KEY (planetref),
+    FOREIGN KEY (hostlink) REFERENCES stars(stellarref)
+);
+
+First 3 rows:
+  planetref    hostlink  completter      notecount  discmethod
+-----------  ----------  ------------  -----------  ------------
+          1           1  b                       0  RadVel
+          2           2  b                       0  RV
+          3           3  b                       0  RV Method
+...
+
+
+CREATE TABLE "orbital_characteristics" (
+orbitalref bigint NOT NULL DEFAULT nextval('orbital_characteristics_orbitalref_seq'::regclass),
+bodylink bigint NOT NULL,
+period real NULL,
+semimajor real NULL,
+eccentricity real NULL,
+inclination real NULL,
+    PRIMARY KEY (orbitalref),
+    FOREIGN KEY (bodylink) REFERENCES planets(planetref)
+);
+
+First 3 rows:
+  orbitalref    bodylink    period    semimajor    eccentricity  inclination
+------------  ----------  --------  -----------  --------------  -------------
+           1           1    326.03         1.29           0.231
+           2           2    516.22         1.54           0.08
+           3           3    185.84         0.83           0
+...
+
+
+CREATE TABLE "physical_properties" (
+physref bigint NOT NULL DEFAULT nextval('physical_properties_physref_seq'::regclass),
+objectlink bigint NOT NULL,
+massjup real NULL,
+radjup real NULL,
+densvalue real NULL,
+    PRIMARY KEY (physref),
+    FOREIGN KEY (objectlink) REFERENCES planets(planetref)
+);
+
+First 3 rows:
+  physref    objectlink    massjup  radjup    densvalue
+---------  ------------  ---------  --------  -----------
+        1             1       19.4
+        2             2       10.5
+        3             3        4.8
+...
+
+
+CREATE TABLE "planet_instrument_observations" (
+obsref bigint NOT NULL DEFAULT nextval('planet_instrument_observations_obsref_seq'::regclass),
+subjectlink bigint NOT NULL,
+facilitylink bigint NOT NULL,
+    PRIMARY KEY (obsref),
+    FOREIGN KEY (facilitylink) REFERENCES instruments_surveys(instrumentref),
+    FOREIGN KEY (subjectlink) REFERENCES planets(planetref)
+);
+
+First 3 rows:
+  obsref    subjectlink    facilitylink
+--------  -------------  --------------
+       1             14               2
+       2             47               3
+       3            141               2
+...
+
+
+CREATE TABLE "data_quality_tracking" (
+qualityref bigint NOT NULL DEFAULT nextval('data_quality_tracking_qualityref_seq'::regclass),
+targetlink bigint NOT NULL,
+perioderr1 real NULL,
+perioderr2 real NULL,
+semimajerr1 real NULL,
+semimajerr2 real NULL,
+eccerr1 real NULL,
+eccerr2 real NULL,
+inclerr1 real NULL,
+inclerr2 real NULL,
+masserr1 real NULL,
+masserr2 real NULL,
+raderr1 real NULL,
+raderr2 real NULL,
+denserr1 real NULL,
+denserr2 real NULL,
+disterr1 real NULL,
+disterr2 real NULL,
+optmagerr real NULL,
+temperr1 real NULL,
+temperr2 real NULL,
+stellarmasserr1 real NULL,
+stellarmasserr2 real NULL,
+stellarraderr1 real NULL,
+stellarraderr2 real NULL,
+masssource text NULL,
+updatestamp date NULL,
+limitflags jsonb NULL,
+    PRIMARY KEY (qualityref),
+    FOREIGN KEY (targetlink) REFERENCES planets(planetref)
+);
+
+First 3 rows:
+  qualityref    targetlink    perioderr1    perioderr2    semimajerr1    semimajerr2    eccerr1    eccerr2  inclerr1    inclerr2      masserr1    masserr2  raderr1    raderr2    denserr1    denserr2      disterr1    disterr2    optmagerr    temperr1    temperr2    stellarmasserr1    stellarmasserr2    stellarraderr1    stellarraderr2  masssource    updatestamp    limitflags
+------------  ------------  ------------  ------------  -------------  -------------  ---------  ---------  ----------  ----------  ----------  ----------  ---------  ---------  ----------  ----------  ----------  ----------  -----------  ----------  ----------  -----------------  -----------------  ----------------  ----------------  ------------  -------------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+           1             1          0.32         -0.32           0.05          -0.05      0.005     -0.005                                1.5        -1.5                                                       9.61      -11.63      nan             100        -100               0.3               -0.3               2                -2     Msini         2014-05-14     {'stellar_limits': {'Dist_Lim': 0, 'Temp_Lim': 0, 'OptMag_Lim': 0, 'StellarRad_Lim': 0, 'StellarMass_Lim': 0}, 'planetary_limits': {'Ecc_Lim': 0, 'Rad_Lim': None, 'Dens_Lim': None, 'Incl_Lim': None, 'Mass_Lim': 0, 'Period_Lim': 0, 'Semimaj_Lim': 0}}
+           2             2          3.25         -3.25           0.07          -0.07      0.03      -0.03                                 2.47       -2.47                                                      6.22       -6.95        0.009          70         -70               0.25              -0.25              1.84             -1.84  Msini         2014-05-14     {'stellar_limits': {'Dist_Lim': 0, 'Temp_Lim': 0, 'OptMag_Lim': 0, 'StellarRad_Lim': 0, 'StellarMass_Lim': 0}, 'planetary_limits': {'Ecc_Lim': 0, 'Rad_Lim': None, 'Dens_Lim': None, 'Incl_Lim': None, 'Mass_Lim': 0, 'Period_Lim': 0, 'Semimaj_Lim': 0}}
+           3             3          0.23         -0.23         nan            nan       nan        nan                                  nan         nan                                                         3.93       -4.38      nan              20         -20               0.1               -0.2               1                -1     Msini         2014-05-14     {'stellar_limits': {'Dist_Lim': 0, 'Temp_Lim': 0, 'OptMag_Lim': None, 'StellarRad_Lim': 0, 'StellarMass_Lim': 0}, 'planetary_limits': {'Ecc_Lim': 0, 'Rad_Lim': None, 'Dens_Lim': None, 'Incl_Lim': None, 'Mass_Lim': 0, 'Period_Lim': 0, 'Semimaj_Lim': 0}}
+...

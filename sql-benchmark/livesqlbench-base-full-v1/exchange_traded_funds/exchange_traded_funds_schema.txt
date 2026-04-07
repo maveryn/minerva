@@ -1,0 +1,272 @@
+CREATE TABLE "families" (
+famcode bigint NOT NULL DEFAULT nextval('families_famcode_seq'::regclass),
+groupname text NOT NULL,
+    PRIMARY KEY (famcode)
+);
+
+First 3 rows:
+  famcode  groupname
+---------  ----------------------------
+        1  DWS
+        2  Virtus
+        3  American Century Investments
+...
+
+
+CREATE TABLE "funds" (
+productnum bigint NOT NULL DEFAULT nextval('funds_productnum_seq'::regclass),
+tickersym character varying NOT NULL,
+shortlabel character varying NULL,
+fulldescription text NULL,
+parentgroup character varying NULL,
+listingvenue character varying NULL,
+productclass character varying NULL,
+launchdate date NULL,
+strategynotes text NULL,
+fundclass jsonb NULL,
+fundmetrics jsonb NULL,
+tradingdata jsonb NULL,
+allocweights jsonb NULL,
+valuationratios jsonb NULL,
+    PRIMARY KEY (productnum),
+    FOREIGN KEY (listingvenue) REFERENCES exchanges(marketcode),
+    FOREIGN KEY (parentgroup) REFERENCES families(groupname),
+    FOREIGN KEY (productclass) REFERENCES categories(classtype)
+);
+
+First 3 rows:
+  productnum  tickersym    shortlabel                       fulldescription                                                   parentgroup                   listingvenue    productclass              launchdate    strategynotes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 fundclass                                                                                                               fundmetrics                                                                                                             tradingdata                                                                                                        allocweights                                                                                                                              valuationratios
+------------  -----------  -------------------------------  ----------------------------------------------------------------  ----------------------------  --------------  ------------------------  ------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------  ----------------------------------------------------------------------------------------------------------------------  ----------------------------------------------------------------------------------------------------------------------  -----------------------------------------------------------------------------------------------------------------  ----------------------------------------------------------------------------------------------------------------------------------------  --------------------------------------------------------------------------------------------------
+           2  AADR         AllianzGI Health Sciences Fund   Virtus AllianzGI Health Sciences Fund Class P                     Virtus                        NGM             Foreign Large Growth      2010-07-20    The investment seeks long-term capital appreciation. The fund seeks to achieve its objective by normally investing at least 80% of its net assets (plus borrowings made for investment purposes) in health sciences-related companies. The portfolio manager considers health sciences-related companies to include companies that design, manufacture or sell products or services used for or in connection with healthcare, medicine or life sciences. The fund will invest primarily in common stocks and other equity securities.                                                                                                                                        {'Cap_Size': 'Large', 'Quote_Mode': 'ETF', 'Currency_Base': 'DOLLAR', 'GeoZone_Class': 'US', 'Strategy_Type': 'Blend'}  {'Net_Worth': 88836160, 'Yield_Rate': 0.0031, 'Expense_Net': 0.011, 'Benchmark_Exp': 0.0066, 'Turnover_Ratio': None}    {'volume_metrics': {'Vol_3M': 2596, 'Vol_Recent': 3170}, 'moving_averages': {'MA_50': 64.555, 'MA_200': 65.297}}   {'asset_allocation': {'Bond_Weight': None, 'Equity_Weight': None}, 'bond_characteristics': {'Avg_Maturity': None, 'Duration_Yrs': None}}  {'valuation_metrics': {'PB_Ratio': 1.71, 'PE_Ratio': 13.34, 'PS_Ratio': 1.2, 'PCF_Ratio': 7.46}}
+         276  COMB         American Century Focused Dynami  American Century Investments Focused Dynamic Growth Fund I Class  American Century Investments  PCX             Commodities Broad Basket  2017-05-19    The investment seeks long-term capital growth. The portfolio managers look for stocks of early and rapid stage growth companies they believe will increase in value over time. The portfolio managers make their investment decisions based primarily on their analysis of individual companies, rather than on broad economic forecasts. The portfolio managers use a variety of analytical research tools and techniques to identify the stocks of companies that meet their investment criteria. Under normal market conditions, the portfolio managers seek securities of companies whose earnings or revenues are not only growing, but growing at an accelerated pace.  {'Cap_Size': None, 'Quote_Mode': 'ETF', 'Currency_Base': 'Dollar', 'GeoZone_Class': 'us', 'Strategy_Type': None}        {'Net_Worth': 221823312, 'Yield_Rate': 0.0006, 'Expense_Net': 0.0025, 'Benchmark_Exp': 0.0081, 'Turnover_Ratio': None}  {'volume_metrics': {'Vol_3M': 56798, 'Vol_Recent': 47410}, 'moving_averages': {'MA_50': 30.55, 'MA_200': 28.137}}  {'asset_allocation': {'Bond_Weight': None, 'Equity_Weight': None}, 'bond_characteristics': {'Avg_Maturity': None, 'Duration_Yrs': None}}  {'valuation_metrics': {'PB_Ratio': None, 'PE_Ratio': None, 'PS_Ratio': None, 'PCF_Ratio': None}}
+         384  DMRL         361 Domestic Long/Short Equity   361 Domestic Long/Short Equity Fund Class Y                       361 Funds                     PCX             Large Blend               2017-07-31    The investment seeks to achieve long-term capital appreciation; the fund also seeks to preserve capital in down markets. In pursuing its investment objectives, the fund seeks to invest at least 80% of the value of its net assets (which include borrowings for investment purposes) in equity securities such as common stocks, warrants and rights of issuers that are organized in the United States and the securities of which are principally traded on a major U.S. exchange. It employs a strategy of taking long and short positions in equity securities publicly traded in the U.S.                                                                             {'Cap_Size': 'Large', 'Quote_Mode': 'ETF', 'Currency_Base': 'usd', 'GeoZone_Class': 'usa', 'Strategy_Type': 'Blend'}    {'Net_Worth': 414012928, 'Yield_Rate': 0.0082, 'Expense_Net': 0.0035, 'Benchmark_Exp': 0.0036, 'Turnover_Ratio': 6.89}  {'volume_metrics': {'Vol_3M': 2519, 'Vol_Recent': 1200}, 'moving_averages': {'MA_50': 76.871, 'MA_200': 72.836}}   {'asset_allocation': {'Bond_Weight': 0, 'Equity_Weight': 0.9984}, 'bond_characteristics': {'Avg_Maturity': None, 'Duration_Yrs': None}}   {'valuation_metrics': {'PB_Ratio': 4.42, 'PE_Ratio': 26.46, 'PS_Ratio': 2.96, 'PCF_Ratio': 17.56}}
+...
+
+
+CREATE TABLE "performance" (
+perfid bigint NOT NULL DEFAULT nextval('performance_perfid_seq'::regclass),
+productref character varying NOT NULL,
+reportdate date NULL,
+pricerange52w jsonb NULL,
+returnmetrics jsonb NULL,
+histstats jsonb NULL,
+    PRIMARY KEY (perfid),
+    FOREIGN KEY (productref) REFERENCES funds(tickersym)
+);
+
+First 3 rows:
+  perfid  productref    reportdate    pricerange52w                                                                                                                                                                                                                              returnmetrics                                                                                                                                                                                                                                                                                                                                                                       histstats
+--------  ------------  ------------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------  ------------------------------------------------------------------------------------------
+    1672  SILX          1970-01-01    {'low_metrics': {'Low_52W': 4.37, 'Low_Delta': 0.36, 'Low_Delta_Pct': 0.08238}, 'high_metrics': {'High_52W': 10.18, 'High_Delta': -5.45, 'High_Delta_Pct': -0.53536}, 'range_metrics': {'Range_Move': 5.81, 'Range_Move_Pct': 0.57073}}    {'fund_returns': {'Return_1M': None, 'Return_1Y': None, 'Return_3M': None, 'Return_3Y': None, 'Return_5Y': None, 'Return_10Y': None, 'Return_YTD': None}, 'benchmark_returns': {'Bench_Return_1M': None, 'Bench_Return_1Y': None, 'Bench_Return_3M': None, 'Bench_Return_3Y': None, 'Bench_Return_5Y': None, 'Bench_Return_10Y': None, 'Bench_Return_YTD': None}}                   {'Top_Weight': None, 'Top_Holdings': None, 'Negative_Years': None, 'Positive_Years': None}
+     501  ENZL          2021-06-30    {'low_metrics': {'Low_52W': 57.86, 'Low_Delta': 0.19, 'Low_Delta_Pct': 0.00328}, 'high_metrics': {'High_52W': 71.72, 'High_Delta': -13.67, 'High_Delta_Pct': -0.1906}, 'range_metrics': {'Range_Move': 13.86, 'Range_Move_Pct': 0.19325}}  {'fund_returns': {'Return_1M': -0.0058, 'Return_1Y': 0.0936, 'Return_3M': -0.0159, 'Return_3Y': 0.1085, 'Return_5Y': 0.1082, 'Return_10Y': 0.1097, 'Return_YTD': -0.0999}, 'benchmark_returns': {'Bench_Return_1M': None, 'Bench_Return_1Y': None, 'Bench_Return_3M': None, 'Bench_Return_3Y': None, 'Bench_Return_5Y': None, 'Bench_Return_10Y': None, 'Bench_Return_YTD': None}}  {'Top_Weight': None, 'Top_Holdings': None, 'Negative_Years': 2, 'Positive_Years': 8}
+       6  ACIO          2021-06-30    {'low_metrics': {'Low_52W': 26.86, 'Low_Delta': 4.46, 'Low_Delta_Pct': 0.16605}, 'high_metrics': {'High_52W': 32.71, 'High_Delta': -1.39, 'High_Delta_Pct': -0.04249}, 'range_metrics': {'Range_Move': 5.85, 'Range_Move_Pct': 0.17884}}   {'fund_returns': {'Return_1M': 0.013, 'Return_1Y': 0.2055, 'Return_3M': 0.0655, 'Return_3Y': None, 'Return_5Y': None, 'Return_10Y': None, 'Return_YTD': 0.0876}, 'benchmark_returns': {'Bench_Return_1M': None, 'Bench_Return_1Y': None, 'Bench_Return_3M': None, 'Bench_Return_3Y': None, 'Bench_Return_5Y': None, 'Bench_Return_10Y': None, 'Bench_Return_YTD': None}}            {'Top_Weight': None, 'Top_Holdings': None, 'Negative_Years': 0, 'Positive_Years': 1}
+...
+
+
+CREATE TABLE "family_categories" (
+linkid bigint NOT NULL DEFAULT nextval('family_categories_linkid_seq'::regclass),
+familylink character varying NULL,
+categorylink character varying NULL,
+    PRIMARY KEY (linkid),
+    FOREIGN KEY (categorylink) REFERENCES categories(classtype),
+    FOREIGN KEY (familylink) REFERENCES families(groupname)
+);
+
+First 3 rows:
+  linkid  familylink                    categorylink
+--------  ----------------------------  -------------------------
+       1  Virtus                        Foreign Large Growth
+       2  American Century Investments  Pacific/Asia ex-Japan Stk
+       3  Thrivent Funds                Large Value
+...
+
+
+CREATE TABLE "exchanges" (
+xchgnum bigint NOT NULL DEFAULT nextval('exchanges_xchgnum_seq'::regclass),
+marketcode character varying NOT NULL,
+tradingvenue text NOT NULL,
+exchangetime text NOT NULL,
+    PRIMARY KEY (xchgnum)
+);
+
+First 3 rows:
+  xchgnum  marketcode    tradingvenue    exchangetime
+---------  ------------  --------------  --------------
+        1  PCX           NYSEArca        ny
+        2  NGM           NasdaqGM        New York
+        6  BTS           BATS            America/NYC
+...
+
+
+CREATE TABLE "annual_returns" (
+yearlyid bigint NOT NULL DEFAULT nextval('annual_returns_yearlyid_seq'::regclass),
+portfolioref character varying NULL,
+calendaryear bigint NULL,
+fundperf real NULL,
+categoryperf real NULL,
+    PRIMARY KEY (yearlyid),
+    FOREIGN KEY (portfolioref) REFERENCES funds(tickersym)
+);
+
+First 3 rows:
+  yearlyid  portfolioref      calendaryear    fundperf    categoryperf
+----------  --------------  --------------  ----------  --------------
+         1  AAAU                      2019     0.18579       nan
+         2  AAAU                      2020     0.23963       nan
+         3  AADR                      2006   nan               0.21884
+...
+
+
+CREATE TABLE "categories" (
+catref bigint NOT NULL DEFAULT nextval('categories_catref_seq'::regclass),
+classtype text NOT NULL,
+    PRIMARY KEY (catref)
+);
+
+First 3 rows:
+  catref  classtype
+--------  -------------------------
+       1  Foreign Large Growth
+       2  Pacific/Asia ex-Japan Stk
+       3  Large Value
+...
+
+
+CREATE TABLE "family_exchanges" (
+connectref bigint NOT NULL DEFAULT nextval('family_exchanges_connectref_seq'::regclass),
+familyref character varying NULL,
+exchangeref character varying NULL,
+    PRIMARY KEY (connectref),
+    FOREIGN KEY (exchangeref) REFERENCES exchanges(marketcode),
+    FOREIGN KEY (familyref) REFERENCES families(groupname)
+);
+
+First 3 rows:
+  connectref  familyref                     exchangeref
+------------  ----------------------------  -------------
+           1  DWS                           PCX
+           2  Virtus                        NGM
+           3  American Century Investments  NGM
+...
+
+
+CREATE TABLE "risk_metrics" (
+riskid bigint NOT NULL DEFAULT nextval('risk_metrics_riskid_seq'::regclass),
+investmentref character varying NOT NULL,
+risk3y jsonb NULL,
+risk5y jsonb NULL,
+risk10y jsonb NULL,
+    PRIMARY KEY (riskid),
+    FOREIGN KEY (investmentref) REFERENCES funds(tickersym)
+);
+
+First 3 rows:
+  riskid  investmentref    risk3y                                                                                                                                                                               risk5y                                                                                                                                                                               risk10y
+--------  ---------------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+       1  AAAU             {'risk_measures_3y': {'Beta_3Y': 0.07, 'Alpha_3Y': 13.18, 'R_Squared_3Y': 0.54, 'Avg_Return_3Y': 1.23, 'Volatility_3Y': 14.93, 'Sharpe_Ratio_3Y': 0.91, 'Treynor_Ratio_3Y': 187.1}}  {'risk_measures_5y': {'Beta_5Y': None, 'Alpha_5Y': None, 'R_Squared_5Y': None, 'Avg_Return_5Y': None, 'Volatility_5Y': None, 'Sharpe_Ratio_5Y': None, 'Treynor_Ratio_5Y': None}}     {'risk_measures_10y': {'Beta_10Y': None, 'Alpha_10Y': None, 'R_Squared_10Y': None, 'Avg_Return_10Y': None, 'Volatility_10Y': None, 'Sharpe_Ratio_10Y': None, 'Treynor_Ratio_10Y': None}}
+       2  AADR             {'risk_measures_3y': {'Beta_3Y': 1.11, 'Alpha_3Y': -1.3, 'R_Squared_3Y': 75.96, 'Avg_Return_3Y': 0.85, 'Volatility_3Y': 22.42, 'Sharpe_Ratio_3Y': 0.4, 'Treynor_Ratio_3Y': 6.11}}    {'risk_measures_5y': {'Beta_5Y': 1.11, 'Alpha_5Y': 0.38, 'R_Squared_5Y': 70.49, 'Avg_Return_5Y': 1.1, 'Volatility_5Y': 19.3, 'Sharpe_Ratio_5Y': 0.62, 'Treynor_Ratio_5Y': 9.66}}     {'risk_measures_10y': {'Beta_10Y': 0.96, 'Alpha_10Y': 3.32, 'R_Squared_10Y': 73.64, 'Avg_Return_10Y': 0.79, 'Volatility_10Y': 16.78, 'Sharpe_Ratio_10Y': 0.53, 'Treynor_Ratio_10Y': 8.15}}
+       3  AAXJ             {'risk_measures_3y': {'Beta_3Y': 0.9, 'Alpha_3Y': 1.2, 'R_Squared_3Y': 74.34, 'Avg_Return_3Y': 0.8, 'Volatility_3Y': 18.48, 'Sharpe_Ratio_3Y': 0.46, 'Treynor_Ratio_3Y': 7.8}}       {'risk_measures_5y': {'Beta_5Y': 0.94, 'Alpha_5Y': 1.89, 'R_Squared_5Y': 73.28, 'Avg_Return_5Y': 0.97, 'Volatility_5Y': 15.91, 'Sharpe_Ratio_5Y': 0.66, 'Treynor_Ratio_5Y': 10.37}}  {'risk_measures_10y': {'Beta_10Y': 0.99, 'Alpha_10Y': 0.3, 'R_Squared_10Y': 78.24, 'Avg_Return_10Y': 0.55, 'Volatility_10Y': 16.83, 'Sharpe_Ratio_10Y': 0.36, 'Treynor_Ratio_10Y': 4.81}}
+...
+
+
+CREATE TABLE "sector_allocations" (
+allockey bigint NOT NULL DEFAULT nextval('sector_allocations_allockey_seq'::regclass),
+productlink character varying NULL,
+sectorlink bigint NULL,
+weightpct real NOT NULL,
+    PRIMARY KEY (allockey),
+    FOREIGN KEY (productlink) REFERENCES funds(tickersym),
+    FOREIGN KEY (sectorlink) REFERENCES sectors(secid)
+);
+
+First 3 rows:
+  allockey  productlink      sectorlink    weightpct
+----------  -------------  ------------  -----------
+         1  AADR                      1       0.2536
+         2  AADR                      2       0.0736
+         3  AADR                      3       0.1164
+...
+
+
+CREATE TABLE "sectors" (
+secid bigint NOT NULL DEFAULT nextval('sectors_secid_seq'::regclass),
+industrytag text NOT NULL,
+    PRIMARY KEY (secid)
+);
+
+First 3 rows:
+  secid  industrytag
+-------  ----------------------
+      1  basic_materials
+      2  communication_services
+      3  consumer_cyclical
+...
+
+
+CREATE TABLE "bond_allocations" (
+bondallocid bigint NOT NULL DEFAULT nextval('bond_allocations_bondallocid_seq'::regclass),
+fundlink character varying NULL,
+ratinglink bigint NULL,
+allocationpct real NOT NULL,
+    PRIMARY KEY (bondallocid),
+    FOREIGN KEY (fundlink) REFERENCES funds(tickersym),
+    FOREIGN KEY (ratinglink) REFERENCES bond_ratings(ratekey)
+);
+
+First 3 rows:
+  bondallocid  fundlink      ratinglink    allocationpct
+-------------  ----------  ------------  ---------------
+            1  ADFI                   1           0
+            2  ADFI                   2           0.377
+            3  ADFI                   3           0.0279
+...
+
+
+CREATE TABLE "bond_ratings" (
+ratekey bigint NOT NULL DEFAULT nextval('bond_ratings_ratekey_seq'::regclass),
+creditmark text NOT NULL,
+    PRIMARY KEY (ratekey)
+);
+
+First 3 rows:
+  ratekey  creditmark
+---------  -------------
+        1  us_government
+        2  aaa
+        3  aa
+...
+
+
+CREATE TABLE "holdings" (
+holdref bigint NOT NULL DEFAULT nextval('holdings_holdref_seq'::regclass),
+instrumentref character varying NULL,
+securitykey bigint NULL,
+holdingpct real NOT NULL,
+positionrank bigint NULL,
+    PRIMARY KEY (holdref),
+    FOREIGN KEY (instrumentref) REFERENCES funds(tickersym),
+    FOREIGN KEY (securitykey) REFERENCES securities(securityref)
+);
+
+First 3 rows:
+  holdref  instrumentref      securitykey    holdingpct    positionrank
+---------  ---------------  -------------  ------------  --------------
+        1  AAAU                         1        0.1098               1
+        2  AAAU                         2        0.0258               2
+        3  AAAU                         3        0.0241               3
+...
+
+
+CREATE TABLE "securities" (
+securityref bigint NOT NULL DEFAULT nextval('securities_securityref_seq'::regclass),
+securitylabel text NOT NULL,
+    PRIMARY KEY (securityref)
+);
+
+First 3 rows:
+  securityref  securitylabel
+-------------  -------------------------------------
+            1  Cayman Real Assets Fund Ltd.
+            2  CCI - Crown Castle International Corp
+            3  LNG - Cheniere Energy Inc
+...

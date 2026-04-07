@@ -1,0 +1,160 @@
+{
+  "solar_panel|panel_models|ModKey": "TEXT. Unique identifier for the solar panel model. Example: Model-102.",
+  "solar_panel|panel_models|MakerTag": "TEXT. Manufacturer of the solar panel. NULL means the encoder does not report status or data are missing. Possible values: Canadian Solar, JA Solar, JinkoSolar, Longi, Trina.",
+  "solar_panel|panel_models|PnlKind": "TEXT. Type of solar panel technology used. Possible values: Bifacial, HJT, Mono-PERC, Poly-PERC, TOPCon.",
+  "solar_panel|panel_models|Rated_W": "REAL. Maximum power output in watts under standard test conditions. Possible values: 450.0, 500.0, 550.0, 600.0, 650.0.",
+  "solar_panel|panel_models|EffPct": "REAL. Percentage efficiency of energy conversion. Example: 20.86.",
+  "solar_panel|panel_models|DegYrRate": "REAL. Annual power output degradation rate. Example: 0.36.",
+  "solar_panel|panel_models|tempCoeff": "REAL. Temperature coefficient of power. NULL means the encoder does not report status or data are missing. Example: -0.389.",
+  "solar_panel|panel_models|NomOpTempC": "TEXT. Normal operating temperature range. Example: 45.7.",
+  "solar_panel|plants|SiteKey": "TEXT. Unique identifier for the solar power plant. Example: SP9227.",
+  "solar_panel|plants|SiteLabel": "TEXT. Name or description of the solar facility. Example: Solar Plant West Davidport.",
+  "solar_panel|plants|Cap_MW": "REAL. Total installed capacity in megawatts. Example: 257.58.",
+  "solar_panel|plants|GoLiveOn": "DATE. Date when the plant became operational. Example: 43159.",
+  "solar_panel|plants|ModHook": "TEXT. Foreign-key referencing panel_models.ModKey. Links to panel model details.",
+  "solar_panel|plants|TiltDeg": "REAL. Angle of panel tilt from horizontal. Example: 1.2.",
+  "solar_panel|plants|AzmDeg": "REAL. Panel orientation relative to true north. Example: 169.8.",
+  "solar_panel|plants|RecycleNote": "TEXT. Status of panel recycling program. NULL means the encoder does not report status or data are missing. Possible values: Available, In Development.",
+  "solar_panel|plants|DocState": "TEXT. Completeness status of plant documentation. Possible values: Complete, Missing, Partial.",
+  "solar_panel|plants|WarrState": "TEXT. Current status of equipment warranty. NULL means the encoder does not report status or data are missing. Possible values: Active, Claimed, Expired.",
+  "solar_panel|plants|WarrClaims": "BIGINT. Number of warranty claims made. NULL means the encoder does not report status or data are missing. Possible values: 0.0, 1.0, 2.0, 3.0, 4.0, 5.0.",
+  "solar_panel|plants|InsurState": "TEXT. Current insurance coverage status. Possible values: Covered, Expired, Partial.",
+  "solar_panel|plants|ComplyFlag": "TEXT. Compliance status with regulations. Possible values: Compliant, Non-Compliant, Under Review.",
+  "solar_panel|plants|EnvTag": "TEXT. Environmental impact classification. Possible values: High, Low, Medium.",
+  "solar_panel|plant_panel_model|SiteLink": "TEXT. FK → plants.SiteKey. Reference to associated solar plant.",
+  "solar_panel|plant_panel_model|ModLink": "TEXT. FK → panel_models.ModKey. Reference to panel model used.",
+  "solar_panel|plant_record|SnapKey": "TEXT. Snapshot identifier. Unique ID for performance snapshot. Example: PV937101.",
+  "solar_panel|plant_record|SiteTie": "TEXT. FK → plants.SiteKey. Links to parent solar plant.",
+  "solar_panel|plant_record|SnapTS": "TIMESTAMP. Timestamp when snapshot was taken. Example: 43315.51482.",
+  "solar_panel|electrical_performance|SnapLink": "TEXT. PK & FK → plant_record.SnapKey. Links to performance snapshot record.",
+  "solar_panel|environmental_conditions|SnapRef": "TEXT. PK & FK → plant_record.SnapKey. Links to environmental snapshot.",
+  "solar_panel|mechanical_condition|SnapMk": "TEXT. PK & FK → plant_record.SnapKey. Links to mechanical condition snapshot.",
+  "solar_panel|operational_metrics|SnapOps": "TEXT. PK & FK → plant_record.SnapKey. Links to operational metrics snapshot.",
+  "solar_panel|operational_metrics|MTBFh": "REAL. Mean time between failures in hours. NULL means the encoder does not report status or data are missing. Example: 3713.0.",
+  "solar_panel|operational_metrics|MTTRh": "REAL. Mean time to repair in hours. Example: 8.8.",
+  "solar_panel|operational_metrics|MaintCost": "REAL. Maintenance cost amount. Example: 178.82.",
+  "solar_panel|operational_metrics|CleanCost": "REAL. Cleaning cost amount. Example: 1034.89.",
+  "solar_panel|operational_metrics|ReplCost": "REAL. Component replacement cost. Example: 31529.13.",
+  "solar_panel|operational_metrics|RevLoss": "TEXT. Revenue loss amount. Example: 13375.59.",
+  "solar_panel|operational_metrics|OptPot": "TEXT. Optimization potential assessment. Possible values: High, Low, Medium.",
+  "solar_panel|inspection|InspectMode": "TEXT. Inspection method used. Possible values: EL Imaging, IR Thermal, IV Curve, Visual.",
+  "solar_panel|inspection|InspectRes": "TEXT. Inspection results summary. Possible values: Major Issues, Minor Issues, Pass.",
+  "solar_panel|inspection|InspectDt": "DATE. Date of inspection. Example: 45528.",
+  "solar_panel|inspection|MaintSched": "TEXT. Maintenance schedule status. Possible values: Delayed, On Schedule, Overdue.",
+  "solar_panel|inspection|DQscore": "REAL. Data quality score. Example: 97.7.",
+  "solar_panel|alert|SnapAlrt": "TEXT. PK & FK → plant_record.SnapKey. Links to alert snapshot.",
+  "solar_panel|alert|AlrtState": "TEXT. Current alert status. NULL means the encoder does not report status or data are missing. Possible values: Critical, Warning.",
+  "solar_panel|alert|AlrtCnt": "TEXT. Count of active alerts. Example: 6.0.",
+  "solar_panel|alert|MaintPrio": "TEXT. Maintenance priority level. NULL means the encoder does not report status or data are missing. Possible values: High, Low, Medium.",
+  "solar_panel|alert|ReplPrio": "TEXT. Replacement priority level. Possible values: High, Low, Medium.",
+  "solar_panel|electrical_performance|elec_perf_snapshot": {
+    "column_meaning": "JSONB column. Stores all IV-curve parameters, inverter & grid metrics, efficiency losses and energy-yield KPIs captured for a single timestamp, so analytics engines can fetch the entire electrical-health view from one JSONB column.",
+    "fields_meaning": {
+      "efficiency": {
+        "instant_eff_pct": "REAL. Current operational efficiency percentage. Example: 18.54.",
+        "eff_loss_pct": "REAL. Efficiency loss since installation. Example: 2.32.",
+        "cumulative_deg_pct": "REAL. Cumulative degradation percentage. Example: 14.69.",
+        "soil_loss_pct": "REAL. Power loss due to soiling. Example: 13.41.",
+        "spectral_mismatch": "TEXT. Specification mismatch factor. Example: 1.005."
+      },
+      "power": {
+        "power_now_w": "REAL. Current power output in watts. NULL means the encoder does not report status or data are missing. Example: 554.51.",
+        "power_loss_w": "REAL. Power loss since installation. NULL means the encoder does not report status or data are missing. Example: 95.49."
+      },
+      "iv_curve": {
+        "isc_initial_a": "REAL. Initial short-circuit current. Example: 9.09.",
+        "isc_now_a": "REAL. Current short-circuit current. Example: 8.51.",
+        "voc_initial_v": "REAL. Initial open-circuit voltage. NULL means the encoder does not report status or data are missing. Example: 49.74.",
+        "voc_now_v": "REAL. Current open-circuit voltage. Example: 43.32.",
+        "imp_initial_a": "REAL. Initial current at maximum power. Example: 9.17.",
+        "imp_now_a": "REAL. Current at maximum power. NULL means the encoder does not report status or data are missing. Example: 7.21.",
+        "vmp_initial_v": "REAL. Initial voltage at maximum power. Example: 38.48.",
+        "vmp_now_v": "REAL. Current voltage at maximum power. Example: 36.98.",
+        "fill_factor_initial": "REAL. Initial fill factor. Example: 0.773.",
+        "fill_factor_now": "REAL. Current fill factor. Example: 0.71.",
+        "series_res_ohm": "TEXT. Series resistance in ohms. Example: 0.174.",
+        "shunt_res_ohm": "REAL. Shunt resistance in ohms. Example: 437.3."
+      },
+      "inverter": {
+        "inverter_eff_pct": "REAL. Inverter efficiency percentage. Example: 98.43.",
+        "power_factor": "REAL. Inverter power factor. NULL means the encoder does not report status or data are missing. Example: 0.979.",
+        "inverter_temp_c": "REAL. Inverter operating temperature. Example: 49.1."
+      },
+      "grid": {
+        "grid_voltage_v": "REAL. Grid voltage measurement. NULL means the encoder does not report status or data are missing. Example: 226.9.",
+        "grid_frequency_hz": "REAL. Grid frequency measurement. Example: 49.73.",
+        "power_quality_idx": "REAL. Power quality index. Example: 0.467.",
+        "harmonic_distortion_pct": "REAL. Harmonic distortion percentage. Example: 4.01.",
+        "reactive_power_var": "REAL. Reactive power measurement. NULL means the encoder does not report status or data are missing. Example: 33.0."
+      },
+      "energy_yield": {
+        "energy_yield_kwh": "REAL. Energy yield in watt-hours. Example: 15.64.",
+        "performance_ratio": "REAL. Performance ratio. NULL means the encoder does not report status or data are missing. Example: 0.846.",
+        "specific_yield_kwh_kw": "REAL. Specific yield in kWh/kWp. Example: 5.18.",
+        "capacity_factor_pct": "REAL. Capacity factor percentage. Example: 27.47.",
+        "availability_pct": "REAL. System availability percentage. Example: 97.73."
+      }
+    }
+  },
+  "solar_panel|environmental_conditions|env_snapshot": {
+    "column_meaning": "JSONB column. Bundles ambient weather, plane-of-array irradiance and soiling/atmospheric conditions measured at the plant into one JSONB object for performance-normalisation models.",
+    "fields_meaning": {
+      "temperatures": {
+        "cell_temp_c": "REAL. Solar cell temperature. NULL means the encoder does not report status or data are missing. Example: 47.3.",
+        "ambient_temp_c": "REAL. Ambient air temperature. Example: 41.2."
+      },
+      "irradiance": {
+        "ghi_w_m2": "REAL. Solar irradiance measurement. NULL means the encoder does not report status or data are missing. Example: 530.4.",
+        "dni_w_m2": "REAL. Direct irradiance measurement. Example: 169.3.",
+        "dhi_w_m2": "REAL. Diffuse irradiance measurement. Example: 44.1.",
+        "poa_irr_w_m2": "REAL. Plane-of-array irradiance. Example: 135.1."
+      },
+      "atmospheric": {
+        "relative_humidity_pct": "REAL. Relative humidity percentage. Example: 76.1.",
+        "air_pressure_hpa": "REAL. Atmospheric pressure measurement. Example: 1099.2.",
+        "uv_index": "REAL. UV index measurement. Example: 1.1.",
+        "cloud_cover_pct": "REAL. Cloud cover percentage. Example: 12.4.",
+        "dust_density_kg_m3": "REAL. Dust density measurement. Example: 0.056."
+      },
+      "wind_rain_snow": {
+        "wind_speed_m_s": "REAL. Wind speed measurement. Example: 11.6.",
+        "wind_dir_deg": "REAL. Wind direction in degrees. Example: 249.3.",
+        "rain_mm": "REAL. Rainfall measurement in millimeters. Example: 41.3.",
+        "snow_cover_pct": "REAL. Snow cover percentage. Example: 24.8."
+      }
+    }
+  },
+  "solar_panel|mechanical_condition|mech_health_snapshot": {
+    "column_meaning": "JSONB column. Captures tracker status, glass / back-sheet health, electrical connections and cleaning history for a panel string or block at a given snapshot, allowing O&M teams to query a single JSONB field for mechanical diagnostics.",
+    "fields_meaning": {
+      "tracker": {
+        "tracker_state": "TEXT. Tracking system operational status. Possible values: Error, Maintenance, Normal.",
+        "tracker_angle_deg": "REAL. Tracking system deviation angle. Example: 20.5."
+      },
+      "module_surface": {
+        "backsheet_condition": "TEXT. Backsheet material condition assessment. Possible values: Fair, Good, Poor.",
+        "glass_condition": "TEXT. Front glass condition assessment. Possible values: Clear, Damaged, Dusty.",
+        "encapsulant_yellowing": "TEXT. Encapsulant yellowing status. NULL means the encoder does not report status or data are missing. Possible values: Mild, Severe.",
+        "delamination_status": "TEXT. Delamination status. NULL means the encoder does not report status or data are missing. Possible values: Major, Minor.",
+        "busbar_corrosion": "TEXT. Busbar corrosion status. NULL means the encoder does not report status or data are missing. Possible values: Severe, Visible.",
+        "hotspot_count": "BIGINT. Number of detected hot spots. NULL means the encoder does not report status or data are missing. Example: 1.0.",
+        "microcrack_count": "BIGINT. Count of microcracks detected. Example: 7.0.",
+        "snail_trail_severity": "TEXT. Snail trail severity. NULL means the encoder does not report status or data are missing. Possible values: Heavy, Light.",
+        "pid_severity": "TEXT. Potential induced degradation severity. NULL means the encoder does not report status or data are missing. Possible values: High, Low.",
+        "lid_status": "TEXT. Light-induced degradation status. Possible values: Ongoing, Stabilized, Unknown."
+      },
+      "electrical_integrity": {
+        "bypass_diode_status": "TEXT. Bypass diode functionality status. Possible values: Failed, Normal, Partial.",
+        "junction_box_condition": "TEXT. Junction box condition assessment. Possible values: Fair, Good, Poor.",
+        "cable_condition": "TEXT. Cable condition assessment. NULL means the encoder does not report status or data are missing. Possible values: Fair, Good, Poor.",
+        "connector_condition": "TEXT. Connector condition assessment. Possible values: Fair, Good, Poor.",
+        "grounding_status": "TEXT. Grounding system status. Possible values: Check Required, Failed, Normal."
+      },
+      "mount_cleaning": {
+        "mount_structure_status": "TEXT. Mounting structure condition. Possible values: Check Required, Stable, Unstable.",
+        "cleaning_cycle_days": "BIGINT. Number of cleaning cycles performed. Example: 38.",
+        "last_clean_date": "DATE. Date of last cleaning. Example: 45671."
+      }
+    }
+  }
+}

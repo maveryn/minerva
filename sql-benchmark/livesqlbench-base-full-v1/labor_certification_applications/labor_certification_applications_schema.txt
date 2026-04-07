@@ -1,0 +1,208 @@
+CREATE TABLE "employer" (
+corphandle text NOT NULL,
+zipref text NOT NULL,
+employer_contact_info jsonb NULL,
+    PRIMARY KEY (corphandle, zipref)
+);
+
+First 3 rows:
+corphandle                              zipref  employer_contact_info
+------------------------------------  --------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Avant Healthcare Professionals, LLC.     32751  {'phone': {'number': None, 'extension': None}, 'address': {'city': 'Maitland', 'line1': '2301 Lucien Way', 'line2': 'Suite 360', 'state': 'FL', 'country': 'UNITED STATES OF AMERICA', 'province': None}, 'naics_code': 561320, 'alternate_name': None}
+TECHIE BRAINS INCORPORATED               61761  {'phone': {'number': 19174766150, 'extension': None}, 'address': {'city': 'NORMAL', 'line1': '1713 FORT JESSE ROAD', 'line2': 'SUIT C', 'state': 'IL', 'country': 'UNITED STATES OF AMERICA', 'province': None}, 'naics_code': 541511, 'alternate_name': None}
+ValueMomentum, Inc.                      08854  {'phone': {'number': 19087550226, 'extension': None}, 'address': {'city': 'Piscataway', 'line1': '220 Old New Brunswick Rd.', 'line2': None, 'state': 'NJ', 'country': 'UNITED STATES OF AMERICA', 'province': None}, 'naics_code': 54151, 'alternate_name': None}
+...
+
+
+CREATE TABLE "employer_poc" (
+contactmail text NOT NULL,
+firmlink text NOT NULL,
+firmzip text NOT NULL,
+poc_contact_info jsonb NULL,
+    PRIMARY KEY (contactmail),
+    FOREIGN KEY (firmlink) REFERENCES employer(corphandle),
+    FOREIGN KEY (firmlink) REFERENCES employer(zipref),
+    FOREIGN KEY (firmzip) REFERENCES employer(corphandle),
+    FOREIGN KEY (firmzip) REFERENCES employer(zipref)
+);
+
+First 3 rows:
+contactmail                    firmlink                                firmzip  poc_contact_info
+-----------------------------  ------------------------------------  ---------  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+skaul@avanthealthcare.com      Avant Healthcare Professionals, LLC.      32751  {'name': {'last': 'Kaul', 'first': 'Saloni', 'middle': None}, 'phone': {'number': '14076812999', 'extension': None}, 'title': 'Director of Immigration', 'address': {'zip': '32751', 'city': 'Maitland', 'line1': '2301 Lucien Way', 'line2': 'Suite 360', 'state': 'FL', 'country': 'UNITED STATES OF AMERICA', 'province': None}}
+naveen@techiebrains.com        TECHIE BRAINS INCORPORATED                61761  {'name': {'last': 'MADISETTY', 'first': 'NAVEEN', 'middle': None}, 'phone': {'number': '19174766150', 'extension': None}, 'title': 'PRESIDENT', 'address': {'zip': '61761', 'city': 'Normal', 'line1': '3602  como ct', 'line2': None, 'state': 'IL', 'country': 'UNITED STATES OF AMERICA', 'province': None}}
+cyrus.noria@valuemomentum.com  ValueMomentum, Inc.                       08854  {'name': {'last': 'Noria', 'first': 'Cyrus', 'middle': 'R.'}, 'phone': {'number': '19087550105', 'extension': None}, 'title': 'Sr. Director - HR', 'address': {'zip': '08854', 'city': 'PISCATAWAY', 'line1': '220 OLD NEW BRUNSWICK RD.', 'line2': None, 'state': 'NJ', 'country': 'UNITED STATES OF AMERICA', 'province': None}}
+...
+
+
+CREATE TABLE "cases" (
+filekey text NOT NULL,
+statustag text NULL,
+recvday text NULL,
+decisionday text NULL,
+origcertday date NULL,
+visacls USER-DEFINED NULL,
+jobtag text NULL,
+soccd text NULL,
+soctitle text NULL,
+fulltimeind text NULL,
+beginday text NULL,
+endday text NULL,
+headct bigint NULL,
+newemp bigint NULL,
+contemp bigint NULL,
+changeprev bigint NULL,
+concurrentlynew bigint NULL,
+changefirm bigint NULL,
+amendflag bigint NULL,
+siteslots bigint NULL,
+agreelc text NULL,
+h1bdep USER-DEFINED NULL,
+willfulv USER-DEFINED NULL,
+supporth USER-DEFINED NULL,
+statbasis text NULL,
+appa text NULL,
+pubdisc text NULL,
+homefirm text NOT NULL,
+homezip text NOT NULL,
+preplink text NULL,
+    PRIMARY KEY (filekey),
+    FOREIGN KEY (homefirm) REFERENCES employer(corphandle),
+    FOREIGN KEY (homefirm) REFERENCES employer(zipref),
+    FOREIGN KEY (homezip) REFERENCES employer(corphandle),
+    FOREIGN KEY (homezip) REFERENCES employer(zipref),
+    FOREIGN KEY (preplink) REFERENCES preparer(prepmail)
+);
+
+First 3 rows:
+filekey             statustag    recvday     decisionday    origcertday    visacls         jobtag                        soccd       soctitle                                         fulltimeind    beginday    endday            headct    newemp    contemp    changeprev    concurrentlynew    changefirm    amendflag    siteslots  agreelc    h1bdep    willfulv    supporth    statbasis                      appa    pubdisc            homefirm                                homezip  preplink
+------------------  -----------  ----------  -------------  -------------  --------------  ----------------------------  ----------  -----------------------------------------------  -------------  ----------  --------------  --------  --------  ---------  ------------  -----------------  ------------  -----------  -----------  ---------  --------  ----------  ----------  -----------------------------  ------  -----------------  ------------------------------------  ---------  -----------------------------
+I-200-23355-584296  Certified    2023/12/21  2023-12-29                    H-1B            Registered Nurse              29-1141.00  Registered Nurses                                N              21/12/2023  2026 20th Dec.         1         1          0             0                  0             0            0            1  Yes        No        No                                                             Disclose Business  Avant Healthcare Professionals, LLC.      32751  tyler.peace@muimmigration.com
+I-203-23355-583713  certified    2023/12/21  2023-12-29                    E-3 Australian  Infrastructure  Engineer      15-1244.00  Network and Computer Systems Administrators                     21/12/2023  2025 20th Dec.         1         0          1             0                  0             0            0            2  Yes                                                                                 Disclose Business  TECHIE BRAINS INCORPORATED                61761
+I-200-23355-584402  Certified    2023/12/21  2023-12-29                    H-1B            Sr. Lead - Quality Assurance  15-1253.00  Software Quality Assurance Analysts and Testers  N              01/04/2024  2027 31th Mar.         1         0          1             0                  0             0            0            2  Yes        Yes       No          Yes         $60,000 or higher annual wage          Disclose Business  ValueMomentum, Inc.                       08854  subin@cyrusmehta.com
+...
+
+
+CREATE TABLE "preparer" (
+prepmail text NOT NULL,
+preplname text NULL,
+prepfname text NULL,
+prepmi text NULL,
+prepbiz text NULL,
+    PRIMARY KEY (prepmail)
+);
+
+First 3 rows:
+prepmail                       preplname    prepfname    prepmi    prepbiz
+-----------------------------  -----------  -----------  --------  -------------------------------------
+tyler.peace@muimmigration.com  Peace        Tyler        J         Musillo Unkenholt, LLC.
+subin@cyrusmehta.com           Son          Subin                  Cyrus D. Mehta & Partners PLLC
+khan@kramerlevin.com           Han          Kristy                 Kramer Levin Naftalis and Frankel LLP
+...
+
+
+CREATE TABLE "case_attorney" (
+docketkey text NOT NULL,
+counselmail text NOT NULL,
+counselfor USER-DEFINED NULL,
+    PRIMARY KEY (docketkey, counselmail),
+    FOREIGN KEY (docketkey) REFERENCES cases(filekey),
+    FOREIGN KEY (counselmail) REFERENCES attorney(lawmail)
+);
+
+First 3 rows:
+docketkey           counselmail                    counselfor
+------------------  -----------------------------  ------------
+I-200-23355-584296  tyler.peace@muimmigration.com  Yes
+I-200-23355-584402  KAITLYN@CYRUSMEHTA.COM         Yes
+I-200-23355-585360  MDRENNAN@KRAMERLEVIN.COM       Yes
+...
+
+
+CREATE TABLE "attorney" (
+lawmail text NOT NULL,
+attorney_profile jsonb NULL,
+    PRIMARY KEY (lawmail)
+);
+
+First 3 rows:
+lawmail                        attorney_profile
+-----------------------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+tyler.peace@muimmigration.com  {'firm': 'Musillo Unkenholt, LLC.', 'name': {'last': 'Schneider', 'first': 'Maria', 'middle': 'T.'}, 'address': {'zip': '45202', 'city': 'Cincinnati', 'line1': '302 West Third Street', 'line2': 'Suite 710', 'state': 'OH', 'country': 'UNITED STATES OF AMERICA', 'province': None}, 'contact': {'phone': 15133818472, 'extension': None}, 'highest_court': {'name': 'Supreme Court of Ohio', 'state': 'OH'}}
+KAITLYN@CYRUSMEHTA.COM         {'firm': 'CYRUS D. MEHTA & PARTNERS PLLC', 'name': {'last': 'Box', 'first': 'Kaitlyn', 'middle': 'Amanda'}, 'address': {'zip': '10004', 'city': 'NEW YORK', 'line1': 'ONE BATTERY PARK PLAZA', 'line2': None, 'state': 'NY', 'country': 'UNITED STATES OF AMERICA', 'province': None}, 'contact': {'phone': 12124250555, 'extension': None}, 'highest_court': {'name': 'NEW YORK COURT OF APPEALS', 'state': 'NY'}}
+MDRENNAN@KRAMERLEVIN.COM       {'firm': 'Kramer Levin Naftalis & Frankel LLP', 'name': {'last': 'DRENNAN', 'first': 'MELISSA', 'middle': 'BELLE'}, 'address': {'zip': '10036', 'city': 'NEW YORK', 'line1': '1177 AVENUE OF THE AMERICAS', 'line2': '23RD FLOOR', 'state': 'NY', 'country': 'UNITED STATES OF AMERICA', 'province': None}, 'contact': {'phone': 12127157554, 'extension': None}, 'highest_court': {'name': 'SUPREME COURT', 'state': 'NY'}}
+...
+
+
+CREATE TABLE "case_worksite" (
+dockkey text NOT NULL,
+ws_addr1 text NOT NULL,
+wscity text NOT NULL,
+wsstate text NOT NULL,
+wszip text NOT NULL,
+wsheads bigint NULL,
+wagetrack text NULL,
+    PRIMARY KEY (dockkey, ws_addr1, wscity, wsstate, wszip),
+    FOREIGN KEY (dockkey) REFERENCES cases(filekey),
+    FOREIGN KEY (ws_addr1) REFERENCES worksite(w_addr1),
+    FOREIGN KEY (ws_addr1) REFERENCES worksite(wcity),
+    FOREIGN KEY (ws_addr1) REFERENCES worksite(wstate),
+    FOREIGN KEY (ws_addr1) REFERENCES worksite(wzip),
+    FOREIGN KEY (wscity) REFERENCES worksite(w_addr1),
+    FOREIGN KEY (wscity) REFERENCES worksite(wcity),
+    FOREIGN KEY (wscity) REFERENCES worksite(wstate),
+    FOREIGN KEY (wscity) REFERENCES worksite(wzip),
+    FOREIGN KEY (wsstate) REFERENCES worksite(w_addr1),
+    FOREIGN KEY (wsstate) REFERENCES worksite(wcity),
+    FOREIGN KEY (wsstate) REFERENCES worksite(wstate),
+    FOREIGN KEY (wsstate) REFERENCES worksite(wzip),
+    FOREIGN KEY (wszip) REFERENCES worksite(w_addr1),
+    FOREIGN KEY (wszip) REFERENCES worksite(wcity),
+    FOREIGN KEY (wszip) REFERENCES worksite(wstate),
+    FOREIGN KEY (wszip) REFERENCES worksite(wzip),
+    FOREIGN KEY (wagetrack) REFERENCES prevailing_wage(trackno)
+);
+
+First 3 rows:
+dockkey             ws_addr1                wscity       wsstate      wszip    wsheads    wagetrack
+------------------  ----------------------  -----------  ---------  -------  ---------  -----------
+I-200-23355-584296  2800 10th Avenue North  Billings     MT           59101          1            1
+I-203-23355-583713  8300 NORMAN CENTER DR   BLOOMINGTON  MN           55437          1            2
+I-200-23355-584402  125 E 6th Street        Erie         PA           16501          1            3
+...
+
+
+CREATE TABLE "worksite" (
+w_addr1 text NOT NULL,
+wcity text NOT NULL,
+wstate text NOT NULL,
+wzip text NOT NULL,
+secent text NULL,
+secentname text NULL,
+waddr_2 text NULL,
+wcnty text NULL,
+    PRIMARY KEY (w_addr1, wcity, wstate, wzip)
+);
+
+First 3 rows:
+w_addr1                 wcity        wstate      wzip  secent    secentname                       waddr_2  wcnty
+----------------------  -----------  --------  ------  --------  -----------------------------  ---------  -----------
+2800 10th Avenue North  Billings     MT         59101  Yes       Billings Clinic Health System             YELLOWSTONE
+8300 NORMAN CENTER DR   BLOOMINGTON  MN         55437  Yes       CVS  HEALTH                          800  HENNEPIN
+125 E 6th Street        Erie         PA         16501  Yes       Erie Indemnity Company                    ERIE
+...
+
+
+CREATE TABLE "prevailing_wage" (
+trackno text NOT NULL,
+wage_details jsonb NULL,
+    PRIMARY KEY (trackno)
+);
+
+First 3 rows:
+  trackno  wage_details
+---------  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      457  {'offered_wage': {'to': 0, 'from': '$130000.00', 'unit': 'Year'}, 'prevailing_wage': {'unit': 'Year', 'level': 'IV', 'value': 'USD 116,979.00', 'oes_year': None}, 'alternate_source': {'publisher': None, 'source_type': None, 'source_year': None, 'survey_title': None}}
+      823  {'offered_wage': {'to': 0, 'from': '$41.00', 'unit': 'Hour'}, 'prevailing_wage': {'unit': 'Hour', 'level': 'II', 'value': 'USD 25.40', 'oes_year': None}, 'alternate_source': {'publisher': None, 'source_type': None, 'source_year': None, 'survey_title': None}}
+      250  {'offered_wage': {'to': 0, 'from': '$262499.77', 'unit': 'Year'}, 'prevailing_wage': {'unit': 'Year', 'level': 'IV', 'value': 'USD 101,088.00', 'oes_year': '7/1/2023 - 6/30/2024'}, 'alternate_source': {'publisher': None, 'source_type': None, 'source_year': None, 'survey_title': None}}
+...

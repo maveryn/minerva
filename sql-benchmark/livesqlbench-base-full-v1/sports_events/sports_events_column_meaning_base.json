@@ -1,0 +1,142 @@
+{
+  "sports_events|circuits|CCTKEY": "INTEGER. Unique identifier for the circuit. PK. Example: 1.",
+  "sports_events|constructors|CSTR_Key": "INTEGER. Unique identifier for the constructor. PK. Example: 1.",
+  "sports_events|constructors|refCod": "TEXT. Constructor reference code. Example: mclaren.",
+  "sports_events|drivers|DRV_MAIN": "INTEGER. Unique identifier for the driver. PK. Example: 1.",
+  "sports_events|races|RAK_ID": "INTEGER. Unique identifier for the race. PK. Example: 1.",
+  "sports_events|races|Yr": "INTEGER. Year of the race. Example: 2009.",
+  "sports_events|races|rNUM": "INTEGER. Race number. Example: 1.",
+  "sports_events|races|trkBind": "INTEGER. Foreign key to the circuits table (CCTKEY). FK to circuits. Example: 1.",
+  "sports_events|constructor_results|CResRef": "INTEGER. Unique result reference. PK. Example: 15178.",
+  "sports_events|constructor_results|matchRef": "INTEGER. Foreign key to the races table (RAK_ID). FK to races. Example: 943.",
+  "sports_events|constructor_results|unitNode": "INTEGER. Foreign key to the constructors table (CSTR_Key). FK to constructors. Example: 9.",
+  "sports_events|constructor_results|ST_mark": "TEXT. Status mark for the result. Possible values: D, \\N.",
+  "sports_events|constructor_standings|CSTNDS": "INTEGER. Unique standings reference. PK. Example: 25335.",
+  "sports_events|constructor_standings|RRef": "INTEGER. Foreign key to the races table (RAK_ID). FK to races. Example: 898.",
+  "sports_events|constructor_standings|contUnit": "INTEGER. Foreign key to the constructors table (CSTR_Key). FK to constructors. Example: 9.",
+  "sports_events|driver_standings|DRV_STND": "INTEGER. Unique standings reference. PK. Example: 50065.",
+  "sports_events|driver_standings|rlink": "INTEGER. Foreign key to the races table (RAK_ID). FK to races. Example: 752.",
+  "sports_events|driver_standings|Drive_Link": "INTEGER. Foreign key to the drivers table (DRV_MAIN). FK to drivers. Example: 531.",
+  "sports_events|lap_times|rc_index": "INTEGER. Foreign key to the races table (RAK_ID). FK to races. Example: 1093.",
+  "sports_events|lap_times|wheel_unit": "INTEGER. Foreign key to the drivers table (DRV_MAIN). FK to drivers. Example: 4.",
+  "sports_events|lap_times|lapVal": "INTEGER. Lap value in the race. Example: 55.",
+  "sports_events|lap_times|pp": "INTEGER. Position for the lap. Example: 7.",
+  "sports_events|lap_times|msec_val": "INTEGER. Lap time in milliseconds. Example: 103848.",
+  "sports_events|pit_stops|matchIDX": "INTEGER. Foreign key to the races table (RAK_ID). FK to races. Example: 911.",
+  "sports_events|pit_stops|wUnit": "INTEGER. Foreign key to the drivers table (DRV_MAIN). FK to drivers. Example: 3.",
+  "sports_events|pit_stops|pause_no": "INTEGER. Unique identifier for the pit stop. Possible values: 1, 2, 3, 4, 5, 6.",
+  "sports_events|pit_stops|moment": "INTEGER. Moment during the race when the pit stop occurs. Example: 19.",
+  "sports_events|pit_stops|durTXT": "TEXT. Duration of the pit stop. Example: 22.936.",
+  "sports_events|pit_stops|ms_count": "INTEGER. Millisecond count for the pit stop. Example: 22936.",
+  "sports_events|qualifying|QualKey": "INTEGER. Unique qualifying key. PK. Example: 6815.",
+  "sports_events|qualifying|rbind": "INTEGER. Foreign key to the races table (RAK_ID). FK to races. Example: 954.",
+  "sports_events|qualifying|pilotRec": "INTEGER. Foreign key to the drivers table (DRV_MAIN). FK to drivers. Example: 1.",
+  "sports_events|qualifying|corpTag": "INTEGER. Foreign key to the constructors table (CSTR_Key). FK to constructors. Example: 131.",
+  "sports_events|qualifying|regNo": "INTEGER. Registration number of the driver. Example: 44.",
+  "sports_events|qualifying|PX_Pos": "INTEGER. Position in qualifying. Example: 1.",
+  "sports_events|qualifying|Q1_R": "TEXT. Q1 qualifying result. **NULL means no Q1 result.**. Example: 1:14.121.",
+  "sports_events|qualifying|Q2_R": "TEXT. Q2 qualifying result. **NULL means no Q2 result.**. Example: 1:13.076.",
+  "sports_events|qualifying|Q3_R": "TEXT. Q3 qualifying result. **NULL means no Q3 result.**. Example: 1:12.812.",
+  "sports_events|sprint_results|sResCode": "INTEGER. Unique sprint result code. PK. Example: 1.",
+  "sports_events|sprint_results|matchRef": "INTEGER. Foreign key to the races table (RAK_ID). FK to races. Example: 1061.",
+  "sports_events|sprint_results|unitDrive": "INTEGER. Foreign key to the drivers table (DRV_MAIN). FK to drivers. Example: 830.",
+  "sports_events|sprint_results|makeRef": "INTEGER. Foreign key to the constructors table (CSTR_Key). FK to constructors. Example: 9.",
+  "sports_events|sprint_results|Rno": "INTEGER. Sprint result number. **NULL means no sprint result number available.**. Example: 33.",
+  "sports_events|constructors|NameLabel": "VARCHAR. Full team name. **NULL means the constructor name has not been resolved or released.**. Example: McLaren.",
+  "sports_events|constructors|naty": "VARCHAR. Nationality of the constructor. **NULL means the team's nationality is not specified in the dataset.**. Example: British.",
+  "sports_events|constructors|linkPage": "VARCHAR. URL to the constructor's page. **NULL means the reference link is missing.**. Example: http://en.wikipedia.org/wiki/BMW_Sauber.",
+  "sports_events|lap_times|tmDesc": "VARCHAR. Recorded lap-time string. **NULL means the lap time was not captured or is invalid.**. Example: 1:43.848.",
+  "sports_events|pit_stops|atTime": "VARCHAR. Timestamp of the pit stop. **NULL means the exact pit-stop time wasn't logged.**. Example: 14:41:14.",
+  "sports_events|constructor_results|scoreVal": "REAL. Points scored by constructor in the race. **NULL means the constructor was unclassified or data are missing.**. Example: 22.0.",
+  "sports_events|constructor_standings|scr_tot": "REAL. Constructor's cumulative season points. **NULL means the constructor has not yet scored or the tally is not updated.**. Example: 553.0.",
+  "sports_events|driver_standings|acc_pt": "REAL. Driver's cumulative season points. **NULL means the driver has no points or totals not updated.**. Example: 0.0.",
+  "sports_events|constructor_standings|posNo": "INTEGER. Constructor's rank in standings. **NULL means no position computed.**. Example: 1.",
+  "sports_events|driver_standings|PX": "INTEGER. Driver's rank in standings. **NULL means ranking not yet calculated.**. Example: 56.0.",
+  "sports_events|constructor_standings|posLab": "VARCHAR. Position text label. **NULL means no label available.**. Example: 1.",
+  "sports_events|driver_standings|PX_Desc": "VARCHAR. Descriptive rank label. **NULL means label not assigned.**. Example: 56.0.",
+  "sports_events|constructor_standings|trophy_W": "INTEGER. Total wins by constructor. **NULL means the constructor has no wins or the count is pending update.**. Example: 12.",
+  "sports_events|driver_standings|TopMark": "INTEGER. Total wins by driver. **NULL means the driver has not won or data have not been entered.**. Example: 0.0.",
+  "sports_events|circuits|location_metadata": {
+    "column_meaning": "JSONB column. Encapsulates all geographical and identification data related to the circuit’s location.",
+    "fields_meaning": {
+      "name": "TEXT. Name of the circuit. Example: Albert Park Grand Prix Circuit.",
+      "reference_code": "TEXT. Circuit reference code. Example: albert_park.",
+      "location": {
+        "city": "VARCHAR. City or locality of the circuit. **NULL means the locality was not supplied or is unknown in the source feed.**. Example: Melbourne.",
+        "country": "TEXT. Name of the country where the circuit is located. Example: Australia."
+      },
+      "coordinates": {
+        "latitude": "REAL. Latitude coordinate of the circuit. **NULL means the latitude is not recorded or the circuit's exact position is uncertain.**. Example: -37.8497.",
+        "longitude": "REAL. Longitude coordinate of the circuit. **NULL means longitude is missing or unavailable.**. Example: 144.968.",
+        "elevation_m": "INTEGER. Circuit elevation in metres. **NULL means elevation data were not provided for this circuit.**. Example: 10.0."
+      },
+      "external_link": "VARCHAR. URL with more information about the circuit. **NULL means no official or stable link is on record.**. Example: http://en.wikipedia.org/wiki/Melbourne_Grand_Prix_Circuit."
+    }
+  },
+  "sports_events|drivers|driver_identity": {
+    "column_meaning": "JSONB column. Consolidates driver’s identity, nationality, and references.",
+    "fields_meaning": {
+      "reference": "TEXT. Driver reference code. Example: hamilton.",
+      "racing_number": "VARCHAR. Permanent racing number. **NULL means the driver has no permanent number or it is not known.**. Example: 14.0.",
+      "code": "VARCHAR. Three-letter identifier code. **NULL means an FIA code has not been assigned.**. Example: HAM.",
+      "name": {
+        "first_name": "VARCHAR. Driver's given name. **NULL means the given name is not stored.**. Example: Lewis.",
+        "surname": "VARCHAR. Driver's surname. **NULL means the surname is missing.**. Example: Hamilton."
+      },
+      "birth_date": "VARCHAR. Date of birth. **NULL means the birth date is unknown or undisclosed.**. Example: 1985-01-07.",
+      "nationality": "VARCHAR. Driver's nationality. **NULL means nationality is not recorded.**. Example: British.",
+      "info_link": "VARCHAR. Link to the driver's info page. **NULL means no profile link is available.**. Example: http://en.wikipedia.org/wiki/Nick_Heidfeld."
+    }
+  },
+  "sports_events|races|event_schedule": {
+    "column_meaning": "JSONB column. Groups all date and time-related fields for a race weekend schedule including practice, qualifying, and sprint sessions.",
+    "fields_meaning": {
+      "event_name": "VARCHAR. Official event name. **NULL means the event name is not yet finalised or entered.**. Example: Australian Grand Prix.",
+      "date_set": "TEXT. Date set for the race. Example: 2009/03/29.",
+      "start_time": "VARCHAR. Scheduled race start time. **NULL means the start time is TBD or not recorded.**. Example: 06:00:00.",
+      "sessions": {
+        "fp1": {
+          "date": "VARCHAR. Free Practice 1 date. **NULL means FP1 is not scheduled or date not published.**. Example: 2022/03/18.",
+          "time": "VARCHAR. Free Practice 1 time. **NULL means FP1 time is not available.**. Possible values: 02:30:00, 04:30:00, 09:30:00, 10:00:00, 11:30:00, 12:00:00, 13:30:00, 16:30:00, 17:30:00, 18:00:00."
+        },
+        "fp2": {
+          "date": "VARCHAR. Free Practice 2 date. **NULL means FP2 is not planned or date is missing.**. Example: 2021/04/16.",
+          "time": "VARCHAR. Free Practice 2 time. **NULL means FP2 time is not available.**. Example: 15:00:00."
+        },
+        "fp3": {
+          "date": "VARCHAR. Free Practice 3 date. **NULL means FP3 does not occur or date not provided.**. Example: 2021/04/17.",
+          "time": "VARCHAR. Free Practice 3 time. **NULL means FP3 time is not recorded.**. Example: 12:00:00."
+        },
+        "qualifying": {
+          "date": "VARCHAR. Qualifying date. **NULL means qualifying date is unset.**. Example: 2021/04/17.",
+          "time": "VARCHAR. Qualifying time. **NULL means qualifying time is unknown.**. Example: 06:00:00."
+        },
+        "sprint": {
+          "date": "VARCHAR. Sprint-race date. **NULL means no sprint race for this event or date not released.**. Possible values: 2021/07/17, 2021/09/11, 2022/04/23, 2022/07/09, 2022/11/12, 2023/10/07, 2023/11/04, 2024/05/04, 2024/11/02.",
+          "time": "VARCHAR. Sprint-race time. **NULL means sprint time is not applicable or missing.**. Possible values: 13:00:00, 13:30:00, 14:30:00, 18:00:00, 18:30:00, 22:00:00."
+        }
+      },
+      "details_url": "VARCHAR. URL to additional race details. **NULL means no external reference is available.**. Example: http://en.wikipedia.org/wiki/2009_Chinese_Grand_Prix."
+    }
+  },
+  "sports_events|sprint_results|sprint_performance": {
+    "column_meaning": "JSONB column. Captures performance metrics in sprint races including lap data, timing, position, and score.",
+    "fields_meaning": {
+      "grid": "INTEGER. Starting grid position. Example: 2.",
+      "final_position": "INTEGER. Sprint-race finishing position. **NULL means the driver did not finish / classify.**. Example: 1.",
+      "position_label": "VARCHAR. Sprint position label. **NULL means label not provided.**. Example: 1.",
+      "ranking_order": "INTEGER. Order mark for the sprint result. Example: 1.",
+      "points": "REAL. Points scored in the sprint. **NULL means no points were awarded or result is pending.**. Possible values: 0, 1, 2, 3, 4, 5, 6, 7, 8.",
+      "laps_completed": "INTEGER. Number of loops in the sprint. Example: 17.",
+      "timing": {
+        "final_time": "VARCHAR. Final total time / status marker for the sprint race. **NULL means the finisher had no classified time or data are not available.**. Example: 25:38.426.",
+        "duration_ms": "INTEGER. Milliseconds for the sprint. Example: 1538426."
+      },
+      "fastest_lap": {
+        "lap_number": "INTEGER. Fastest lap in the sprint. Example: 14.",
+        "lap_time": "TEXT. Fast lap time for the sprint. Example: 1:30.013."
+      },
+      "status_code": "INTEGER. Sprint code. Possible values: 1, 3, 10, 23, 31, 43, 76, 130."
+    }
+  }
+}

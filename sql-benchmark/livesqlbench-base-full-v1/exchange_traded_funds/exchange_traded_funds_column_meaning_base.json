@@ -1,0 +1,205 @@
+{
+  "exchange_traded_funds|families|famcode": "A SERIAL primary key uniquely identifying each fund family or asset management company in the database.",
+  "exchange_traded_funds|families|groupname": "Unique name of the fund family or asset management company (e.g., 'Vanguard', 'BlackRock', 'Fidelity'). Must be unique across all records.",
+  "exchange_traded_funds|exchanges|xchgnum": "A SERIAL primary key uniquely identifying each stock exchange or trading venue in the database.",
+  "exchange_traded_funds|exchanges|marketcode": "Unique abbreviated code for the exchange (e.g., 'NYSE', 'NASDAQ', 'LSE'). Must be unique across all records.",
+  "exchange_traded_funds|exchanges|tradingvenue": "Full official name of the stock exchange or trading venue where funds are listed and traded.",
+  "exchange_traded_funds|exchanges|localtime": "Local timezone identifier for the exchange's trading hours and time zone (e.g., 'EST', 'GMT', 'JST').",
+  "exchange_traded_funds|categories|catref": "A SERIAL primary key uniquely identifying each fund category or investment classification in the database.",
+  "exchange_traded_funds|categories|classtype": "Unique fund category classification (e.g., 'Large Cap Growth', 'International Equity', 'Bond Index', 'Sector Equity', 'Commodity'). Must be unique across all records.",
+  "exchange_traded_funds|sectors|secid": "A SERIAL primary key uniquely identifying each economic sector or industry classification in the database.",
+  "exchange_traded_funds|sectors|industrytag": "Unique sector or industry name (e.g., 'Technology', 'Healthcare', 'Financial Services', 'Energy', 'Consumer Defensive'). Must be unique across all records.",
+  "exchange_traded_funds|bond_ratings|ratekey": "A SERIAL primary key uniquely identifying each credit rating level for bond classifications in the database.",
+  "exchange_traded_funds|bond_ratings|creditmark": "Unique credit rating designation (e.g., 'AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'Below B', 'US Government'). Must be unique across all records.",
+  "exchange_traded_funds|securities|securityref": "A SERIAL primary key uniquely identifying each individual security or holding instrument in the database.",
+  "exchange_traded_funds|securities|instrumentcode": "Unique ticker symbol or identifier for the security (e.g., 'AAPL', 'MSFT', 'GOOGL'). Must be unique across all records.",
+  "exchange_traded_funds|securities|securitylabel": "Full company name or description of the security (e.g., 'Apple Inc.', 'Microsoft Corporation').",
+  "exchange_traded_funds|funds|productnum": "A SERIAL primary key uniquely identifying each fund product in the database.",
+  "exchange_traded_funds|funds|tickersym": "Unique ticker symbol for the fund as traded on exchanges (e.g., 'SPY', 'VTI', 'QQQ'). Must be unique across all records.",
+  "exchange_traded_funds|funds|shortlabel": "Abbreviated display name of the fund for user interfaces and brief references. Contains  NULL when short label is not available or fund uses only full description.",
+  "exchange_traded_funds|funds|fulldescription": "Complete official name and description of the fund including investment objective and strategy details. Contains  NULL when detailed description is not available or pending.",
+  "exchange_traded_funds|funds|parentgroup": "Foreign key referencing families.GroupName, indicating which fund family or asset management company manages this fund.",
+  "exchange_traded_funds|funds|listingvenue": "Foreign key referencing exchanges.MarketCode, indicating the primary exchange where the fund is listed and traded.",
+  "exchange_traded_funds|funds|productclass": "Foreign key referencing categories.ClassType, indicating the fund's investment category classification.",
+  "exchange_traded_funds|funds|launchdate": "Date when the fund was first established and began operations (YYYY-MM-DD). Contains  NULL when launch date is not available or fund is in pre-launch phase.",
+  "exchange_traded_funds|funds|strategynotes": "Detailed text description of the fund's investment strategy, objectives, and methodology. Contains  NULL when strategy notes are not available or not provided by fund management.",
+  "exchange_traded_funds|family_categories|linkid": "A SERIAL primary key uniquely identifying each relationship between fund families and categories they offer.",
+  "exchange_traded_funds|family_categories|familylink": "Foreign key referencing families.GroupName, indicating which fund family offers products in this category.",
+  "exchange_traded_funds|family_categories|categorylink": "Foreign key referencing categories.ClassType, indicating which category the fund family operates in.",
+  "exchange_traded_funds|family_exchanges|connectref": "A SERIAL primary key uniquely identifying each relationship between fund families and exchanges they list on.",
+  "exchange_traded_funds|family_exchanges|familyref": "Foreign key referencing families.GroupName, indicating which fund family has listings on the exchange.",
+  "exchange_traded_funds|family_exchanges|exchangeref": "Foreign key referencing exchanges.MarketCode, indicating which exchange the fund family lists products on.",
+  "exchange_traded_funds|sector_allocations|allockey": "A SERIAL primary key uniquely identifying each sector allocation record for funds.",
+  "exchange_traded_funds|sector_allocations|productlink": "Foreign key referencing funds.TickerSym, indicating which fund has this sector allocation.",
+  "exchange_traded_funds|sector_allocations|sectorlink": "Foreign key referencing sectors.SecID, indicating which economic sector the allocation applies to.",
+  "exchange_traded_funds|sector_allocations|weightpct": "Percentage (0-1) of the fund's assets allocated to this specific sector, must sum to 1.0 across all sectors for each fund.",
+  "exchange_traded_funds|bond_allocations|bondallocid": "A SERIAL primary key uniquely identifying each bond credit rating allocation record for funds.",
+  "exchange_traded_funds|bond_allocations|fundlink": "Foreign key referencing funds.TickerSym, indicating which fund has this bond allocation.",
+  "exchange_traded_funds|bond_allocations|ratinglink": "Foreign key referencing bond_ratings.RateKey, indicating which credit rating category the allocation applies to.",
+  "exchange_traded_funds|bond_allocations|allocationpct": "Percentage (0-1) of the fund's bond holdings in this credit rating category.",
+  "exchange_traded_funds|holdings|holdref": "A SERIAL primary key uniquely identifying each individual security holding record within funds.",
+  "exchange_traded_funds|holdings|instrumentref": "Foreign key referencing funds.TickerSym, indicating which fund holds this security.",
+  "exchange_traded_funds|holdings|securityref": "Foreign key referencing securities.InstrumentCode, indicating which specific security is held.",
+  "exchange_traded_funds|holdings|holdingpct": "Percentage (0-1) of the fund's total assets represented by this individual security holding.",
+  "exchange_traded_funds|holdings|positionrank": "Ranking of this holding within the fund's portfolio (1 = largest holding, 2 = second largest, etc.). Contains  NULL when position ranking is not available or not tracked.",
+  "exchange_traded_funds|performance|perfid": "A SERIAL primary key uniquely identifying each fund performance record.",
+  "exchange_traded_funds|performance|productref": "Foreign key referencing funds.TickerSym, ensuring 1:1 relationship for performance data per fund.",
+  "exchange_traded_funds|performance|reportdate": "Date when the performance data was calculated or reported (YYYY-MM-DD). Contains  NULL when report date is not available.",
+  "exchange_traded_funds|annual_returns|yearlyid": "A SERIAL primary key uniquely identifying each annual return record for funds by year.",
+  "exchange_traded_funds|annual_returns|portfolioref": "Foreign key referencing funds.TickerSym, indicating which fund the annual return data belongs to.",
+  "exchange_traded_funds|annual_returns|calendaryear": "Calendar year (YYYY) for which the return performance is recorded.",
+  "exchange_traded_funds|annual_returns|fundperf": "Fund's return performance for the specific calendar year as decimal (-1 to positive). Contains  NULL when fund performance data is not available for that year (e.g., fund not yet launched).",
+  "exchange_traded_funds|annual_returns|categoryperf": "Category or benchmark average return performance for the same calendar year for comparison. Contains  NULL when category performance data is not available for comparison.",
+  "exchange_traded_funds|risk_metrics|riskid": "A SERIAL primary key uniquely identifying each risk metrics record for funds.",
+  "exchange_traded_funds|risk_metrics|investmentref": "Foreign key referencing funds.TickerSym, ensuring 1:1 relationship for risk analysis per fund.",
+  "exchange_traded_funds|funds|fundclass": {
+    "column_meaning": "JSONB column. Consolidates fund classification and strategy information including geographic focus, investment strategy, market cap focus, and basic fund characteristics.",
+    "fields_meaning": {
+      "GeoZone_Class": "Geographic region or market focus of the fund (e.g., 'US', 'International', 'Emerging Markets', 'Global'). Contains  NULL when geographic focus is not specified or fund has global diversification without specific regional focus.",
+      "Strategy_Type": "Investment strategy classification (e.g., 'Index', 'Active', 'Passive', 'Smart Beta') describing the fund's management approach. Contains  NULL when strategy type is not classified or is proprietary/unique.",
+      "Cap_Size": "Market capitalization focus (e.g., 'Large Cap', 'Mid Cap', 'Small Cap', 'Multi Cap') indicating the size of companies the fund invests in. Contains  NULL when fund does not focus on specific market cap sizes or invests in non-equity assets.",
+      "Quote_Mode": "Trading quote type or mechanism (e.g., 'NAV', 'Market', 'Real-time') indicating how the fund is priced and quoted. Contains  NULL when quote mode is not specified or uses non-standard pricing mechanisms.",
+      "Currency_Base": "Base currency in which the fund is denominated and reports net asset value (e.g., 'USD', 'EUR', 'GBP'). Contains  NULL when currency information is not available."
+    }
+  },
+  "exchange_traded_funds|funds|fundmetrics": {
+    "column_meaning": "JSONB column. Groups fundamental financial metrics and operational data including assets under management, yield rates, expense ratios, and turnover statistics.",
+    "fields_meaning": {
+      "Net_Worth": "Total net assets under management (AUM) for the fund in the base currency, representing the fund's total market value. Contains  NULL when AUM data is not available or not reported.",
+      "Yield_Rate": "Current dividend yield percentage (0-1) that the fund distributes to shareholders annually. Contains  NULL when fund does not pay dividends or yield data is not available.",
+      "Turnover_Ratio": "Annual portfolio turnover ratio (0-1) indicating how frequently the fund's holdings are bought and sold within a year. Contains  NULL when turnover data is not available or not applicable (e.g., for newly launched funds).",
+      "Expense_Net": "Net expense ratio (0-1) representing the annual fee charged to investors as a percentage of assets under management. Contains  NULL when expense ratio is not yet determined or not available.",
+      "Benchmark_Exp": "Benchmark or category average expense ratio for comparison with similar funds in the same category. Contains  NULL when benchmark data is not available for comparison."
+    }
+  },
+  "exchange_traded_funds|funds|tradingdata": {
+    "column_meaning": "JSONB column. Aggregates trading and market data including volume metrics and moving averages for technical analysis and liquidity assessment.",
+    "fields_meaning": {
+      "volume_metrics": {
+        "Vol_3M": "Average daily trading volume over the past 3 months, indicating liquidity and investor interest. Contains  NULL when volume data is not available or fund has insufficient trading history.",
+        "Vol_Recent": "Recent average daily trading volume over a shorter time period (typically 10 days). Contains  NULL when recent volume data is not available."
+      },
+      "moving_averages": {
+        "MA_50": "50-day moving average price of the fund, used for technical analysis and trend identification. Contains  NULL when insufficient price history exists for calculation.",
+        "MA_200": "200-day moving average price of the fund, used for long-term trend analysis. Contains  NULL when fund has less than 200 days of trading history."
+      }
+    }
+  },
+  "exchange_traded_funds|funds|allocweights": {
+    "column_meaning": "JSONB column. Contains asset allocation percentages and portfolio composition data including equity, bond weights and bond characteristics for portfolio analysis.",
+    "fields_meaning": {
+      "asset_allocation": {
+        "Equity_Weight": "Percentage (0-1) of the fund's assets allocated to equity securities (stocks). Contains  NULL when equity allocation data is not available or not applicable for fund type.",
+        "Bond_Weight": "Percentage (0-1) of the fund's assets allocated to fixed-income securities (bonds). Contains  NULL when bond allocation data is not available or fund does not invest in bonds."
+      },
+      "bond_characteristics": {
+        "Avg_Maturity": "Average maturity in years of the fund's bond holdings, applicable for fixed-income funds. Contains  NULL when fund does not hold bonds or maturity data is not available.",
+        "Duration_Yrs": "Average duration in years of the fund's bond holdings, measuring interest rate sensitivity. Contains  NULL when fund does not hold bonds or duration data is not available."
+      }
+    }
+  },
+  "exchange_traded_funds|funds|valuationratios": {
+    "column_meaning": "JSONB column. Consolidates fundamental valuation ratios for equity holdings including price-to-book, price-to-earnings, price-to-cash-flow, and price-to-sales ratios.",
+    "fields_meaning": {
+      "valuation_metrics": {
+        "PB_Ratio": "Weighted average price-to-book ratio of the fund's equity holdings, indicating valuation characteristics. Contains  NULL when P/B ratio is not available or not applicable for fund's holdings.",
+        "PCF_Ratio": "Weighted average price-to-cash-flow ratio of the fund's equity holdings. Contains  NULL when P/CF ratio is not available or not applicable.",
+        "PE_Ratio": "Weighted average price-to-earnings ratio of the fund's equity holdings. Contains  NULL when P/E ratio is not available or holdings have negative earnings.",
+        "PS_Ratio": "Weighted average price-to-sales ratio of the fund's equity holdings. Contains  NULL when P/S ratio is not available or not applicable."
+      }
+    }
+  },
+  "exchange_traded_funds|performance|pricerange52w": {
+    "column_meaning": "JSONB column. Groups 52-week price range data including highs, lows, deltas, and percentage changes for price movement analysis and volatility assessment.",
+    "fields_meaning": {
+      "high_metrics": {
+        "High_52W": "Highest price reached by the fund during the past 52 weeks. Contains  NULL when fund has less than 52 weeks of trading history.",
+        "High_Delta": "Absolute price difference between current price and 52-week high. Contains  NULL when 52-week high is not available.",
+        "High_Delta_Pct": "Percentage difference between current price and 52-week high, expressed as decimal (-1 to 0). Contains  NULL when 52-week high is not available."
+      },
+      "low_metrics": {
+        "Low_52W": "Lowest price reached by the fund during the past 52 weeks. Contains  NULL when fund has less than 52 weeks of trading history.",
+        "Low_Delta": "Absolute price difference between current price and 52-week low. Contains  NULL when 52-week low is not available.",
+        "Low_Delta_Pct": "Percentage difference between current price and 52-week low, expressed as decimal (0 to positive). Contains  NULL when 52-week low is not available."
+      },
+      "range_metrics": {
+        "Range_Move": "Absolute price movement range between 52-week high and low. Contains  NULL when 52-week range data is not available.",
+        "Range_Move_Pct": "Percentage movement range between 52-week high and low positions. Contains  NULL when 52-week range data is not available."
+      }
+    }
+  },
+  "exchange_traded_funds|performance|returnmetrics": {
+    "column_meaning": "JSONB column. Aggregates fund performance returns across different time periods including fund and benchmark returns for comprehensive performance comparison.",
+    "fields_meaning": {
+      "fund_returns": {
+        "Return_YTD": "Fund's year-to-date return performance as decimal (-1 to positive), calculated from January 1st to report date. Contains  NULL when YTD data is not available.",
+        "Return_1M": "Fund's 1-month return performance as decimal, measuring short-term performance. Contains  NULL when fund has less than 1 month of history.",
+        "Return_3M": "Fund's 3-month return performance as decimal, measuring quarterly performance. Contains  NULL when fund has less than 3 months of history.",
+        "Return_1Y": "Fund's 1-year return performance as decimal, measuring annual performance. Contains  NULL when fund has less than 1 year of history.",
+        "Return_3Y": "Fund's annualized 3-year return performance as decimal, measuring medium-term performance. Contains  NULL when fund has less than 3 years of history.",
+        "Return_5Y": "Fund's annualized 5-year return performance as decimal, measuring long-term performance. Contains  NULL when fund has less than 5 years of history.",
+        "Return_10Y": "Fund's annualized 10-year return performance as decimal, measuring very long-term performance. Contains  NULL when fund has less than 10 years of history."
+      },
+      "benchmark_returns": {
+        "Bench_Return_YTD": "Benchmark or category average year-to-date return for comparison with fund performance. Contains  NULL when benchmark data is not available.",
+        "Bench_Return_1M": "Benchmark or category average 1-month return for performance comparison. Contains  NULL when benchmark data is not available.",
+        "Bench_Return_3M": "Benchmark or category average 3-month return for performance comparison. Contains  NULL when benchmark data is not available.",
+        "Bench_Return_1Y": "Benchmark or category average 1-year return for performance comparison. Contains  NULL when benchmark data is not available.",
+        "Bench_Return_3Y": "Benchmark or category average annualized 3-year return for performance comparison. Contains  NULL when benchmark data is not available.",
+        "Bench_Return_5Y": "Benchmark or category average annualized 5-year return for performance comparison. Contains  NULL when benchmark data is not available.",
+        "Bench_Return_10Y": "Benchmark or category average annualized 10-year return for performance comparison. Contains  NULL when benchmark data is not available."
+      }
+    }
+  },
+  "exchange_traded_funds|performance|histstats": {
+    "column_meaning": "JSONB column. Consolidates historical performance statistics including positive/negative year counts and top holdings information for fund analysis.",
+    "fields_meaning": {
+      "Positive_Years": "Number of calendar years with positive returns in the fund's history, indicating consistency. Contains  NULL when fund has insufficient history or annual return data is not available.",
+      "Negative_Years": "Number of calendar years with negative returns in the fund's history, indicating volatility periods. Contains  NULL when fund has insufficient history or annual return data is not available.",
+      "Top_Holdings": "Comma-separated list or description of the fund's largest security holdings for transparency. Contains  NULL when holdings data is not available or not disclosed.",
+      "Top_Weight": "Percentage (0-1) of total assets represented by the single largest holding in the fund. Contains  NULL when holdings data is not available or not disclosed."
+    }
+  },
+  "exchange_traded_funds|risk_metrics|risk3y": {
+    "column_meaning": "JSONB column. Groups 3-year risk and performance metrics including alpha, beta, returns, volatility, and risk-adjusted ratios for short-term risk analysis.",
+    "fields_meaning": {
+      "risk_measures_3y": {
+        "Alpha_3Y": "3-year alpha coefficient measuring the fund's excess return compared to its benchmark, indicating manager skill. Contains  NULL when fund has less than 3 years of history or benchmark data is not available.",
+        "Beta_3Y": "3-year beta coefficient measuring the fund's sensitivity to market movements (1.0 = same as market). Contains  NULL when fund has less than 3 years of history or market correlation cannot be calculated.",
+        "Avg_Return_3Y": "Average annualized return over 3 years as decimal, used for risk-adjusted performance calculations. Contains  NULL when fund has less than 3 years of history.",
+        "R_Squared_3Y": "3-year R-squared statistic (0-1) measuring how closely the fund's performance correlates with its benchmark. Contains  NULL when fund has less than 3 years of history or benchmark data is not available.",
+        "Volatility_3Y": "3-year standard deviation of returns measuring the fund's price volatility and risk level. Contains  NULL when fund has less than 3 years of history.",
+        "Sharpe_Ratio_3Y": "3-year Sharpe ratio measuring risk-adjusted return per unit of volatility (higher is better). Contains  NULL when fund has less than 3 years of history or risk-free rate data is not available.",
+        "Treynor_Ratio_3Y": "3-year Treynor ratio measuring risk-adjusted return per unit of systematic risk (beta). Contains  NULL when fund has less than 3 years of history or beta cannot be calculated."
+      }
+    }
+  },
+  "exchange_traded_funds|risk_metrics|risk5y": {
+    "column_meaning": "JSONB column. Groups 5-year risk and performance metrics including alpha, beta, returns, volatility, and risk-adjusted ratios for medium-term risk analysis.",
+    "fields_meaning": {
+      "risk_measures_5y": {
+        "Alpha_5Y": "5-year alpha coefficient measuring the fund's excess return compared to its benchmark over medium term. Contains  NULL when fund has less than 5 years of history or benchmark data is not available.",
+        "Beta_5Y": "5-year beta coefficient measuring the fund's market sensitivity over medium term. Contains  NULL when fund has less than 5 years of history or market correlation cannot be calculated.",
+        "Avg_Return_5Y": "Average annualized return over 5 years as decimal for medium-term risk analysis. Contains  NULL when fund has less than 5 years of history.",
+        "R_Squared_5Y": "5-year R-squared statistic measuring medium-term correlation with benchmark. Contains  NULL when fund has less than 5 years of history or benchmark data is not available.",
+        "Volatility_5Y": "5-year standard deviation measuring medium-term volatility and risk characteristics. Contains  NULL when fund has less than 5 years of history.",
+        "Sharpe_Ratio_5Y": "5-year Sharpe ratio for medium-term risk-adjusted performance evaluation. Contains  NULL when fund has less than 5 years of history or risk-free rate data is not available.",
+        "Treynor_Ratio_5Y": "5-year Treynor ratio for medium-term systematic risk-adjusted performance. Contains  NULL when fund has less than 5 years of history or beta cannot be calculated."
+      }
+    }
+  },
+  "exchange_traded_funds|risk_metrics|risk10y": {
+    "column_meaning": "JSONB column. Groups 10-year risk and performance metrics including alpha, beta, returns, volatility, and risk-adjusted ratios for long-term risk analysis.",
+    "fields_meaning": {
+      "risk_measures_10y": {
+        "Alpha_10Y": "10-year alpha coefficient measuring long-term excess return and manager performance. Contains  NULL when fund has less than 10 years of history or benchmark data is not available.",
+        "Beta_10Y": "10-year beta coefficient measuring long-term market sensitivity and systematic risk. Contains  NULL when fund has less than 10 years of history or market correlation cannot be calculated.",
+        "Avg_Return_10Y": "Average annualized return over 10 years as decimal for long-term risk analysis. Contains  NULL when fund has less than 10 years of history.",
+        "R_Squared_10Y": "10-year R-squared statistic measuring long-term correlation with benchmark performance. Contains  NULL when fund has less than 10 years of history or benchmark data is not available.",
+        "Volatility_10Y": "10-year standard deviation measuring long-term volatility and risk profile. Contains  NULL when fund has less than 10 years of history.",
+        "Sharpe_Ratio_10Y": "10-year Sharpe ratio for comprehensive long-term risk-adjusted performance evaluation. Contains  NULL when fund has less than 10 years of history or risk-free rate data is not available.",
+        "Treynor_Ratio_10Y": "10-year Treynor ratio for long-term systematic risk-adjusted return measurement. Contains  NULL when fund has less than 10 years of history or beta cannot be calculated."
+      }
+    }
+  }
+}

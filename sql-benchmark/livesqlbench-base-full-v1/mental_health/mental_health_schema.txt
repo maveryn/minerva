@@ -1,0 +1,235 @@
+CREATE TABLE "facilities" (
+fac_key text NOT NULL,
+r_source text NULL,
+env_stress text NULL,
+life_impact text NULL,
+season_pat text NULL,
+legl_issue text NULL,
+spt_svc text NULL,
+com_res text NULL,
+emer_contact text NULL,
+s_plan_stat text NULL,
+c_plan_stat text NULL,
+s_system_chg text NULL,
+    PRIMARY KEY (fac_key)
+);
+
+First 3 rows:
+fac_key    r_source    env_stress    life_impact    season_pat    legl_issue    spt_svc          com_res          emer_contact  s_plan_stat    c_plan_stat    s_system_chg
+---------  ----------  ------------  -------------  ------------  ------------  ---------------  -------------  --------------  -------------  -------------  --------------
+F801       Self        Mild          Mild                                       Legal            Limited                     3                 Not Needed     Variable
+F533       Court       Mild          Mild           Summer        Resolved      Case Management  Comprehensive               7  Needs Update   Not Needed     Improved
+F392       Physician                                Summer                                       Adequate                    2  Needs Update   Not Needed     Declined
+...
+
+
+CREATE TABLE "assessmentsocialanddiagnosis" (
+asd_key text NOT NULL,
+rec_status text NULL,
+prim_dx text NULL,
+sec_dx text NULL,
+dx_dur_m bigint NULL,
+prev_hosp bigint NULL,
+last_hosp_dt text NULL,
+qol_scr bigint NULL,
+func_imp text NULL,
+funcassess jsonb NULL,
+    PRIMARY KEY (asd_key),
+    FOREIGN KEY (asd_key) REFERENCES assessmentbasics(ab_key)
+);
+
+First 3 rows:
+asd_key    rec_status    prim_dx    sec_dx                  dx_dur_m    prev_hosp  last_hosp_dt      qol_scr  func_imp    funcassess
+---------  ------------  ---------  --------------------  ----------  -----------  --------------  ---------  ----------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A565291    Advanced      Bipolar    Personality Disorder         176            4  2023/11/23             63              {'Fam_Inv': 'High', 'Res_Scr': 1, 'Soc_Sup': 'Strong', 'ADL_Func': 'Independent', 'In_Level': 'Fair', 'Rel_Qual': 'Poor', 'Soc_Func': 'Good', 'Strs_Lvl': 8, 'Cop_Skill': 'Good', 'Work_Func': 'Fair', 'Motiv_Level': None}
+A617069    Relapse       Anxiety    Personality Disorder         190            4  2023/06/19             33              {'Fam_Inv': 'High', 'Res_Scr': 6, 'Soc_Sup': 'Strong', 'ADL_Func': 'Independent', 'In_Level': 'Good', 'Rel_Qual': 'Good', 'Soc_Func': 'Good', 'Strs_Lvl': 7, 'Cop_Skill': 'Good', 'Work_Func': 'Disabled', 'Motiv_Level': None}
+A121778    Early         Anxiety    Substance Use                 52            0  2024/08/27             29  SEVERE      {'Fam_Inv': 'Low', 'Res_Scr': 10, 'Soc_Sup': 'Moderate', 'ADL_Func': 'Independent', 'In_Level': 'Fair', 'Rel_Qual': 'Poor', 'Soc_Func': 'Fair', 'Strs_Lvl': 5, 'Cop_Skill': 'Fair', 'Work_Func': 'Disabled', 'Motiv_Level': 'Low'}
+...
+
+
+CREATE TABLE "treatmentbasics" (
+tx_key bigint NOT NULL DEFAULT nextval('treatmentbasics_tx_key_seq'::regclass),
+enc_ref text NOT NULL,
+cur_med text NULL,
+med_adh text NULL,
+med_side text NULL,
+med_chg text NULL,
+th_type text NULL,
+th_freq text NULL,
+th_dur_m bigint NULL,
+th_eng text NULL,
+th_chg text NULL,
+crisis_int real NULL,
+    PRIMARY KEY (tx_key),
+    FOREIGN KEY (enc_ref) REFERENCES encounters(enc_key)
+);
+
+First 3 rows:
+  tx_key  enc_ref    cur_med          med_adh        med_side    med_chg       th_type        th_freq      th_dur_m  th_eng    th_chg              crisis_int
+--------  ---------  ---------------  -------------  ----------  ------------  -------------  ---------  ----------  --------  ----------------  ------------
+       1  MH353857   Mood Stabilizer  High           Moderate    Augmentation  Group                             22  High      Therapist Change             2
+       2  MH353857                    Non-compliant  Severe                                   Weekly             26  High      Modality Change              1
+       3  MH512598                    Medium         Moderate    Switch        Psychodynamic  Monthly             1  Medium                                 4
+...
+
+
+CREATE TABLE "clinicians" (
+clin_key text NOT NULL,
+clin_conf text NULL,
+assess_lim text NULL,
+docu_stat text NULL,
+bill_code text NULL,
+nxt_rev_dt date NULL,
+care_coord text NULL,
+ref_need text NULL,
+f_up_type text NULL,
+f_up_freq text NULL,
+fac_connect text NULL,
+    PRIMARY KEY (clin_key),
+    FOREIGN KEY (fac_connect) REFERENCES facilities(fac_key)
+);
+
+First 3 rows:
+clin_key    clin_conf    assess_lim    docu_stat    bill_code    nxt_rev_dt    care_coord    ref_need    f_up_type    f_up_freq    fac_connect
+----------  -----------  ------------  -----------  -----------  ------------  ------------  ----------  -----------  -----------  -------------
+C8738       Medium       Cognitive     Complete     CPT90511     2025-05-09    Intensive     Services    Therapy      Weekly       F801
+C6837       Low          Cognitive     Incomplete   CPT90696     2025-08-14                  Testing     Therapy      Quarterly    F533
+C6539       Low          Engagement    Incomplete   CPT90854     2025-05-05    Regular                   Routine      Biweekly     F392
+...
+
+
+CREATE TABLE "patients" (
+pat_key text NOT NULL,
+pat_age bigint NULL,
+pat_gender text NULL,
+pat_eth text NULL,
+edu_level text NULL,
+emp_stat text NULL,
+mari_stat text NULL,
+living_arr text NULL,
+insur_type text NULL,
+insur_stat text NULL,
+disab_stat text NULL,
+house_stable text NULL,
+cult_factor text NULL,
+stigma_imp text NULL,
+fin_stress text NULL,
+clin_lead_ref text NULL,
+    PRIMARY KEY (pat_key),
+    FOREIGN KEY (clin_lead_ref) REFERENCES clinicians(clin_key)
+);
+
+First 3 rows:
+pat_key      pat_age  pat_gender    pat_eth    edu_level    emp_stat    mari_stat    living_arr    insur_type    insur_stat    disab_stat    house_stable    cult_factor    stigma_imp    fin_stress    clin_lead_ref
+---------  ---------  ------------  ---------  -----------  ----------  -----------  ------------  ------------  ------------  ------------  --------------  -------------  ------------  ------------  ---------------
+P425079           23  Other         Other      High School  Retired     Widowed      Alone         Medicaid      Pending       PENDING       Homeless        Language       moderate                    C8738
+P883117           42  F             Other      High School  Retired     Married      Partner       Medicare      Approved      pErManent     Stable          beliefs        Mild          Severe        C6837
+P871358           32  M             Hispanic   High School  Employed    Single       Family        Medicaid      Approved      temporary     Stable          LANGUAGE                     Severe        C6539
+...
+
+
+CREATE TABLE "treatmentoutcomes" (
+tx_out_key bigint NOT NULL DEFAULT nextval('treatmentoutcomes_tx_out_key_seq'::regclass),
+tx_ref bigint NOT NULL,
+tx_goal_stat text NULL,
+rec_goal_stat text NULL,
+txprogmet jsonb NULL,
+    PRIMARY KEY (tx_out_key),
+    FOREIGN KEY (tx_ref) REFERENCES treatmentbasics(tx_key)
+);
+
+First 3 rows:
+  tx_out_key    tx_ref  tx_goal_stat    rec_goal_stat    txprogmet
+------------  --------  --------------  ---------------  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+          10        12  Achieved        Achieved         {'Tx_Adh': 'High', 'Tx_Eng': 'Low', 'Tx_Sat': 'dissatisfied', 'Sat_Scr': 8, 'Th_Prog': 'Poor', 'Tx_Resp': 'Partial', 'Symp_Imp': 'MODeRaTe', 'Func_Impv': None, 'Side_Burd': 'Moderate', 'Ther_Alliance': 'WEAK', 'Work_Stat_Chg': 'Terminated'}
+         294       418  Modified        Achieved         {'Tx_Adh': 'High', 'Tx_Eng': 'Medium', 'Tx_Sat': 'LOW', 'Sat_Scr': 6, 'Th_Prog': None, 'Tx_Resp': None, 'Symp_Imp': 'MinImal', 'Func_Impv': None, 'Side_Burd': None, 'Ther_Alliance': 'Weak', 'Work_Stat_Chg': 'teRmInAteD'}
+          11        13  In Progress     In Progress      {'Tx_Adh': 'Low', 'Tx_Eng': 'High', 'Tx_Sat': 'low', 'Sat_Scr': 9, 'Th_Prog': 'Good', 'Tx_Resp': 'Partial', 'Symp_Imp': 'MINimAl', 'Func_Impv': None, 'Side_Burd': 'Moderate', 'Ther_Alliance': 'Moderate', 'Work_Stat_Chg': 'leave'}
+...
+
+
+CREATE TABLE "assessmentbasics" (
+ab_key text NOT NULL,
+a_type text NULL,
+a_method text NULL,
+a_dur_min bigint NULL,
+a_lang text NULL,
+a_valid text NULL,
+resp_consist text NULL,
+sympt_valid text NULL,
+pat_owner_ref text NULL,
+depr_improve_rate text NULL,
+therapy_exp_intensity text NULL,
+med_side_eff_density text NULL,
+crisis_event_rate text NULL,
+func_recovery_eff text NULL,
+adherence_index text NULL,
+sympt_fluct_index text NULL,
+hosp_risk_density text NULL,
+med_change_freq text NULL,
+support_util_rate text NULL,
+treatment_cost_eff text NULL,
+recovery_goal_vel text NULL,
+    PRIMARY KEY (ab_key),
+    FOREIGN KEY (pat_owner_ref) REFERENCES patients(pat_key)
+);
+
+First 3 rows:
+ab_key    a_type     a_method       a_dur_min  a_lang    a_valid       resp_consist    sympt_valid    pat_owner_ref    depr_improve_rate    therapy_exp_intensity           med_side_eff_density                        crisis_event_rate                 func_recovery_eff                   adherence_index                                  sympt_fluct_index                                 hosp_risk_density                   med_change_freq                    support_util_rate          treatment_cost_eff                recovery_goal_vel
+--------  ---------  -----------  -----------  --------  ------------  --------------  -------------  ---------------  -------------------  ------------------------------  ------------------------------------------  --------------------------------  ----------------------------------  -----------------------------------------------  ------------------------------------------------  ----------------------------------  ---------------------------------  -------------------------  --------------------------------  -------------------
+A567210   Initial    Phone                 93  Chinese   Questionable  Medium          Questionable   P425079          1.6 points/month     29.866666666666667 hours/month  0.0 side-effects/med/month                  0.05555555555555555 events/month  6.0 QoL-points/month                0.025 adherence-score/appointment                3.1299534806600566 fluctuation-points/assessment  1.3333333333333333 risk-score/year  0.1111111111111111 changes/month   2.0 support-level/contact  0.11976047904191617 QoL-points/$  0.3 goals/month
+A981114   Emergency  Self-report          112  French    Invalid       High            Valid          P883117          1.0 points/month     4.8 hours/month                 0.0 side-effects/med/month                  0.3333333333333333 events/month   7.833333333333333 QoL-points/month  0.3333333333333333 adherence-score/appointment   3.722388729118226 fluctuation-points/assessment   1.3333333333333333 risk-score/year  0.05555555555555555 changes/month  1.5 support-level/contact  0.0509761388286334 QoL-points/$   1.0 goals/month
+A734744   Routine    Phone                 81  French    Questionable  Medium          Invalid        P871358          2.0 points/month     17.066666666666666 hours/month  0.03409090909090909 side-effects/med/month  0.12903225806451613 events/month  6.857142857142857 QoL-points/month  0.14285714285714285 adherence-score/appointment  3.2176548427295777 fluctuation-points/assessment  0.3870967741935484 risk-score/year  0.09090909090909091 changes/month  3.0 support-level/contact  0.14953271028037382 QoL-points/$  0.0 goals/month
+...
+
+
+CREATE TABLE "encounters" (
+enc_key text NOT NULL,
+time_mark timestamp without time zone NOT NULL,
+ab_ref text NULL,
+pat_ref text NULL,
+clin_id text NULL,
+fac_id text NULL,
+miss_appt real NULL,
+tx_barrier text NULL,
+nx_appt_dt text NULL,
+dq_score bigint NULL,
+assess_complete text NULL,
+    PRIMARY KEY (enc_key),
+    FOREIGN KEY (ab_ref) REFERENCES assessmentbasics(ab_key),
+    FOREIGN KEY (pat_ref) REFERENCES patients(pat_key)
+);
+
+First 3 rows:
+enc_key    time_mark                   ab_ref    pat_ref    clin_id    fac_id      miss_appt  tx_barrier    nx_appt_dt      dq_score    assess_complete
+---------  --------------------------  --------  ---------  ---------  --------  -----------  ------------  ------------  ----------  -----------------
+MH353857   2025-02-19 08:30:58.912609  A981114   P883117    C6837      F533                1                18/04/2025             0              0.852
+MH512598   2025-02-19 08:30:58.913983  A599516   P292211    C8094      F770                3  FiNAncIal     15/04/2025             1              0.422
+MH463949   2025-02-19 08:30:58.913983  A515871   P136511    C8691      F402                0                08/03/2025             1              0.224
+...
+
+
+CREATE TABLE "assessmentsymptomsandrisk" (
+asr_key text NOT NULL,
+phq9_scr bigint NULL,
+phq9_sev text NULL,
+gad7_scr bigint NULL,
+gad7_sev text NULL,
+suic_ideation text NULL,
+suic_risk text NULL,
+self_harm text NULL,
+viol_risk text NULL,
+sub_use text NULL,
+sub_use_freq text NULL,
+sub_use_sev text NULL,
+sympscores jsonb NULL,
+    PRIMARY KEY (asr_key),
+    FOREIGN KEY (asr_key) REFERENCES assessmentbasics(ab_key)
+);
+
+First 3 rows:
+asr_key      phq9_scr  phq9_sev      gad7_scr  gad7_sev    suic_ideation    suic_risk    self_harm    viol_risk    sub_use    sub_use_freq    sub_use_sev    sympscores
+---------  ----------  ----------  ----------  ----------  ---------------  -----------  -----------  -----------  ---------  --------------  -------------  --------------------------------------------------------------------------------------------------------------------
+A921610            13  Mild                 5  Mild        Passive          Severe       Past         Low          Opioids    Daily           Mild           {'En_Scr': 7, 'Anx_Scr': 1, 'App_Scr': 6, 'Con_Scr': 6, 'Int_Scr': 1, 'Slp_Scr': 6, 'Hope_Scr': 9, 'Mood_Scr': 3}
+A515871            24                      14  Mild                         High                      High         Multiple   Never           Severe         {'En_Scr': 2, 'Anx_Scr': 3, 'App_Scr': 2, 'Con_Scr': 2, 'Int_Scr': 10, 'Slp_Scr': 5, 'Hope_Scr': 7, 'Mood_Scr': 6}
+A797966             4                       1                               Severe       Past         Low          Opioids    Occasional                     {'En_Scr': 10, 'Anx_Scr': 8, 'App_Scr': 9, 'Con_Scr': 1, 'Int_Scr': 5, 'Slp_Scr': 10, 'Hope_Scr': 4, 'Mood_Scr': 10}
+...

@@ -1,0 +1,186 @@
+{
+  "reverse_logistics|customers|ProfileNum": "VARCHAR(50). Unique identifier for the customer profile. PK.",
+  "reverse_logistics|customers|Seg_Category": "TEXT. Customer segment category. **NULL means the segment category is not assigned.**. Possible values: Wholesale,Retail,Individual",
+  "reverse_logistics|customers|GEOGRAPHYZONE": "VARCHAR(100). Geographic location zone of the customer. example: Cambodia",
+  "reverse_logistics|products|ItemCode": "VARCHAR(50). Unique identifier for the product. PK.",
+  "reverse_logistics|products|ItemCategory": "VARCHAR(50). Category of the product (e.g., apparel, electronics, Home Goods, Accessories).",
+  "reverse_logistics|products|SubCat": "VARCHAR(50). Subcategory of the product. Possible values: Laptops, Shirts, Shoes, Smartphones.",
+  "reverse_logistics|products|UNIT_VALUE": "REAL. Unit value/price of the product.",
+  "reverse_logistics|orders|TxnNum": "VARCHAR(50). Unique identifier for the order transaction. PK.",
+  "reverse_logistics|orders|BuyerLink": "TEXT. Link to the buyer's account or details. Example: CUS00181.",
+  "reverse_logistics|orders|transaction_value": "REAL. Total value of the order transaction.",
+  "reverse_logistics|orders|TxnDate": "TEXT. Date when the transaction was made. Example: Feb 16, 2025.",
+  "reverse_logistics|returns|CaseNum": "VARCHAR(50). Unique identifier for the return case. PK. Example: RL924605.",
+  "reverse_logistics|returns|LogTime": "VARCHAR(50). Timestamp when the return was logged. Example: 2024/11/04.",
+  "reverse_logistics|returns|SrcTxn": "VARCHAR(50). Foreign key to the orders table (TxnNum). FK to orders. Example: ORD89293.",
+  "reverse_logistics|returns|ItemLink": "VARCHAR(50). Foreign key to the products table (ItemCode). FK to products. Example: PRD00023.",
+  "reverse_logistics|returns|RevDate": "TEXT. Date when the return was processed. Example: 2025-01-20.",
+  "reverse_logistics|returns|DaysLapsed": "BIGINT. Number of days lapsed since the transaction. Example: 33.",
+  "reverse_logistics|returns|Return_Channel": "VARCHAR(50). Channel through which the return was made.",
+  "reverse_logistics|quality_assessment|InspectRef": "VARCHAR(50). Foreign key to the returns table (CaseNum). PK, FK to returns.",
+  "reverse_logistics|return_processing|LocCode": "VARCHAR(50). Location code for the return processing. PK. Example: LOC008.",
+  "reverse_logistics|return_processing|ProcPrio": "VARCHAR(50). Processing priority for the return. Possible values: Bulk, Express, Standard.",
+  "reverse_logistics|return_processing|ProcState": "ProcessingStatus_enum. Current state of the return processing. Possible values: Completed, Inspecting, Processing, Received.",
+  "reverse_logistics|return_processing|ProcTime": "REAL. Time taken for processing the return. Example: 15.0.",
+  "reverse_logistics|return_processing|HandReq": "HandlingRequirements_enum. Handling requirements for the return. Possible values: Fragile, Hazardous, Special, Standard.",
+  "reverse_logistics|return_processing|NeedsQuar": "VARCHAR(20). Indicates if quarantine is needed for the return. Possible values: No, Yes.",
+  "reverse_logistics|return_processing|QuarDays": "BIGINT. Number of days the return item will be quarantined. Example: 14.",
+  "reverse_logistics|return_processing|Handling_Notes": "TEXT. Notes related to the handling of the return item.",
+  "reverse_logistics|return_processing|DispAction": "TEXT. Disposition action for the return item. Possible values: Refurbish, Repair, Resell, Scrap.",
+  "reverse_logistics|return_processing|DispReason": "DispositionReason_enum. Reason for the return disposition. **NULL means no disposition reason provided.**. Possible values: Good Condition, Repairable, Too Costly, Unsalvageable.",
+  "reverse_logistics|return_processing|NeedsRelabel": "TEXT. Indicates if relabeling is required for the return item. Possible values: 0, 1, F, False, N, NO, P, True, Y, YES.",
+  "reverse_logistics|return_processing|RepairFeas": "RepairFeasibility_enum. Feasibility of repairing the return item. Possible values: High, Low, Medium, Not Feasible.",
+  "reverse_logistics|return_processing|EstRepairHrs": "REAL. Estimated hours required for repair. Example: 39.8.",
+  "reverse_logistics|return_processing|PartsAvail": "PartsAvailability_enum. Availability of parts for repairing the return item. Possible values: Available, Partial, Unavailable.",
+  "reverse_logistics|return_processing|PolicyComp": "TEXT. Policy compliance status of the return item. Possible values: Compliant, Non-compliant.",
+  "reverse_logistics|return_processing|ExceptMade": "VARCHAR(20). Indicates if an exception was made for the return. Possible values: No, Yes.",
+  "reverse_logistics|return_processing|ExceptType": "ExceptionReason_enum. Type of exception for the return. **NULL means no exception type provided.**. Possible values: Customer Value, Error, Goodwill.",
+  "reverse_logistics|return_processing|ApprLevel": "ApprovalLevel_enum. Level of approval required for processing the return. Possible values: Automatic, Manager, Supervisor.",
+  "reverse_logistics|financial_management|CreditRef": "TEXT. Unique identifier for the financial record. PK. Example: CM78914.",
+  "reverse_logistics|financial_management|CaseTag": "VARCHAR(50). Foreign key to the returns table (CaseNum). FK to returns.",
+  "reverse_logistics|financial_management|DispCost": "REAL. Disposal cost for the return item. Example: $86.84.",
+  "reverse_logistics|case_management|CaseTie": "VARCHAR(50). Foreign key to the returns table (CaseNum). PK, FK to returns.",
+  "reverse_logistics|case_management|SatisfScore": "BIGINT. Satisfaction score for the case resolution. Possible values: 1, 2, 3, 4, 5.",
+  "reverse_logistics|case_management|CommState": "CustomerCommunicationStatus_enum. Current state of communication with the customer. Possible values: In Progress, Initial, Resolved.",
+  "reverse_logistics|case_management|RespTime": "REAL. Response time for handling the case. Example: 14.8.",
+  "reverse_logistics|case_management|ResolSatis": "ResolutionSatisfaction_enum. Satisfaction level of the customer after case resolution. Possible values: Dissatisfied, Neutral, Satisfied.",
+  "reverse_logistics|case_management|HasFeedback": "YesNo_enum. Indicates if feedback was provided by the customer. Possible values: No, Yes.",
+  "reverse_logistics|case_management|FeedbackType": "FeedbackCategory_enum. Type of feedback provided by the customer. **NULL means no feedback type provided.**. Possible values: Process, Product, Service.",
+  "reverse_logistics|case_management|VendorNotice": "YesNo_enum. Indicates if the vendor was notified about the case. Possible values: No, Yes.",
+  "reverse_logistics|case_management|VendorAction": "SupplierCorrectiveAction_enum. Action taken by the vendor regarding the case. **NULL means no vendor action reported.**. Possible values: Completed, Initiated.",
+  "reverse_logistics|case_management|PreventOpp": "ReturnPreventionOpportunity_enum. Opportunity for preventing future returns. Possible values: High, Low, Medium.",
+  "reverse_logistics|case_management|ActionIdent": "YesNo_enum. Indicates if an action was identified for the case. Possible values: No, Yes.",
+  "reverse_logistics|case_management|ActionState": "PreventiveActionStatus_enum. Status of the preventive action. Possible values: Completed, In Progress, Planned.",
+  "reverse_logistics|case_management|KBUpdated": "YesNo_enum. Indicates if the knowledge base was updated after the case. Possible values: No, Yes.",
+  "reverse_logistics|case_management|TrainIdent": "TEXT. Identifies if training was required after the case. Possible values: 0, 1, F, False, N, NO, P, True, Y, YES.",
+  "reverse_logistics|case_management|NeedsProcImprove": "YesNo_enum. Indicates if process improvements are needed. Possible values: No, Yes.",
+  "reverse_logistics|case_management|NeedsDocUpdate": "YesNo_enum. Indicates if documentation updates are needed. Possible values: No, Yes.",
+  "reverse_logistics|case_management|NeedsSysUpdate": "YesNo_enum. Indicates if system updates are needed. Possible values: No, Yes.",
+  "reverse_logistics|case_management|ReportState": "ReportGenerationStatus_enum. State of the report generation for the case. Possible values: Generated, Pending, Reviewed.",
+  "reverse_logistics|case_management|AnalysisState": "DataAnalysisStatus_enum. State of the data analysis for the case. Possible values: Completed, In Progress, Not Started.",
+  "reverse_logistics|case_management|HasTrendAnalysis": "YesNo_enum. Indicates if trend analysis was performed for the case. Possible values: No, Yes.",
+  "reverse_logistics|case_management|HasCostAnalysis": "YesNo_enum. Indicates if cost analysis was performed for the case. Possible values: No, Yes.",
+  "reverse_logistics|case_management|RecState": "RecommendationStatus_enum. State of the recommendation for the case. **NULL means no recommendation state provided.**. Possible values: Approved, Draft.",
+  "reverse_logistics|case_management|ActionCount": "BIGINT. Number of actions taken for the case. Example: 0.",
+  "reverse_logistics|case_management|NeedsFollowUp": "YesNo_enum. Indicates if follow-up is needed for the case. Possible values: No, Yes.",
+  "reverse_logistics|case_management|NextReview": "TEXT. Date for the next review of the case. Example: 2025-04-28.",
+  "reverse_logistics|case_management|CloseState": "CaseClosureStatus_enum. Current closure state of the case. Possible values: Closed, Open, Pending.",
+  "reverse_logistics|case_management|CloseDate": "TEXT. Date when the case was closed. Example: 2025-02-19.",
+  "reverse_logistics|case_management|CloseNotes": "TEXT. Notes related to the closure of the case. Example: Above suggest statement likely sound..",
+  "reverse_logistics|customers|return_behavior_profile": {
+    "column_meaning": "JSONB column. Captures the customer's historical return behavior, including frequency and similarity of returns.",
+    "fields_meaning": {
+      "total_returns": "BIGINT. Total number of returns made by the customer. example: 10",
+      "similar_previous_returns": "BIGINT. Simulated number of returns. **NULL means no previous simulated returns data.**. Possible values: 0.0, 1.0, 2.0, 3.0, 4.0, 5.0.",
+      "return_frequency_score": "BIGINT. Customer's frequency score based on return behavior."
+    }
+  },
+  "reverse_logistics|products|product_traceability": {
+    "column_meaning": "JSONB column. Encapsulates product traceability and compliance metadata including batch, lot, and serial tracking.",
+    "fields_meaning": {
+      "trace": {
+        "batch_reference": "TEXT. Batch reference for the product. example: BT1693, 6730",
+        "lot_reference": "VARCHAR(50). Lot reference for the product. Example: 4119LO.",
+        "serial_number": "TEXT. Serial number reference for the product. Example: SN258151.",
+        "manufacture_date": "TEXT. Manufacture date of the product."
+      },
+      "compliance": {
+        "regulatory_compliance": "VARCHAR(50). Regulatory compliance status of the product. **NULL means no regulatory compliance status available.**. Possible values: Compliant, Non-compliant.",
+        "hazardous_material": "VARCHAR(50). Hazardous material information for the product.",
+        "recall_flag": "YesNo_enum. Indicates if the product has been recalled. Possible values: No, Yes."
+      }
+    }
+  },
+  "reverse_logistics|returns|return_details": {
+    "column_meaning": "JSONB column. Groups together metadata about the return reason, authorization, and shipping logistics.",
+    "fields_meaning": {
+      "reasoning": {
+        "primary_reason": "VARCHAR(50). Primary reason for the return. Possible values: Changed Mind, Quality Issue, Size/Fit, Wrong Item.",
+        "secondary_reason": "VARCHAR(50). Secondary reason for the return. Possible values: Better Price, Damaged, Defective, Not as Described.",
+        "reason_notes": "TEXT. Notes related to the reasons for the return. Example: Yard which quickly step since half part..",
+        "client_notes": "TEXT. Notes from the client regarding the return. Example: Chance building four loss study. Response actually miss everybody such.."
+      },
+      "authorization": {
+        "auth_status": "TEXT. Authorization status of the return. Possible values: Approved, Pending, Rejected.",
+        "warranty_status": "VARCHAR(50). Warranty status of the product being returned. Possible values: Expired, Not Applicable, Valid.",
+        "warranty_claim": "TEXT. Warranty claim information. **NULL means no warranty claim information available.**. Example: WC8668."
+      },
+      "shipping": {
+        "carrier": "VARCHAR(50). Shipping vendor used for the return.",
+        "fee": "REAL. Shipping fee for the return. Example: 64.1.",
+        "insurance_amount": "REAL. Insurance amount associated with the return. Example: 502.73.",
+        "estimated_arrival": "TEXT. Estimated arrival date for the returned item. Example: 2025-03-03.",
+        "tracking_reference": "TEXT. Tracking reference for the return shipment. Example: 83."
+      },
+      "fraud": {
+        "risk_level": "VARCHAR(50). Fraud risk level for the return. **NULL means no fraud risk level assessed.**",
+        "fraud_flags": "BIGINT. Fraud flags indicating potential issues with the return. Possible values: 0, 1, 2, 3, 4, 5."
+      }
+    }
+  },
+  "reverse_logistics|quality_assessment|assessment_summary": {
+    "column_meaning": "JSONB column. Summarizes quality inspection, usage, and documentation state for a returned product.",
+    "fields_meaning": {
+      "condition": {
+        "item_condition": "TEXT. Condition of the item during inspection. Possible values: Damaged, Like New, New, Used.",
+        "package_condition": "VARCHAR(50). Condition of the packaging during inspection.",
+        "completeness": "VARCHAR(50). Completeness state of the item during inspection. Possible values: Accessories Missing, Complete, Missing Parts.",
+        "usage_signs": "VARCHAR(50). Signs of usage observed on the item. **NULL means no usage signs observed.**. Possible values: Heavy, Minor, Significant."
+      },
+      "defects": {
+        "defect_type": "TEXT. Type of defect found during inspection. **NULL means no defect type reported.**. Possible values: Manufacturing, Shipping, Usage.",
+        "defect_severity": "VARCHAR(50). Severity level of the defect. **NULL means no defect severity reported.**. Possible values: Critical, Major, Minor."
+      },
+      "results": {
+        "qa_result": "VARCHAR(50). Quality assessment result (e.g., pass, fail).",
+        "functional_test_result": "TEXT. Functional test result for the item. Possible values: Fail, Partial, Pass.",
+        "aesthetic_score": "REAL. Aesthetic score assigned to the item based on inspection. Example: 5.0.",
+        "tech_review_status": "VARCHAR(20). Technical review status of the item. Possible values: Completed, Not Required, Pending."
+      },
+      "documentation": {
+        "documentation_status": "VARCHAR(50). Completeness status of the product documentation.",
+        "has_photos": "VARCHAR(20). Indicates if the item has supporting photos. Possible values: 0, 1, F, False, N, NO, P, True, Y, YES.",
+        "qa_alert": "VARCHAR(20). Quality assurance alert status. Possible values: No, Yes.",
+        "needs_investigation": "VARCHAR(20). Indicates if further investigation is required. Possible values: No, Yes."
+      }
+    }
+  },
+  "reverse_logistics|financial_management|cost_breakdown": {
+    "column_meaning": "JSONB column. Captures the financial breakdown of refund, recovery, and sustainability-related fees for a return case.",
+    "fields_meaning": {
+      "refund": {
+        "refund_amount": "REAL. Refund amount for the return. Example: $1,337.51.",
+        "method": "RefundMethod_enum. Method used for refunding the customer. Possible values: Bank Transfer, Original Payment, Store Credit.",
+        "status": "RefundStatus_enum. Current state of the refund. Possible values: Completed, Pending, Processed.",
+        "processing_days": "REAL. Number of days taken to process the refund. Example: 12.8."
+      },
+      "fees": {
+        "restocking_fee": "REAL. Restocking fee for the return item.",
+        "repackaging_cost": "REAL. Repackaging cost for the return item. Example: $19.53.",
+        "relabeling_cost": "REAL. Relabeling cost for the return item. Example: 10.26.",
+        "qa_fee": "REAL. Quality assurance fee for the return item. Example: 12.33."
+      },
+      "repair_costs": {
+        "repair_estimate": "REAL. Estimated repair cost for the return item. Example: 490.99.",
+        "parts_fee": "REAL. Parts fee for the return item. Example: 136.63.",
+        "labor_fee": "REAL. Labor fee for the return item. Example: 85.38."
+      },
+      "disposal": {
+        "disposal_cost": "REAL. Disposal fee for the return item. Example: 83.49.",
+        "disposal_method": "DisposalMethod_enum. Method used to dispose of the return item. Possible values: Hazardous Waste, Landfill, Recycle, Return to Vendor.",
+        "environmental_impact": "EnvironmentalImpact_enum. Environmental impact of the disposal method. Possible values: High, Low, Medium.",
+        "recycling_category": "RecyclingCategory_enum. Category of material recycled during disposal. Possible values: Electronics, Metal, Mixed, Plastic."
+      },
+      "valuation": {
+        "recovery_value": "REAL. Amount recovered from the return. Example: 19.18.",
+        "value_loss_pct": "REAL. Total value loss from the return. Example: 72.3."
+      },
+      "sustainability": {
+        "sustainability_score": "REAL. Sustainability score for the return item. **NULL means no sustainability score provided.**. Example: 46.0.",
+        "carbon_footprint": "REAL. Carbon footprint of the return item. Example: 32.28.",
+        "efficiency_score": "REAL. Efficiency score for the return item. Example: 98.1.",
+        "cost_efficiency": "REAL. Cost efficiency score for the return item. Example: 45.4."
+      }
+    }
+  }
+}

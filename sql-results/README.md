@@ -47,6 +47,14 @@ Evaluation:
 - [eval_sql_r1_spider_robustness.sh](/home/jovyan/work/minerva/rlvr/cti-scripts/eval_sql_r1_spider_robustness.sh)
 - [run_sql_r1_table1_parallel.sh](/home/jovyan/work/minerva/rlvr/cti-scripts/run_sql_r1_table1_parallel.sh)
 
+LiveSQLBench package:
+
+- [sql-benchmark/livesqlbench/README.md](/home/jovyan/work/minerva/sql-benchmark/livesqlbench/README.md)
+- [run_qwen25coder3b_base.sh](/home/jovyan/work/minerva/sql-benchmark/livesqlbench/run_qwen25coder3b_base.sh)
+- [run_sqlr1_3b_released.sh](/home/jovyan/work/minerva/sql-benchmark/livesqlbench/run_sqlr1_3b_released.sh)
+- [run_grpo_qwen25coder3b.sh](/home/jovyan/work/minerva/sql-benchmark/livesqlbench/run_grpo_qwen25coder3b.sh)
+- [run_minervarl_qwen25coder3b.sh](/home/jovyan/work/minerva/sql-benchmark/livesqlbench/run_minervarl_qwen25coder3b.sh)
+
 ## Data
 
 Expected SQL-R1 checkout:
@@ -294,4 +302,3 @@ bash rlvr/cti-scripts/train_sql_r1_noctua_qwen25coder3b_8gpu_100steps.sh \
    - [eval_sql_r1_spider_robustness.sh](/home/jovyan/work/minerva/rlvr/cti-scripts/eval_sql_r1_spider_robustness.sh) on Spider-DK/Syn/Realistic
 6. Compare the resulting `summary.tsv` files against:
    - [sql_6_benchmark_results.md](/home/jovyan/work/minerva/sql-results/sql_6_benchmark_results.md)
-

@@ -1,0 +1,199 @@
+{
+  "cold_chain_pharma_compliance|Shipments|RecKey": "text. Unique shipment record key. PK. Example: CC381686.",
+  "cold_chain_pharma_compliance|Shipments|LOG_TS": "timestamp. Log-creation timestamp for this record. **NULL means record creation time not captured.**. Example: 2025-01-29T16:01:15.",
+  "cold_chain_pharma_compliance|Shipments|ShipTok": "text. Human-friendly shipment token (unique within system). Example: SH88875.",
+  "cold_chain_pharma_compliance|Products|ProdCode": "text. Unique product code. PK. Example: PH75271.",
+  "cold_chain_pharma_compliance|Products|ProdLabel": "text. Commercial product label. Example: strategize value-added deliverables.",
+  "cold_chain_pharma_compliance|Products|ProdCat": "text. Product category or therapeutic class. Possible values: Biologics, Blood Products, Insulin, Vaccines.",
+  "cold_chain_pharma_compliance|Products|Maker": "text. Manufacturer name. **NULL means manufacturer not specified.**. Example: York Ltd.",
+  "cold_chain_pharma_compliance|ProductBatches|BatchTag": "text. Unique production batch identifier. PK. Example: BT909380.",
+  "cold_chain_pharma_compliance|ProductBatches|ProdLink": "text. Product code this batch belongs to. FK to Products.",
+  "cold_chain_pharma_compliance|ProductBatches|MFG_TS": "timestamp. Manufacturing timestamp for the batch. Example: 2-Aug-24.",
+  "cold_chain_pharma_compliance|ProductBatches|EXP_TS": "timestamp. Expiry timestamp for the batch. Example: 09/30/2026.",
+  "cold_chain_pharma_compliance|ProductBatches|store_cond": "text. Textual description of required storage conditions. Possible values: -20°C, -70°C, 15-25°C, 2-8°C.",
+  "cold_chain_pharma_compliance|ProductBatches|TempMin": "real. Minimum allowable temperature (°C). Possible values: -70, -20, 2, 15.",
+  "cold_chain_pharma_compliance|ProductBatches|TempMax": "real. Maximum allowable temperature (°C). Example: 12.",
+  "cold_chain_pharma_compliance|ProductBatches|TempSense": "text. Temperature-sensing method or device type. Possible values: High, Low, Medium.",
+  "cold_chain_pharma_compliance|ProductBatches|pack_type": "text. Packaging type for the shipment units. Possible values: Ampoule, Container, Syringe, Vial.",
+  "cold_chain_pharma_compliance|ProductBatches|PACK_CNT": "bigint. Number of saleable packs in the batch. Example: 936.",
+  "cold_chain_pharma_compliance|ProductBatches|ValUSD": "text. Declared commercial value in USD. Example: $57,421.85 .",
+  "cold_chain_pharma_compliance|ProductBatches|InsUSD": "real. Insurance coverage value in USD. **NULL means no insurance value set.**. Example: 226483.74.",
+  "cold_chain_pharma_compliance|Carriers|CarrierTag": "text. Unique carrier identifier. PK. Example: Rodriguez, Mcintyre and Richards.",
+  "cold_chain_pharma_compliance|Carriers|CarrierCert": "text. Certification credentials or licence ID. **NULL means certification information unavailable.**. Possible values: Both, CEIV Pharma, GDP.",
+  "cold_chain_pharma_compliance|Vehicles|VehRef": "text. Unique vehicle reference identifier. PK. Example: VH6122.",
+  "cold_chain_pharma_compliance|Vehicles|CarrierBond": "text. Carrier identifier to which the vehicle belongs. FK to Carriers.",
+  "cold_chain_pharma_compliance|Vehicles|VehType": "text. Vehicle type (e.g., van, truck, reefer). Possible values: Aircraft, Container, Reefer Truck, Van.",
+  "cold_chain_pharma_compliance|Vehicles|veh_qual": "text. Qualitative vehicle qualification/status. Possible values: Qualified, Under Review, Validated.",
+  "cold_chain_pharma_compliance|Vehicles|TEMP_MON_SYS": "text. Temperature-monitoring system installed. Possible values: Continuous, Interval, Manual.",
+  "cold_chain_pharma_compliance|MonitoringDevices|MonDevRef": "text. Unique monitoring-device reference. PK. Example: MD9886.",
+  "cold_chain_pharma_compliance|MonitoringDevices|CalibTS": "timestamp. Timestamp of last calibration. Example: 2024/10/6.",
+  "cold_chain_pharma_compliance|MonitoringDevices|DevAcc": "text. Device accuracy specification. Example: 0.31.",
+  "cold_chain_pharma_compliance|MonitoringDevices|RecIntMin": "bigint. Recording interval in minutes. **NULL means interval not configured.**. Possible values: 5.0, 10.0, 15.0, 30.0.",
+  "cold_chain_pharma_compliance|MonitoringDevices|TempPts": "bigint. Number of temperature points that can be stored. Example: 891.",
+  "cold_chain_pharma_compliance|EnvironmentalMonitoring|RecKeyLink": "text. Shipment record key this monitoring pertains to. PK. FK to Shipments.",
+  "cold_chain_pharma_compliance|EnvironmentalMonitoring|DevLink": "text. Monitoring-device reference. FK to MonitoringDevices.",
+  "cold_chain_pharma_compliance|QualityCompliance|RecKeyQC": "text. Shipment record key for QC. PK. FK to Shipments.",
+  "cold_chain_pharma_compliance|IncidentAndRiskManagement|RecKeyRisk": "text. Shipment record key for risk log. PK. FK to Shipments.",
+  "cold_chain_pharma_compliance|InsuranceClaims|RecKeyClaim": "text. Shipment record key for insurance. PK. FK to Shipments.",
+  "cold_chain_pharma_compliance|InsuranceClaims|ClaimNeed": "text. Indicator whether a claim is required. Possible values: No, Under Review, Yes.",
+  "cold_chain_pharma_compliance|InsuranceClaims|ClaimStat": "text. Current claim status. **NULL means claim not initiated.**. Possible values: Approved, Filed, Rejected.",
+  "cold_chain_pharma_compliance|InsuranceClaims|ClaimUSD": "real. Amount claimed in USD. Example: 79419.22.",
+  "cold_chain_pharma_compliance|InsuranceClaims|CostImpactUSD": "real. Total cost impact in USD. Example: 47835.32.",
+  "cold_chain_pharma_compliance|InsuranceClaims|RespParty": "text. Responsible party for loss. **NULL means not yet assigned.**. Possible values: Carrier, Receiver, Shipper, Unknown.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|RecKeyRev": "text. Shipment record key for review. PK. FK to Shipments.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|ProcImprove": "text. Process improvement actions. Possible values: In Progress, No, Yes.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|TrainNeeds": "text. Training needs identified. Possible values: No, Under Review, Yes.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|SOP_Update": "text. SOP updates required. Possible values: No, Under Review, Yes.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|VendorImpact": "text. Impact on vendor performance. **NULL means none recorded.**. Possible values: Disqualification, Warning.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|NextShipChg": "text. Changes for next shipment. **NULL means none planned.**. Possible values: Major, Minor.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|MonFreqChg": "text. Monitoring-frequency changes. Possible values: Decreased, Increased, No Change.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|RouteRiskReassess": "text. Route risk reassessment outcome. Possible values: Completed, Not Required, Required.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|PackSpecRev": "text. Packaging specification revision. Possible values: Completed, Not Required, Required.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|LaneQualStat": "text. Transport lane quality status. **NULL means status not set.**. Possible values: Invalid, Review Required, Valid.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|TechUpgrade": "text. Planned technology upgrades. Possible values: No, Under Evaluation, Yes.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|CostOptPot": "text. Cost-optimisation opportunities. **NULL means none identified.**. Possible values: High, Low, Medium.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|SustainImpact": "text. Sustainability impact assessment. **NULL means not assessed.**. Possible values: Negative, Neutral, Positive.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|CarbonKG": "real. Estimated carbon footprint in kg CO₂-e. **NULL means footprint not calculated.**. Example: 2617.3.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|EnergyScore": "text. Energy efficiency score. **NULL means score not set.**. Example: 81.0.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|DocFormat": "text. Review document format. Possible values: Electronic, Hybrid, Paper.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|DataIntegrity": "text. Data integrity verification status. Possible values: Compromised, Under Review, Verified.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|AuditTrailComplete": "text. Audit-trail completeness status. Example: 91.0.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|E_SigStat": "text. Electronic-signature compliance status. Possible values: Invalid, Not Required, Valid.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|SysAccessCtrl": "text. System access-control status. Possible values: Adequate, Compromised, Limited.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|DataBackupStat": "text. Data backup status. **NULL means backup not confirmed.**. Possible values: Current, Failed, Pending.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|ReportGenStat": "text. Report generation status. Possible values: Completed, In Progress, Pending.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|DistList": "text. Distribution list details. Possible values: Extended, Limited, Standard.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|ArchiveStat": "text. Archiving status for review records. Possible values: Completed, Not Required, Pending.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|ReviewNotes": "text. Free-text review notes. Example: Agent usually ten food focus. Throughout return mean..",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|NextRevTS": "timestamp. Scheduled timestamp for next review. Example: 2025/3/13.",
+  "cold_chain_pharma_compliance|ReviewsAndImprovements|CloseStat": "text. Review closure status. Possible values: Closed, Open, Under Review.",
+  "cold_chain_pharma_compliance|ShipSensorLink|ShpNode": "text. Shipment record key in link. PK. FK to Shipments.",
+  "cold_chain_pharma_compliance|ShipSensorLink|DevNode": "text. Monitoring-device reference in link. PK. FK to MonitoringDevices.",
+  "cold_chain_pharma_compliance|Shipments|shipment_overview": {
+    "column_meaning": "JSONB column. Groups routing, timing and risk-performance metadata of a single cold-chain shipment so that dashboards can fetch a complete lane summary from one JSONB field.",
+    "fields_meaning": {
+      "route": {
+        "origin": {
+          "hub": "text. Code of the originating logistics hub. Example: Gonzales-Lopez Facility.",
+          "address": "text. Street-level origin address. Example: 0131 Johnson Station\nNew Tinatown, FL 65757.",
+          "nation": "text. ISO country code of origin. **NULL means country not provided.**. Example: Fiji."
+        },
+        "destination": {
+          "hub": "text. Code of the destination logistics hub. Example: Williams-Aguilar Hospital.",
+          "address": "text. Street-level destination address. Example: 7209 West Flats\nEast Tonya, OR 13658.",
+          "nation": "text. ISO country code of destination. **NULL means country not provided.**. Example: Bouvet Island (Bouvetoya)."
+        },
+        "route_string": "text. Encoded string of planned route waypoints. Example: Fiji -> Bouvet Island (Bouvetoya).",
+        "risk_note": "text. Qualitative notes on route-specific risks. Possible values: High, Low, Medium."
+      },
+      "timing_performance": {
+        "go_time_ts": "timestamp. Planned departure timestamp. Example: 2025/2/17 19:29.",
+        "planned_eta_hrs": "bigint. Estimated transit time in hours. Example: 27.6.",
+        "actual_duration_hrs": "bigint. Actual transit time in hours. **NULL means actual hours not yet recorded.**. Example: 10.2.",
+        "end_time_ts": "timestamp. Actual arrival timestamp. Possible values: 2025/2/19 08:29.",
+        "distance_km": "bigint. Total kilometres travelled for the shipment. Example: 2608."
+      }
+    }
+  },
+  "cold_chain_pharma_compliance|EnvironmentalMonitoring|env_metrics": {
+    "column_meaning": "JSONB column. Consolidates all temperature, humidity, shock, light and tracking telemetry collected for a shipment into one JSONB object for faster rule-engine evaluation.",
+    "fields_meaning": {
+      "temperature": {
+        "avg_c": "real. Average temperature recorded (°C). Example: 3.1.",
+        "min_c": "real. Minimum temperature recorded (°C). Example: 0.1.",
+        "max_c": "real. Maximum temperature recorded (°C). Example: 10.0.",
+        "excursion_count": "bigint. Count of temperature deviations beyond limits. Example: 4.",
+        "excursion_duration_min": "bigint. Total minutes of temperature deviation. Example: 48.",
+        "alarm_count": "bigint. Number of temperature alarm events. Possible values: 0, 1, 2, 3, 4, 5."
+      },
+      "humidity": {
+        "humidity_monitor": "text. Humidity monitoring flag. **NULL means humidity was not monitored.**. Possible values: No, Partial, Yes.",
+        "avg_pct": "real. Average relative humidity percentage. Example: 42.3.",
+        "excursion_count": "bigint. Count of humidity deviations. Possible values: 0, 1, 2, 3, 4, 5."
+      },
+      "light_and_shock": {
+        "light_monitor_mode": "text. Light-exposure monitoring flag. **NULL means light was not monitored.**. Possible values: Continuous, Periodic.",
+        "shock_monitor": "text. Shock-event monitoring flag. **NULL means shock was not monitored.**. Possible values: Active, Passive.",
+        "shock_event_count": "bigint. Count of shock events detected. Example: 5."
+      },
+      "tracking": {
+        "location_tracking_state": "text. Location-tracking status indicator. Possible values: Active, Failed, Intermittent.",
+        "gps_completeness_pct": "text. GPS completeness/coverage descriptor. Example: 97.4.",
+        "route_deviation_incidents": "bigint. Number of route deviation incidents. Possible values: 0, 1, 2, 3.",
+        "unscheduled_stops": "bigint. Count of unplanned stops. Possible values: 0, 1, 2, 3, 4, 5.",
+        "stop_duration_min": "bigint. Total minutes spent in unplanned stops. Example: 55."
+      }
+    }
+  },
+  "cold_chain_pharma_compliance|QualityCompliance|qc_checklist": {
+    "column_meaning": "JSONB column. Bundles seal integrity, product/pack condition, documentation and regulatory checks plus release status into a single JSONB field for one-click quality-decision review.",
+    "fields_meaning": {
+      "security": {
+        "seal_status": "text. Security seal status. **NULL means seal status not captured.**. Possible values: Broken, Intact, Suspicious.",
+        "security_incident": "text. Security incident notes. Possible values: 0, 1, 2."
+      },
+      "product_integrity": {
+        "product_intact_check": "text. Product-integrity check result. Possible values: Conditional, Failed, Passed.",
+        "pack_condition": "text. Packaging condition assessment. **NULL means packaging condition not assessed.**. Possible values: Compromised, Damaged, Good.",
+        "label_condition": "text. Label condition assessment. Possible values: Clear, Damaged, Illegible."
+      },
+      "documentation": {
+        "documentation_complete": "text. Documentation completeness status. Possible values: Complete, Incomplete, Partial.",
+        "certification_status": "text. Certification status at reception. Possible values: Complete, Expired, Missing."
+      },
+      "customs_and_regulatory": {
+        "custom_clearance_status": "text. Customs-clearance status. Possible values: Cleared, Delayed, Pending.",
+        "import_permit_status": "text. Import-permit compliance status. Possible values: Not Required, Pending, Valid.",
+        "regulatory_compliance_status": "text. Regulatory compliance status. Possible values: Compliant, Non-compliant, Under Review."
+      },
+      "gdp_quality": {
+        "sop_compliance": "text. Standard operating procedure compliance status. Possible values: Full, Non-compliant, Partial.",
+        "gdp_compliance": "text. Good distribution practice compliance status. Possible values: Full, Non-compliant, Partial.",
+        "quality_agreement_status": "text. Quality agreement status with partners. Possible values: Active, Expired, Pending.",
+        "quality_review_status": "text. Quality review status. Possible values: Approved, Pending, Rejected.",
+        "responsible_person": "text. Responsible quality person. Example: Scott Alexander.",
+        "quality_approval_ts": "timestamp. Timestamp of quality approval. **NULL means approval pending.**. Example: 2025/1/23."
+      },
+      "release": {
+        "product_release_status": "text. Product release status. Possible values: Quarantined, Rejected, Released.",
+        "release_ts": "timestamp. Product release timestamp. Possible values: 2025/2/19.",
+        "quarantine_reason": "text. Reason for quarantine if applicable. **NULL means product not quarantined.**. Possible values: Damage, Documentation, Temperature Deviation."
+      }
+    }
+  },
+  "cold_chain_pharma_compliance|IncidentAndRiskManagement|incident_risk_record": {
+    "column_meaning": "JSONB column. Combines stability review, deviation investigation, risk assessment, reporting and impact analysis for a shipment into one JSONB structure to support CAPA and pharmacovigilance workflows.",
+    "fields_meaning": {
+      "stability_and_quality": {
+        "stability_data_review": "text. Stability-data review summary. Possible values: Completed, Not Required, Pending.",
+        "stability_impact_assessment": "text. Assessment of stability impact. **NULL means impact not assessed.**. Possible values: Major, Minor.",
+        "product_quality_impact": "text. Product-quality impact summary. **NULL means impact not assessed.**. Possible values: Confirmed, Possible."
+      },
+      "batch_decision": {
+        "batch_release_decision": "text. Decision on batch release. Possible values: Approved, Pending, Rejected."
+      },
+      "deviation_investigation": {
+        "investigation_status": "text. Deviation investigation status. **NULL means investigation not started.**. Possible values: Completed, Ongoing.",
+        "corrective_actions": "text. Corrective actions taken. **NULL means actions not defined.**. Possible values: Implemented, Pending.",
+        "preventive_actions": "text. Preventive actions planned. **NULL means actions not defined.**. Possible values: Implemented, Planned."
+      },
+      "risk": {
+        "risk_assessment_status": "text. Overall risk-assessment status. Possible values: Completed, Ongoing, Required.",
+        "risk_level": "text. Assigned risk level. **NULL means level not set.**. Possible values: High, Low, Medium."
+      },
+      "reporting_notification": {
+        "incident_report_status": "text. Incident-reporting status. **NULL means report not filed.**. Possible values: Draft, Reviewed, Submitted.",
+        "health_authority_notification": "text. Health-authority notification status. Possible values: Completed, Not Required, Pending.",
+        "authority_response": "text. Authority response summary. **NULL means no response yet.**. Possible values: Acknowledged, Investigation.",
+        "customer_notification": "text. Customer notification status. Possible values: Completed, Not Required, Pending.",
+        "customer_response": "text. Customer response summary. **NULL means no response yet.**. Possible values: Accepted, Rejected."
+      },
+      "impact": {
+        "patient_impact": "text. Assessment of patient impact. **NULL means impact not assessed.**. Possible values: Confirmed, Possible.",
+        "market_impact": "text. Assessment of market impact. **NULL means impact not assessed.**. Possible values: Limited, Significant.",
+        "reputation_impact": "text. Reputation impact statement. **NULL means impact not assessed.**. Possible values: Major, Minor."
+      },
+      "lessons_learned": "text. Lessons learned documentation reference. Possible values: In Progress, No, Yes."
+    }
+  }
+}

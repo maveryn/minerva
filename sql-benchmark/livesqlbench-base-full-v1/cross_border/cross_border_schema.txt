@@ -1,0 +1,217 @@
+"CREATE" TABLE "DataFlow" (
+"RecordRegistry" text NOT NULL,
+"FLOWSTAMP" text NULL,
+flow_overview jsonb NULL,
+    "PRIMARY" KEY (RecordRegistry)
+);
+
+
+
+"First" 3 rows:
+RecordRegistry    FLOWSTAMP            flow_overview
+----------------  -------------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CB932064          2024-03-11T11:43:31  {'routing': {'protocol': 'Blockchain', 'origin_actor': 'Hill Ltd', 'origin_country': 'Niue', 'destination_actor': 'Davis, Harper and Weber', 'transfer_frequency': 'Weekly', 'destination_country': 'Djibouti'}, 'performance': {'error_count': 39, 'retry_count': 1, 'success_pct': 99.93, 'data_size_mb': 42668.42, 'duration_min': 1068, 'bandwidth_util_pct': 68.81}, 'classification': {'flow_tag': 'DF7811', 'data_category': 'Commercial', 'encryption_status': 'Full', 'sensitivity_level': 'High'}}
+CB339111          2024-05-01T07:58:45  {'routing': {'protocol': 'SFTP', 'origin_actor': 'Boyer-Mcdonald', 'origin_country': 'Israel', 'destination_actor': None, 'transfer_frequency': 'Hourly', 'destination_country': 'Monaco'}, 'performance': {'error_count': 68, 'retry_count': 48, 'success_pct': 91.77, 'data_size_mb': 32803.96, 'duration_min': 995, 'bandwidth_util_pct': 7.52}, 'classification': {'flow_tag': 'DF9309', 'data_category': 'Personal', 'encryption_status': 'Partial', 'sensitivity_level': 'Low'}}
+CB899685          2024-05-07T04:39:04  {'routing': {'protocol': 'Private Network', 'origin_actor': 'Curtis Inc', 'origin_country': 'United States Virgin Islands', 'destination_actor': 'Horton LLC', 'transfer_frequency': 'Real-time', 'destination_country': 'Germany'}, 'performance': {'error_count': 80, 'retry_count': 45, 'success_pct': 93.76, 'data_size_mb': 93843.18, 'duration_min': 1325, 'bandwidth_util_pct': 62.66}, 'classification': {'flow_tag': 'DF8105', 'data_category': 'Financial', 'encryption_status': 'Partial', 'sensitivity_level': 'Low'}}
+...
+
+
+"CREATE" TABLE "RiskManagement" (
+"RISKTRACE" bigint NOT NULL,
+flow_link text NOT NULL,
+"recordRegistry" text NULL,
+risk_management_profile jsonb NULL,
+    "PRIMARY" KEY (RISKTRACE),
+    "FOREIGN" KEY (flow_link) REFERENCES DataFlow(RecordRegistry)
+);
+
+
+
+"First" 3 rows:
+  RISKTRACE  flow_link    recordRegistry    risk_management_profile
+-----------  -----------  ----------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+          1  CB932064     CB932064          {'assessment': {'risk_score': 75.89, 'maturity_level': 'Optimized', 'compliance_score': 76.41, 'residual_risk_level': 'Medium', 'control_effectiveness_pct': 30.51}, 'mitigation': {'plan_state': 'On Track', 'secure_action': 'Adequate', 'mitigation_state': 'Pending', 'next_review_date': '2025-06-02', 'breach_notification': 'Partial', 'incident_plan_status': 'Missing'}, 'financial_impact': {'cost_usd': 62143.31, 'penalties_usd': 1035760.7, 'insurance_coverage_state': None}, 'incident_statistics': {'breach_count': 1, 'incident_count': 8, 'near_miss_count': 1, 'avg_resolution_hrs': 42.7, 'sla_compliance_pct': 97.28}}
+          2  CB339111     CB339111          {'assessment': {'risk_score': 67.11, 'maturity_level': 'Optimized', 'compliance_score': 75.01, 'residual_risk_level': 'High', 'control_effectiveness_pct': 25.93}, 'mitigation': {'plan_state': 'On Track', 'secure_action': 'Strong', 'mitigation_state': 'Pending', 'next_review_date': '2025-10-14', 'breach_notification': 'Established', 'incident_plan_status': 'Active'}, 'financial_impact': {'cost_usd': 697139.75, 'penalties_usd': 1901980.2, 'insurance_coverage_state': 'Limited'}, 'incident_statistics': {'breach_count': 2, 'incident_count': 54, 'near_miss_count': 7, 'avg_resolution_hrs': 149.6, 'sla_compliance_pct': 92.63}}
+          3  CB899685     CB899685          {'assessment': {'risk_score': 17.4, 'maturity_level': 'Managed', 'compliance_score': 51.95, 'residual_risk_level': 'Medium', 'control_effectiveness_pct': None}, 'mitigation': {'plan_state': 'Not Started', 'secure_action': 'Insufficient', 'mitigation_state': 'Pending', 'next_review_date': '2025-10-04', 'breach_notification': 'Established', 'incident_plan_status': 'Outdated'}, 'financial_impact': {'cost_usd': 81412.06, 'penalties_usd': 110601.04, 'insurance_coverage_state': None}, 'incident_statistics': {'breach_count': 6, 'incident_count': 40, 'near_miss_count': 3, 'avg_resolution_hrs': 92.3, 'sla_compliance_pct': 99.54}}
+...
+
+
+"CREATE" TABLE "DataProfile" (
+"profileTrace" bigint NOT NULL,
+"Flow_Sign" text NOT NULL,
+"riskJoin" bigint NOT NULL,
+"Record_Registry" text NULL,
+"DATATYPE" text NULL,
+"dataSense" text NULL,
+vol_gb real NULL,
+"REC_TALLY" bigint NULL,
+"subjectTally" bigint NULL,
+ret_days bigint NULL,
+"FormatType" text NULL,
+qlty_score real NULL,
+"Int_check" text NULL,
+"CSUMVERIFY" text NULL,
+"srcValState" text NULL,
+"DEST_VAL_state" text NULL,
+    "PRIMARY" KEY (profileTrace),
+    "FOREIGN" KEY ("Flow_Sign") REFERENCES DataFlow(RecordRegistry),
+    "FOREIGN" KEY ("riskJoin") REFERENCES RiskManagement(RISKTRACE)
+);
+
+
+
+"First" 3 rows:
+  profileTrace  Flow_Sign      riskJoin  Record_Registry    DATATYPE    dataSense      vol_gb    REC_TALLY    subjectTally    ret_days  FormatType      qlty_score  Int_check    CSUMVERIFY    srcValState    DEST_VAL_state
+--------------  -----------  ----------  -----------------  ----------  -----------  --------  -----------  --------------  ----------  ------------  ------------  -----------  ------------  -------------  ----------------
+             1  CB932064              1  CB932064           Commercial  High          1093.6       2629296          754585        2208  Mixed                52.45  Passed       Failed        Pending        Pending
+             2  CB339111              2  CB339111           Personal    Low           9970.36       921745          797722        3456  Unstructured         81.09  Passed       Success       Verified       Verified
+             3  CB899685              3  CB899685           Financial   Low           7306.78       751112          384363        1728  Mixed                25.2                Pending       Failed         Failed
+...
+
+
+"CREATE" TABLE "SecurityProfile" (
+"SECURITY_TRACE" bigint NOT NULL,
+"flowKey" text NOT NULL,
+"RISKKEY" bigint NOT NULL,
+profile_key bigint NOT NULL,
+"RecordRegistry" text NULL,
+enc_state text NULL,
+"ENCMETH" text NULL,
+"keyManState" text NULL,
+"MASK_LEVEL" text NULL,
+"anonMeth" text NULL,
+"PSYMSTATE" text NULL,
+"authMeth" text NULL,
+"AUTHZ_FRAME" text NULL,
+acl_state text NULL,
+"APISECSTATE" text NULL,
+"logIntCheck" text NULL,
+"LogRetDays" bigint NULL,
+bkp_state text NULL,
+"DRECSTATE" text NULL,
+bc_state text NULL,
+    "PRIMARY" KEY (SECURITY_TRACE),
+    "FOREIGN" KEY ("flowKey") REFERENCES DataFlow(RecordRegistry),
+    "FOREIGN" KEY ("RISKKEY") REFERENCES RiskManagement(RISKTRACE),
+    "FOREIGN" KEY (profile_key) REFERENCES DataProfile(profileTrace)
+);
+
+
+
+"First" 3 rows:
+  SECURITY_TRACE  flowKey      RISKKEY    profile_key  RecordRegistry    enc_state    ENCMETH    keyManState    MASK_LEVEL    anonMeth     PSYMSTATE    authMeth    AUTHZ_FRAME    acl_state    APISECSTATE    logIntCheck      LogRetDays  bkp_state    DRECSTATE    bc_state
+----------------  ---------  ---------  -------------  ----------------  -----------  ---------  -------------  ------------  -----------  -----------  ----------  -------------  -----------  -------------  -------------  ------------  -----------  -----------  ----------
+               1  CB932064           1              1  CB932064          Full                                                 T-Closeness  Partial      Basic       ABAC           Adequate     Vulnerable     Pending                 905  Current      Untested     Active
+               2  CB339111           2              2  CB339111          Partial                 Hybrid                       T-Closeness               SSO         ABAC           Adequate     Vulnerable     Pending                 439  Failed       Tested       Outdated
+               3  CB899685           3              3  CB899685          Partial      Custom     Distributed    Partial       T-Closeness  Partial      SSO         Custom         Strong       Vulnerable     Passed                  621  Failed       Missing      Outdated
+...
+
+
+"CREATE" TABLE "VendorManagement" (
+"Vendor_Trace" bigint NOT NULL,
+"SEC_JOIN" bigint NOT NULL,
+riskassoc bigint NOT NULL,
+recordregistry text NULL,
+"VENDASSESS" text NULL,
+"vendSecRate" text NULL,
+"VEND_AUD_DATE" date NULL,
+"contrState" text NULL,
+"CONTR_EXPIRE" date NULL,
+dpa_state text NULL,
+"SCCSTATE" text NULL,
+bcr_state text NULL,
+"docuState" text NULL,
+pol_comp text NULL,
+"procComp" text NULL,
+train_state text NULL,
+"certState" text NULL,
+"MONSTATE" text NULL,
+rep_state text NULL,
+"stakeComm" text NULL,
+    "PRIMARY" KEY (Vendor_Trace),
+    "FOREIGN" KEY ("SEC_JOIN") REFERENCES SecurityProfile(SECURITY_TRACE),
+    "FOREIGN" KEY (riskassoc) REFERENCES RiskManagement(RISKTRACE)
+);
+
+
+
+"First" 3 rows:
+  Vendor_Trace    SEC_JOIN    riskassoc  recordregistry    VENDASSESS    vendSecRate    VEND_AUD_DATE    contrState    CONTR_EXPIRE    dpa_state    SCCSTATE     bcr_state    docuState    pol_comp    procComp       train_state    certState    MONSTATE    rep_state    stakeComm
+--------------  ----------  -----------  ----------------  ------------  -------------  ---------------  ------------  --------------  -----------  -----------  -----------  -----------  ----------  -------------  -------------  -----------  ----------  -----------  -----------
+             1           1            1  CB932064          Completed     A              2024-05-30       Active        2027-01-12      Required     Implemented  Approved     Complete     Partial     Non-compliant  Due            Pending      Inactive    Delayed      Limited
+             2           2            2  CB339111          Completed     A              2024-06-30       Under Review  2026-08-16      Required     Implemented  Pending      Incomplete   Full        Non-compliant  Overdue                     Inactive    Delayed      Poor
+             3           3            3  CB899685                        B              2024-11-14       Expired       2026-04-26      Signed       Partial      Pending      Incomplete   Full        Non-compliant  Current        Valid        Partial     Delayed      Limited
+...
+
+
+"CREATE" TABLE "Compliance" (
+"complianceTrace" bigint NOT NULL,
+risk_tie bigint NOT NULL,
+"vendorTie" bigint NOT NULL,
+"recordRegistry" text NULL,
+"LEGALBASE" text NULL,
+consent_state text NULL,
+"ConsentColl" date NULL,
+consent_exp date NULL,
+purp_limit text NULL,
+"PURP_DESC" text NULL,
+"gdprComp" text NULL,
+"CCPA_COMP" text NULL,
+"PIPLcomp" text NULL,
+loc_law_comp text NULL,
+"RegApprovals" text NULL,
+priv_imp_assess text NULL,
+"Datasubjright" text NULL,
+    "PRIMARY" KEY (complianceTrace),
+    "FOREIGN" KEY (risk_tie) REFERENCES RiskManagement(RISKTRACE),
+    "FOREIGN" KEY ("vendorTie") REFERENCES VendorManagement(Vendor_Trace)
+);
+
+
+
+"First" 3 rows:
+  complianceTrace    risk_tie    vendorTie  recordRegistry    LEGALBASE         consent_state    ConsentColl    consent_exp    purp_limit    PURP_DESC            gdprComp    CCPA_COMP      PIPLcomp       loc_law_comp    RegApprovals    priv_imp_assess    Datasubjright
+-----------------  ----------  -----------  ----------------  ----------------  ---------------  -------------  -------------  ------------  -------------------  ----------  -------------  -------------  --------------  --------------  -----------------  ---------------
+                1           1            1  CB932064          Legal Obligation  Not Required                    2026-05-17     General       Business Operations  Partial     Compliant      Non-compliant  Non-compliant   Obtained        Completed          Partial
+                2           2            2  CB339111          Legal Obligation  Valid                           2025-02-25     Multiple      Research             Partial     Non-compliant  Partial        Compliant       Not Required    In Progress        Fully Supported
+                3           3            3  CB899685                            Expired                         2025-03-30     Multiple      Research             Partial     Partial        Non-compliant  Non-compliant   Pending         In Progress        Limited
+...
+
+
+"CREATE" TABLE "AuditAndCompliance" (
+"AUDIT_TRACE" bigint NOT NULL,
+profjoin bigint NOT NULL,
+"COMP_JOIN" bigint NOT NULL,
+"VendJoin" bigint NOT NULL,
+record_registry text NULL,
+"AudtrailState" text NULL,
+"FINDTALLY" bigint NULL,
+"critFindNum" bigint NULL,
+remed_state text NULL,
+"REMED_DUE" date NULL,
+"authNotify" text NULL,
+border_mech text NULL,
+"TRANSIMPASSESS" text NULL,
+"localReqs" text NULL,
+data_map_state text NULL,
+"SYSINTSTATE" text NULL,
+"AccReqNum" bigint NULL,
+"DEL_REQ_NUM" bigint NULL,
+rect_req_num bigint NULL,
+"PORTREQNUM" bigint NULL,
+resp_time_day real NULL,
+    "PRIMARY" KEY (AUDIT_TRACE),
+    "FOREIGN" KEY (profjoin) REFERENCES DataProfile(profileTrace),
+    "FOREIGN" KEY ("COMP_JOIN") REFERENCES Compliance(complianceTrace),
+    "FOREIGN" KEY ("VendJoin") REFERENCES VendorManagement(Vendor_Trace)
+);
+
+
+
+"First" 3 rows:
+  AUDIT_TRACE    profjoin    COMP_JOIN    VendJoin  record_registry    AudtrailState      FINDTALLY    critFindNum  remed_state    REMED_DUE    authNotify    border_mech        TRANSIMPASSESS    localReqs    data_map_state    SYSINTSTATE         AccReqNum    DEL_REQ_NUM    rect_req_num    PORTREQNUM    resp_time_day
+-------------  ----------  -----------  ----------  -----------------  ---------------  -----------  -------------  -------------  -----------  ------------  -----------------  ----------------  -----------  ----------------  ----------------  -----------  -------------  --------------  ------------  ---------------
+            1           1            1           1  CB932064           Complete                   3              6  In Progress    2025-03-16   Not Required  SCCs               Required          Not Met      Partial           Fully Integrated          959            409              76            53              4.5
+            2           2            2           2  CB339111           Complete                  49              8  In Progress    2025-04-14   Required      Adequacy Decision  Completed         Met          Partial           Manual                     36            326             196            21             13.4
+            3           3            3           3  CB899685           Missing                    6              5  Not Started    2025-04-10   Required      Derogations        In Progress       Partial      Partial           Fully Integrated          650            122               0            89             23.2
+...

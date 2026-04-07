@@ -1,0 +1,298 @@
+"CREATE" TABLE "traders" (
+"TR_KEY" text NOT NULL,
+"typeFlag" text NULL,
+trader_fin_data jsonb NULL,
+    "PRIMARY" KEY (TR_KEY)
+);
+
+
+
+"First" 3 rows:
+TR_KEY    typeFlag      trader_fin_data
+--------  ------------  ------------------------------------------------------------------------
+TR73442   Market Maker  {'usd_bal': '$4,692,991 ', 'age_days': 1532, 'risk_lvl': 'Conservative'}
+TR94368   Broker        {'usd_bal': '$6,383,503 ', 'age_days': 2730, 'risk_lvl': 'Aggressive'}
+TR32485   Broker        {'usd_bal': '$8,042,787 ', 'age_days': 1386, 'risk_lvl': 'Conservative'}
+...
+
+
+"CREATE" TABLE "instruments" (
+"SYM_KEY" text NOT NULL,
+inst_info jsonb NULL,
+    "PRIMARY" KEY (SYM_KEY)
+);
+
+
+
+"First" 3 rows:
+SYM_KEY    inst_info
+---------  -----------------------------------------------------------------
+AAPL       {'cap': 155167000000, 'sector': 'Energy', 'stream': 'Oil & Gas'}
+AMZN       {'cap': 12840133000, 'sector': 'Healthcare', 'stream': 'Banking'}
+GOOGL      {'cap': 919192000000, 'sector': 'Consumer', 'stream': 'Banking'}
+...
+
+
+"CREATE" TABLE "trader_relationships" (
+rel_root text NOT NULL,
+map_state text NULL,
+"addrHits" bigint NULL,
+"commPath" text NULL,
+circ_size bigint NULL,
+insider_net_str text NULL,
+trader_links jsonb NULL,
+    "PRIMARY" KEY (rel_root),
+    "FOREIGN" KEY (rel_root) REFERENCES traders(TR_KEY)
+);
+
+
+
+"First" 3 rows:
+rel_root    map_state      addrHits  commPath      circ_size  insider_net_str                    trader_links
+----------  -----------  ----------  ----------  -----------  ---------------------------------  ------------------------------------------------------------------------------------------
+TR73442     Partial               3  Regular              32  18.68 connection-point/ownership%  {'fin_link': 'Business', 'grp_score': 41.87, 'link_count': 19, 'contact_share': 'Email'}
+TR94368     Partial               0  Irregular            50  16.65 connection-point/ownership%  {'fin_link': 'Business', 'grp_score': 74.18, 'link_count': 8, 'contact_share': 'Email'}
+TR32485     Pending               1  Irregular            39  8.81 connection-point/ownership%   {'fin_link': 'Business', 'grp_score': 55.24, 'link_count': None, 'contact_share': 'Email'}
+...
+
+
+"CREATE" TABLE "trade_records" (
+"REC_KEY" text NOT NULL,
+snap_ts text NULL,
+tr_anchor text NULL,
+sym_anchor text NULL,
+freq_tag text NULL,
+vol_day real NULL,
+pos_avg real NULL,
+hold_span text NULL,
+margin_pct real NULL,
+vol_adj_lev text NULL,
+risk_adj_lev text NULL,
+bal_turnover text NULL,
+trade_perf jsonb NULL,
+    "PRIMARY" KEY (REC_KEY),
+    "FOREIGN" KEY (tr_anchor) REFERENCES traders(TR_KEY),
+    "FOREIGN" KEY (sym_anchor) REFERENCES instruments(SYM_KEY)
+);
+
+
+
+"First" 3 rows:
+REC_KEY    snap_ts    tr_anchor    sym_anchor    freq_tag      vol_day    pos_avg  hold_span      margin_pct  vol_adj_lev                    risk_adj_lev          bal_turnover    trade_perf
+---------  ---------  -----------  ------------  ----------  ---------  ---------  -----------  ------------  -----------------------------  --------------------  --------------  -------------------------------------------------------
+IT291460              TR73442      AAPL          Low            693469    63384.3  Intraday            74.62  0.19 leverage-point/vol-point  20.18 USD/risk-point  2.69 times/day  {'win_pct': 55.83, 'pl_ratio': 1.18, 'lev_ratio': 1.81}
+IT721698              TR16988      GOOGL         Low            832045   403075    Long-term           43.93  3.47 leverage-point/vol-point  18.97 USD/risk-point  0.89 times/day  {'win_pct': None, 'pl_ratio': 2.7, 'lev_ratio': None}
+IT794700   12:24.1    TR25044      GOOGL         High           297486   327126    Swing                7.7   0.39 leverage-point/vol-point  23.34 USD/risk-point  2.83 times/day  {'win_pct': None, 'pl_ratio': 1.6, 'lev_ratio': None}
+...
+
+
+"CREATE" TABLE "market_conditions" (
+"REC_PIN" text NOT NULL,
+vol_ano real NULL,
+mov_pct real NULL,
+"spreadTag" real NULL,
+"impactVal" text NULL,
+mkt_corr real NULL,
+rot_imp real NULL,
+ofi_density text NULL,
+liq_imp text NULL,
+price_accel text NULL,
+market_metrics jsonb NULL,
+    "PRIMARY" KEY (REC_PIN)
+);
+
+
+
+"First" 3 rows:
+REC_PIN      vol_ano    mov_pct    spreadTag  impactVal      mkt_corr    rot_imp  ofi_density            liq_imp           price_accel      market_metrics
+---------  ---------  ---------  -----------  -----------  ----------  ---------  ---------------------  ----------------  ---------------  --------------------------------------------------------
+IT291460        2.12       9.6         0.471  0.05%            -0.327     -0.793  14.41 bps/million USD  19328.16 USD/min  -1.25 %/(hour_)  {'px_vol': 0.348, 'liq_ratio': None, 'peer_corr': 0.525}
+IT931600        2.3        7.45        0.203  0.04%            -0.324      0.371  13.75 bps/million USD  54648.19 USD/min  4.51 %/(hour_)   {'px_vol': 0.464, 'liq_ratio': 0.58, 'peer_corr': None}
+IT310545        2.58       0.22        0.203  0.02%            -0.104     -0.183  1.92 bps/million USD   87421.64 USD/min  2.32 %/(hour_)   {'px_vol': 0.351, 'liq_ratio': 0.94, 'peer_corr': None}
+...
+
+
+"CREATE" TABLE "order_status_types" (
+"STAT_TOKEN" text NOT NULL,
+order_status jsonb NULL,
+    "PRIMARY" KEY (STAT_TOKEN)
+);
+
+
+
+"First" 3 rows:
+STAT_TOKEN    order_status
+------------  ---------------------------------------------------
+99BYZYKK      {'tick_type': 'Irregular', 'spread_type': 'Market'}
+IEHVWQ6W      {'tick_type': 'Regular', 'spread_type': 'Mixed'}
+DA9KLQ5O      {'tick_type': 'Irregular', 'spread_type': 'Mixed'}
+...
+
+
+"CREATE" TABLE "sentiment_analytics" (
+"REC_SA" text NOT NULL,
+ins_hold real NULL,
+inst_own real NULL,
+short_rt real NULL,
+opt_vol real NULL,
+pc_ratio real NULL,
+iv_rank text NULL,
+uo_act text NULL,
+short_press_int text NULL,
+sentiment_data jsonb NULL,
+    "PRIMARY" KEY (REC_SA),
+    "FOREIGN" KEY ("REC_SA") REFERENCES market_conditions(REC_PIN)
+);
+
+
+
+"First" 3 rows:
+REC_SA      ins_hold  inst_own      short_rt    opt_vol    pc_ratio  iv_rank    uo_act    short_press_int    sentiment_data
+--------  ----------  ----------  ----------  ---------  ----------  ---------  --------  -----------------  ------------------------------------------------------------
+IT291460       45.91                  nan          2.91        1.17  11.39%     Moderate  1.97 %/hour        {'soc_sent': 0.613, 'news_score': 0.874, 'analyst_cnt': 18}
+IT931600       37.78                  nan          1.39        0.85  91.47%               2.37 %/hour        {'soc_sent': -0.482, 'news_score': -0.933, 'analyst_cnt': 9}
+IT310545       35.22                   17.24       3.9         0.65  12.68%               4.27 %/hour        {'soc_sent': 0.585, 'news_score': 0.827, 'analyst_cnt': 29}
+...
+
+
+"CREATE" TABLE "order_behaviour" (
+"REC_NODE" text NOT NULL,
+"OST_ref" text NULL,
+dark_use real NULL,
+off_mkt real NULL,
+x_freq real NULL,
+order_metrics jsonb NULL,
+    "PRIMARY" KEY (REC_NODE),
+    "FOREIGN" KEY ("REC_NODE") REFERENCES market_conditions(REC_PIN),
+    "FOREIGN" KEY ("OST_ref") REFERENCES order_status_types(STAT_TOKEN)
+);
+
+
+
+"First" 3 rows:
+REC_NODE    OST_ref      dark_use    off_mkt    x_freq  order_metrics
+----------  ---------  ----------  ---------  --------  -----------------------------------------------------------
+IT291460                    0.009      0.197     0.069  {'mod_freq': 0.46, 'size_var': 0.791, 'cancel_pct': 0.129}
+IT931600                    0.098      0.069     0.074  {'mod_freq': 0.467, 'size_var': 1.507, 'cancel_pct': 0.184}
+IT310545                    0.26       0.076     0.08   {'mod_freq': 0.175, 'size_var': 0.759, 'cancel_pct': None}
+...
+
+
+"CREATE" TABLE "manipulation_signals" (
+"REC_TAG" text NOT NULL,
+layer_idx text NULL,
+stuff_idx real NULL,
+ignite_sig text NULL,
+close_mark text NULL,
+manip_signals jsonb NULL,
+    "PRIMARY" KEY (REC_TAG),
+    "FOREIGN" KEY ("REC_TAG") REFERENCES market_conditions(REC_PIN)
+);
+
+
+
+"First" 3 rows:
+REC_TAG    layer_idx      stuff_idx  ignite_sig    close_mark    manip_signals
+---------  -----------  -----------  ------------  ------------  ---------------------------------------------------------------
+IT291460                      0.409  Strong        Occasional    {'front_run': 39.75, 'wash_flag': 'Low', 'spoof_prob': '0.88%'}
+IT931600   Confirmed          0.271  Weak          Occasional    {'front_run': 65.34, 'wash_flag': None, 'spoof_prob': '0.21%'}
+IT310545                      0.369                Frequent      {'front_run': 61.14, 'wash_flag': None, 'spoof_prob': '0.39%'}
+...
+
+
+"CREATE" TABLE "corporate_events" (
+"REC_EVT" text NOT NULL,
+evt_near text NULL,
+announce_time text NULL,
+leak_score real NULL,
+info_leak_rate text NULL,
+    "PRIMARY" KEY (REC_EVT),
+    "FOREIGN" KEY ("REC_EVT") REFERENCES market_conditions(REC_PIN)
+);
+
+
+
+"First" 3 rows:
+REC_EVT    evt_near       announce_time            leak_score  info_leak_rate
+---------  -------------  ---------------------  ------------  ----------------
+IT291460   Earnings       Pre-market hrs before         34.04  0.57 score/hour
+IT931600   Restructuring  Intraday hrs before           41.03  0.81 score/hour
+IT310545   M&A            Pre-market hrs before         12.66  0.76 score/hour
+...
+
+
+"CREATE" TABLE "reg_compliance" (
+"REC_COMP" text NOT NULL,
+file_state text NULL,
+disc_state text NULL,
+restrict_win text NULL,
+broker_flag text NULL,
+exch_note text NULL,
+invest_stat text NULL,
+alert_lvl text NULL,
+invest_prior text NULL,
+case_flag text NULL,
+review_freq text NULL,
+last_rev date NULL,
+next_rev date NULL,
+mon_inten text NULL,
+sv_sys text NULL,
+det_meth text NULL,
+fp_rate real NULL,
+model_conf real NULL,
+pat_rec real NULL,
+behav_score real NULL,
+net_score real NULL,
+reg_alert_conc text NULL,
+reg_resp_spd text NULL,
+compliance_data jsonb NULL,
+    "PRIMARY" KEY (REC_COMP),
+    "FOREIGN" KEY ("REC_COMP") REFERENCES market_conditions(REC_PIN)
+);
+
+
+
+"First" 3 rows:
+REC_COMP    file_state    disc_state     restrict_win    broker_flag    exch_note    invest_stat    alert_lvl    invest_prior    case_flag      review_freq    last_rev    next_rev    mon_inten    sv_sys     det_meth      fp_rate    model_conf    pat_rec    behav_score    net_score  reg_alert_conc            reg_resp_spd       compliance_data
+----------  ------------  -------------  --------------  -------------  -----------  -------------  -----------  --------------  -------------  -------------  ----------  ----------  -----------  ---------  ----------  ---------  ------------  ---------  -------------  -----------  ------------------------  -----------------  -----------------------------------------------------
+IT291460    Delayed       Full                                          Warning      Preliminary    Low          Low             Investigation  Monthly        2025-02-02  2025-03-19  Enhanced     Secondary  Automated       0.033         0.883      42.51          37.76        68.91  91.36 alerts/billion USD  130.00 hours/case  {'risk_val': 58.84, 'comp_rate': 'B', 'prev_viol': 1}
+IT931600    Missing       Full                                          Inquiry      Preliminary    Low          Low             Investigation  Monthly        2025-02-14  2025-03-07  Intensive    Secondary  Automated       0.137         0.613      12.01          92.39        77.42  52.54 alerts/billion USD  35.30 hours/case   {'risk_val': 49.31, 'comp_rate': 'A', 'prev_viol': 1}
+IT310545    Delayed       Non-compliant  Blackout                       Warning                     Critical     Low             Closed         Monthly        2025-02-07  2025-02-22  Intensive    Secondary  Hybrid          0.197         0.73       88.2           73.36        47.35  72.49 alerts/billion USD  174.61 hours/case  {'risk_val': 56.81, 'comp_rate': 'D', 'prev_viol': 5}
+...
+
+
+"CREATE" TABLE "enforcement_actions" (
+"REC_ENF" text NOT NULL,
+abuse_prob real NULL,
+evid_pow text NULL,
+doc_stat text NULL,
+act_taken text NULL,
+esc_lvl text NULL,
+legal_state text NULL,
+settle_state text NULL,
+rep_impact text NULL,
+biz_restrict text NULL,
+rem_status text NULL,
+sys_need text NULL,
+policy_need text NULL,
+train_req text NULL,
+report_state text NULL,
+retain_stat text NULL,
+audit_stat text NULL,
+conf_lvl text NULL,
+access_res text NULL,
+share_state text NULL,
+enf_actions jsonb NULL,
+    "PRIMARY" KEY (REC_ENF),
+    "FOREIGN" KEY ("REC_ENF") REFERENCES market_conditions(REC_PIN)
+);
+
+
+
+"First" 3 rows:
+REC_ENF      abuse_prob  evid_pow    doc_stat    act_taken    esc_lvl    legal_state    settle_state    rep_impact    biz_restrict    rem_status    sys_need    policy_need    train_req    report_state    retain_stat    audit_stat    conf_lvl          access_res    share_state    enf_actions
+---------  ------------  ----------  ----------  -----------  ---------  -------------  --------------  ------------  --------------  ------------  ----------  -------------  -----------  --------------  -------------  ------------  ----------------  ------------  -------------  ------------------------------------------------------------------------
+IT291460          0.177  Strong      Incomplete  Warning                 Pending        Negotiating     Severe                        Not Required  Minor       Yes                         Hybrid          Archived       Complete                        Internal      Limited        {'pen_amt': 290459.22, 'pen_flag': None, 'res_state': 'Resolved'}
+IT931600        nan      Weak        Incomplete                                                         Moderate                      Pending       Minor       No                          Hybrid          Archived       Missing       Highly Sensitive  Internal      Prohibited     {'pen_amt': 76804.63, 'pen_flag': 'Warning', 'res_state': 'In Progress'}
+IT310545        nan      Strong      Partial     Restriction  Legal      Active         Settled         Moderate                      Pending       Major       Yes            Refresher    Automated       Deleted        Complete      Sensitive         Internal      Prohibited     {'pen_amt': 504727.53, 'pen_flag': None, 'res_state': 'In Progress'}
+...

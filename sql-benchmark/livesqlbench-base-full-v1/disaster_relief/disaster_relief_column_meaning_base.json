@@ -1,0 +1,192 @@
+{
+  "disaster_relief|DisasterEvents|DistRegistry": "VARCHAR(20). Unique disaster event identifier. PK.",
+  "disaster_relief|DisasterEvents|TIMEMARK": "TIMESTAMP. Timestamp when the disaster event was recorded. Example: 2024-12-21 19:49.",
+  "disaster_relief|DisasterEvents|HazType": "HazType_enum. Type of the disaster (e.g., Wildfire, Earthquake). Possible values: Earthquake, Flood, Hurricane, Tsunami, Wildfire.",
+  "disaster_relief|DisasterEvents|haz_level": "TEXT. Severity level of the disaster event. Possible values: Severity-1, Severity-2, Severity-3, Severity-4, Severity-5.",
+  "disaster_relief|DisasterEvents|affectedArea": "TEXT. Geographic area impacted by the disaster. Example: East Jeremy.",
+  "disaster_relief|DisasterEvents|REGION_TAG": "TEXT. Regional tag for categorization. Example: RC7250.",
+  "disaster_relief|DisasterEvents|latcoord": "REAL. Latitude coordinate of the disaster center. Example: 51.203609.",
+  "disaster_relief|DisasterEvents|LON_COORD": "REAL. Longitude coordinate of the disaster center. Example: 36.221141.",
+  "disaster_relief|DisasterEvents|damageReport": "TEXT. Detailed report of the damage caused by the disaster. Possible values: Catastrophic, Minor, Moderate, Severe.",
+  "disaster_relief|DistributionHubs|HubRegistry": "VARCHAR(20). Unique distribution hub identifier. PK.",
+  "disaster_relief|DistributionHubs|HUB_CAP_TONS": "REAL. Hub's capacity in tons. Example: 5101.",
+  "disaster_relief|DistributionHubs|hubUtilPct": "REAL. Hub's utilization percentage. Example: 9.4.",
+  "disaster_relief|DistributionHubs|store_cap_m3": "REAL. Hub's storage capacity in cubic meters. Example: 93293.",
+  "disaster_relief|DistributionHubs|STOREAVAILM3": "REAL. Available storage capacity in cubic meters. Example: 7279.",
+  "disaster_relief|DistributionHubs|coldStoreCapM3": "REAL. Cold storage capacity in cubic meters. Example: 249.",
+  "disaster_relief|DistributionHubs|COLD_STORE_TEMP_C": "REAL. Cold storage temperature in Celsius. **NULL means cold storage temperature not recorded.**. Example: 6.6.",
+  "disaster_relief|DistributionHubs|warehouse_state": "TEXT. Warehouse operational state. Possible values: Excellent, Fair, Good, Poor.",
+  "disaster_relief|DistributionHubs|INVACCPCT": "REAL. Inventory acceptance percentage. Example: 91.3.",
+  "disaster_relief|DistributionHubs|stockTurnRate": "REAL. Stock turnover rate. Example: 3.31.",
+  "disaster_relief|Operations|OpsRegistry": "VARCHAR(20). Unique operation registry identifier. PK.",
+  "disaster_relief|Operations|emergLevel": "EmergLevel_enum. Emergency level of the operation. Possible values: Black, Orange, Red, Yellow.",
+  "disaster_relief|Operations|RESP_PHASE": "TEXT. Response phase during the operation. Possible values: Emergency, Initial, Reconstruction, Recovery.",
+  "disaster_relief|Operations|OpsStatus": "TEXT. Operational status description. Possible values: Active, Completed, Planning, Scaling Down.",
+  "disaster_relief|Operations|COORDCENTER": "TEXT. Coordination center for the operation. Example: CC7649.",
+  "disaster_relief|Operations|ops_start_date": "DATE. Date when the operation started. Example: 2025-01-26.",
+  "disaster_relief|Operations|ESTDURATIONDAYS": "BIGINT. Estimated duration of the operation in days. Example: 12.",
+  "disaster_relief|Operations|Priority_rank": "PriorityRank_enum. Priority rank of the operation. Possible values: Critical, High, Low, Medium.",
+  "disaster_relief|Operations|resourceAllocState": "ResourceAllocState_enum. Resource allocation status. Possible values: Critical, Limited, Sufficient.",
+  "disaster_relief|Operations|SUPPLY_FLOW_STATE": "TEXT. Supply flow status during the operation. Possible values: Disrupted, Stable, Strained.",
+  "disaster_relief|Supplies|SupplyRegistry": "VARCHAR(20). Unique supply registry identifier. PK.",
+  "disaster_relief|Supplies|supply_dist_ref": "VARCHAR(20). Disaster event reference. FK to DisasterEvents.",
+  "disaster_relief|Supplies|SUPPLYHUBREF": "VARCHAR(20). Distribution hub reference. FK to DistributionHubs.",
+  "disaster_relief|Supplies|FoodTons": "REAL. Amount of food supplies in tons. Example: 479.4.",
+  "disaster_relief|Supplies|water_liters": "REAL. Amount of water supplies in liters. Example: 283596.",
+  "disaster_relief|Supplies|MEDUNITS": "BIGINT. Number of medical units. Example: 15593.0.",
+  "disaster_relief|Supplies|shelter_units": "BIGINT. Number of shelter units. Example: 7534.",
+  "disaster_relief|Supplies|blanketUnits": "BIGINT. Number of blankets. Example: 26671.0.",
+  "disaster_relief|Supplies|HYGIENE_UNITS": "BIGINT. Number of hygiene units. Example: 46981.",
+  "disaster_relief|Supplies|powergenunits": "BIGINT. Number of power generators. Example: 568.",
+  "disaster_relief|Supplies|FUEL_RESERVE_LITERS": "REAL. Amount of fuel reserves in liters. Example: 86011.",
+  "disaster_relief|Transportation|TransportRegistry": "VARCHAR(20). Unique transportation registry identifier. PK.",
+  "disaster_relief|Transportation|transportDistRef": "VARCHAR(20). Disaster event reference. FK to DisasterEvents.",
+  "disaster_relief|Transportation|TRANSPORT_HUB_REF": "VARCHAR(20). Distribution hub reference. FK to DistributionHubs.",
+  "disaster_relief|Transportation|transportsupref": "VARCHAR(20). Supply reference. FK to Supplies.",
+  "disaster_relief|Transportation|VEHICLECOUNT": "BIGINT. Number of vehicles available. **NULL means vehicle count not recorded.**. Example: 141.0.",
+  "disaster_relief|Transportation|trucks_available": "BIGINT. Number of available trucks. Example: 88.",
+  "disaster_relief|Transportation|HelosAvailable": "BIGINT. Number of available helicopters. Example: 7.",
+  "disaster_relief|Transportation|BOATSAVAILABLE": "BIGINT. Number of available boats. Example: 7.",
+  "disaster_relief|Transportation|lastmileStatus": "TEXT. Status of the last-mile delivery. Possible values: Delayed, On Track, Suspended.",
+  "disaster_relief|Transportation|distribution_points": "BIGINT. Number of distribution points. Example: 35.",
+  "disaster_relief|Transportation|deliveryStatus": "TEXT. Overall delivery status.",
+  "disaster_relief|HumanResources|HRRegistry": "VARCHAR(20). Unique human resources registry identifier. PK.",
+  "disaster_relief|HumanResources|hrdistref": "VARCHAR(20). Disaster event reference. FK to DisasterEvents.",
+  "disaster_relief|HumanResources|HR_Ops_Ref": "VARCHAR(20). Operations reference. FK to Operations.",
+  "disaster_relief|Financials|FinanceRegistry": "VARCHAR(20). Unique financials registry identifier. PK.",
+  "disaster_relief|Financials|finDistRef": "VARCHAR(20). Disaster event reference. FK to DisasterEvents.",
+  "disaster_relief|Financials|FIN_OPS_REF": "VARCHAR(20). Operations reference. FK to Operations.",
+  "disaster_relief|Financials|BUDGETALLOTUSD": "TEXT. Allotted budget in USD. Example: $4,227,090.00.",
+  "disaster_relief|Financials|funds_util_pct": "TEXT. Percentage of funds utilized. Example: 9.8%.",
+  "disaster_relief|Financials|costBeneUSD": "TEXT. Cost-benefit ratio in USD. Example: $844.12.",
+  "disaster_relief|Financials|OPS_COSTS_USD": "REAL. Operational costs in USD. Example: 88256.",
+  "disaster_relief|Financials|transportcostsUSD": "BIGINT. Transportation costs in USD. Example: 976202.",
+  "disaster_relief|Financials|STORAGE_COSTS_USD": "REAL. Storage costs in USD. Example: 111548.",
+  "disaster_relief|Financials|personnelcostsUsd": "REAL. Personnel costs in USD. Example: 364821.",
+  "disaster_relief|Financials|funding_state": "TEXT. Funding state. Possible values: Adequate, Critical, Limited.",
+  "disaster_relief|Financials|DONOR_COMMITMENTS_USD": "REAL. Donor commitments in USD. **NULL means no donor commitments.**. Example: 4068978.0.",
+  "disaster_relief|Financials|resource_gaps_usd": "BIGINT. Resource gaps in USD. Example: 95367.",
+  "disaster_relief|BeneficiariesAndAssessments|BeneRegistry": "VARCHAR(20). Unique beneficiary registry identifier. PK.",
+  "disaster_relief|BeneficiariesAndAssessments|bene_dist_ref": "VARCHAR(20). Disaster event reference. FK to DisasterEvents.",
+  "disaster_relief|BeneficiariesAndAssessments|BENEOpsRef": "VARCHAR(20). Operations reference. FK to Operations.",
+  "disaster_relief|BeneficiariesAndAssessments|beneRegister": "BeneRegister_enum. Beneficiary registration status. **NULL means registration not completed.**. Possible values: Complete, Partial, Pending.",
+  "disaster_relief|BeneficiariesAndAssessments|VULNERABILITY_REVIEW": "VulnerabilityReview_enum. Vulnerability review status. Possible values: Complete, In Progress, Pending.",
+  "disaster_relief|BeneficiariesAndAssessments|needs_assess_status": "TEXT. Status of needs assessment. Possible values: Due, Overdue, Updated.",
+  "disaster_relief|BeneficiariesAndAssessments|DISTEQUITYIDX": "REAL. Disaster equity index. Example: 0.54.",
+  "disaster_relief|BeneficiariesAndAssessments|bene_feedbackScore": "REAL. Beneficiary feedback score. **NULL means feedback not recorded.**. Example: 1.3.",
+  "disaster_relief|BeneficiariesAndAssessments|COMMENGAGELVL": "TEXT. Community engagement level. Possible values: High, Low, Medium.",
+  "disaster_relief|BeneficiariesAndAssessments|local_capacity_growth": "TEXT. Local capacity growth description. **NULL means no growth recorded.**. Possible values: Active, Limited.",
+  "disaster_relief|EnvironmentAndHealth|EnvHealthRegistry": "VARCHAR(20). Unique environment and health registry identifier. PK.",
+  "disaster_relief|EnvironmentAndHealth|env_dist_ref": "VARCHAR(20). Disaster event reference. FK to DisasterEvents.",
+  "disaster_relief|CoordinationAndEvaluation|CoordEvalRegistry": "VARCHAR(20). Unique coordination and evaluation registry identifier. PK.",
+  "disaster_relief|CoordinationAndEvaluation|coord_dist_ref": "VARCHAR(20). Disaster event reference. FK to DisasterEvents.",
+  "disaster_relief|CoordinationAndEvaluation|coordOpsRef": "VARCHAR(20). Operations reference. FK to Operations.",
+  "disaster_relief|CoordinationAndEvaluation|SECINCIDENTCOUNT": "BIGINT. Security incident count. Example: 83.",
+  "disaster_relief|CoordinationAndEvaluation|safety_ranking": "SafetyRanking_enum. Safety ranking level. **NULL means safety ranking not assessed.**. Possible values: High Risk, Moderate, Safe.",
+  "disaster_relief|CoordinationAndEvaluation|ACCESSLIMITATION": "TEXT. Access limitation description. **NULL means no access limitations.**. Possible values: Partial, Severe.",
+  "disaster_relief|CoordinationAndEvaluation|coord_effect_lvl": "CoordEffectLvl_enum. Coordination effect level. Possible values: High, Low, Medium.",
+  "disaster_relief|CoordinationAndEvaluation|PARTNERORGS": "TEXT. Partner organizations involved. Example: 9.0.",
+  "disaster_relief|CoordinationAndEvaluation|infoSharingState": "InfoSharingState_enum. Information-sharing effectiveness. Possible values: Effective, Limited, Poor.",
+  "disaster_relief|CoordinationAndEvaluation|report_compliance": "REAL. Report compliance percentage. Example: 91.0.",
+  "disaster_relief|CoordinationAndEvaluation|DATAQUALITYVALUE": "BIGINT. Data quality score. Example: 3.8.",
+  "disaster_relief|CoordinationAndEvaluation|monitoring_freq": "TEXT. Monitoring frequency description. Possible values: Daily, Monthly, Weekly.",
+  "disaster_relief|CoordinationAndEvaluation|evaluationStage": "EvaluationStage_enum. Evaluation stage status. **NULL means evaluation stage not set.**. Possible values: Current, Due, Overdue.",
+  "disaster_relief|CoordinationAndEvaluation|LESSONS_LEARNED_STAGE": "LessonsLearnedStage_enum. Lessons learned stage. Possible values: Documented, In Progress, Pending.",
+  "disaster_relief|CoordinationAndEvaluation|contingencyplanstage": "ContingencyPlanStage_enum. Contingency plan stage. Possible values: Due, Overdue, Updated.",
+  "disaster_relief|CoordinationAndEvaluation|risk_mitigation_steps": "RiskMitigationSteps_enum. Risk mitigation steps status. Possible values: Adequate, Insufficient, Partial.",
+  "disaster_relief|CoordinationAndEvaluation|INSURANCE_SCOPE": "TEXT. Insurance coverage scope. Possible values: Full, Partial.",
+  "disaster_relief|CoordinationAndEvaluation|complianceState": "ComplianceState_enum. Compliance status. Possible values: Compliant, Non-Compliant, Partial.",
+  "disaster_relief|CoordinationAndEvaluation|audit_state": "AuditState_enum. Audit state. Possible values: Completed, Due, Overdue.",
+  "disaster_relief|CoordinationAndEvaluation|QUALITYCONTROLSTEPS": "QualityControlSteps_enum. Quality control steps evaluation. Possible values: Moderate, Strong, Weak.",
+  "disaster_relief|CoordinationAndEvaluation|stakeholder_satisf": "REAL. Stakeholder satisfaction score. Example: 4.0.",
+  "disaster_relief|CoordinationAndEvaluation|mediacoversentiment": "MediaCoverSentiment_enum. Media coverage sentiment. Possible values: Negative, Neutral, Positive.",
+  "disaster_relief|CoordinationAndEvaluation|PUBLIC_PERCEPTION": "TEXT. Public perception of the response. Example: 3.5★.",
+  "disaster_relief|CoordinationAndEvaluation|documentation_state": "TEXT. Documentation state of the coordination efforts. Possible values: Complete, Incomplete, Partial.",
+  "disaster_relief|CoordinationAndEvaluation|LESSONSRECORDED": "TEXT. Status of lessons learned recording. Example: 5.",
+  "disaster_relief|CoordinationAndEvaluation|bestPracticesListed": "TEXT. Best practices listing status. Example: 2.",
+  "disaster_relief|CoordinationAndEvaluation|IMPROVEMENT_RECS": "TEXT. Improvement recommendations. Example: 25.",
+  "disaster_relief|CoordinationAndEvaluation|next_review_date": "DATE. Next scheduled review date. Example: 2025-04-22.",
+  "disaster_relief|CoordinationAndEvaluation|notes": "TEXT. Additional notes. **NULL means no notes recorded.**. Possible values: Delayed due to weather, Delivered without incident, Handle with care, Priority shipment, Rerouted to alternate hub.",
+  "disaster_relief|Operation_Hub_Map|OpsRegistry": "VARCHAR(20). Operations registry identifier. PK. FK to Operations.",
+  "disaster_relief|Operation_Hub_Map|HubRegistry": "VARCHAR(20). Distribution hub registry identifier. PK. FK to DistributionHubs.",
+  "disaster_relief|Operation_Hub_Map|hub_role": "TEXT. Role or function of the hub in the operation. Possible values: Backup Hub, Forward Depot, Primary Hub.",
+  "disaster_relief|Operation_Hub_Map|ALLOCATED_CAP_TONS": "REAL. Allocated capacity in tons. Example: 202.6.",
+  "disaster_relief|DisasterEvents|impact_summary": {
+    "column_meaning": "JSONB column. Summarizes the impact of the disaster including population effects and damage levels.",
+    "fields_meaning": {
+      "population_impact": {
+        "affected": "BIGINT. Number of affected population. Example: 228943.",
+        "displaced": "BIGINT. Number of displaced individuals. **NULL means displacement data not available.**. Example: 31578.0.",
+        "casualties": "BIGINT. Number of casualties due to the disaster. Example: 174.",
+        "injured": "BIGINT. Number of injuries caused by the disaster. **NULL means injury data not available.**. Example: 4524.0.",
+        "missing": "BIGINT. Number of missing persons. **NULL means missing persons data not recorded.**. Example: 212.0."
+      },
+      "infrastructure_damage": {
+        "infra_damage_pct": "REAL. Percentage of infrastructure damaged. Example: 19.0.",
+        "power_outage_pct": "REAL. Percentage of power outages. **NULL means power outage data not recorded.**. Example: 93.2.",
+        "water_damage_pct": "BIGINT. Percentage of water infrastructure damage. **NULL means water damage data not available.**. Example: 77.4."
+      },
+      "communication_and_transport": {
+        "communication_state": "TEXT. Communication network status during the disaster. Possible values: Down, Limited, OP.",
+        "transport_access": "TEXT. Access to transportation routes during the disaster. Possible values: Full, Limited, Minimal."
+      }
+    }
+  },
+  "disaster_relief|HumanResources|staffing_details": {
+    "column_meaning": "JSONB column. Details about staffing levels and composition across different roles.",
+    "fields_meaning": {
+      "staff_counts": {
+        "total": "BIGINT. Total number of staff. **NULL means staff count not recorded.**. Example: 234.0.",
+        "medical": "BIGINT. Number of medical staff. Example: 52.",
+        "logistics": "BIGINT. Number of logistics staff. Example: 99.",
+        "security": "BIGINT. Number of security staff. **NULL means security staff not recorded.**. Example: 46.0.",
+        "volunteers": "BIGINT. Total number of volunteers. Example: 435.0."
+      },
+      "availability_and_equipment": {
+        "availability_pct": "REAL. Staff availability percentage. Example: 94.1.",
+        "training_state": "TEXT. Training state of staff. **NULL means training state not recorded.**. Possible values: Complete, In Progress, Required.",
+        "ppe_status": "TEXT. Personal protective equipment status. Possible values: Critical, LTD, ✓.",
+        "comm_equipment": "TEXT. Communication equipment status. Possible values: Insufficient, Limited, Sufficient."
+      }
+    }
+  },
+  "disaster_relief|Transportation|delivery_metrics": {
+    "column_meaning": "JSONB column. Captures delivery statistics including capacity, performance, and vehicle metrics.",
+    "fields_meaning": {
+      "delivery_capacity": {
+        "total_tons": "REAL. Total delivery tonnage. Example: 368.",
+        "daily_tons": "REAL. Daily delivery tonnage. Example: 227."
+      },
+      "delivery_performance": {
+        "avg_hours": "REAL. Average delivery hours. **NULL means delivery time not recorded.**. Example: 20.7.",
+        "success_rate": "REAL. Delivery success rate percentage. Example: 79.4.",
+        "route_optimization_status": "RouteOptStatus_enum. Route optimization status. Possible values: In Progress, Optimized, Required."
+      },
+      "vehicle_metrics": {
+        "fuel_efficiency_lpk": "REAL. Fuel efficiency in liters per kilometer. Example: 10.6.",
+        "maintenance_state": "TEXT. Vehicle maintenance state. Possible values: Due, Overdue, Up to Date.",
+        "break_rate": "REAL. Vehicle breakdown rate. Example: 9.17."
+      }
+    }
+  },
+  "disaster_relief|EnvironmentAndHealth|health_environment_profile": {
+    "column_meaning": "JSONB column. Summarizes environmental and health conditions during the disaster response.",
+    "fields_meaning": {
+      "environment": {
+        "impact_rate": "TEXT. Environmental impact rate. Possible values: High, Low, Medium.",
+        "waste_management": "TEXT. Waste management status. Possible values: Adequate, Critical, Limited.",
+        "recycling_pct": "REAL. Recycling percentage. Example: 68.4.",
+        "carbon_tons": "REAL. Carbon emissions in tons. **NULL means carbon data not recorded.**. Example: 793.5.",
+        "renewable_energy_pct": "REAL. Renewable energy percentage. Example: 43.3.",
+        "water_quality_index": "TEXT. Water quality index. Example: 85.6 WQI.",
+        "sanitation_coverage": "REAL. Sanitation coverage percentage. Example: 53.5."
+      },
+      "health": {
+        "disease_risk": "DiseaseRisk_enum. Disease risk level. Possible values: High, Low, Medium.",
+        "medical_capacity": "MedicalEmergencyCapacity_enum. Medical emergency capacity level. Possible values: Adequate, Critical, Limited.",
+        "vaccination_coverage": "REAL. Vaccination coverage percentage. **NULL means vaccination coverage not recorded.**. Example: 14.8.",
+        "mental_health_aid": "TEXT. Mental health aid status. Possible values: Available, Limited."
+      }
+    }
+  }
+}
