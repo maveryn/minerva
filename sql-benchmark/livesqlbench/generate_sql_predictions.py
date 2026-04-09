@@ -147,8 +147,13 @@ def generate_with_vllm(prompts: list[str], args: argparse.Namespace) -> list[lis
         max_tokens=args.max_tokens,
         seed=args.seed,
     )
-    outputs = llm.generate(prompts, sampling_params)
-    return [[candidate.text for candidate in result.outputs] for result in outputs]
+    chunk_size = args.vllm_chunk_size if args.vllm_chunk_size and args.vllm_chunk_size > 0 else len(prompts)
+    all_outputs: list[list[str]] = []
+    for start in tqdm(range(0, len(prompts), chunk_size), desc="Generating with vLLM"):
+        chunk_prompts = prompts[start : start + chunk_size]
+        outputs = llm.generate(chunk_prompts, sampling_params)
+        all_outputs.extend([[candidate.text for candidate in result.outputs] for result in outputs])
+    return all_outputs
 
 
 def generate_with_transformers(
@@ -202,8 +207,14 @@ def main() -> None:
     parser.add_argument("--top-p", type=float, default=0.95)
     parser.add_argument("--n", type=int, default=8)
     parser.add_argument("--max-tokens", type=int, default=768)
-    parser.add_argument("--max-model-len", type=int, default=16384)
+    parser.add_argument("--max-model-len", type=int, default=32768)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
+    parser.add_argument(
+        "--vllm-chunk-size",
+        type=int,
+        default=20,
+        help="Number of prompts to submit to each vLLM generate() call. Smaller values are more stable on long SQL prompts.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--trust-remote-code", action="store_true")
     parser.add_argument(
