@@ -156,6 +156,25 @@ Noctua adds per-batch answer-conditioned reasoning and distillation on top of GR
 - ACR reward logic in `rlvr/verl/utils/reward_score/reward_acr.py`
 - the same Minerva train/validation Parquets used by GRPO
 
+### Matched Answer-Only SFT Ablation
+
+This ablation keeps GRPO plus the Noctua online SFT optimization schedule, but
+replaces ACR trace generation with direct SFT on the original prompt and boxed
+ground-truth answer.
+
+Run the Llama-8B preset:
+
+```bash
+bash rlvr/cti-scripts/train_minerva_grpo_answer_sft_llama8b.sh
+```
+
+Core entrypoint:
+
+- `rlvr/cti-scripts/train_minerva_grpo_answer_sft.sh`
+
+See `docs/matched-answer-sft-ablation.md` for the matched settings and override
+knobs.
+
 ### DART-Initialized GRPO
 
 Wrappers for RLVR initialized from uploaded DART checkpoints:

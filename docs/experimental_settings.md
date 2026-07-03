@@ -292,3 +292,22 @@ train_minerva_noctua_llama3b.sh / qwen4b.sh / qwen8b.sh / gptoss.sh
   ACRD_ACR_ROLLOUT_TEMPERATURE=0.7
   ACRD_ACR_ROLLOUT_TOP_P=0.9
 ```
+
+### Matched answer-only SFT ablation preset
+
+```text
+train_minerva_grpo_answer_sft_llama8b.sh
+  ANSWER_SFT_MODEL_PATH=meta-llama/Llama-3.1-8B-Instruct
+  ANSWER_SFT_DISTILL_LR_SCALE=0.05
+  ANSWER_SFT_DISTILL_BUFFER_MODE=flush
+  ANSWER_SFT_DISTILL_BATCH_SIZE=256
+  ANSWER_SFT_DISTILL_INTERVAL=10
+  ANSWER_SFT_HARD_REWARD_MODE=max
+  ANSWER_SFT_HARD_REWARD_THRESHOLD=1.0
+  ANSWER_SFT_SKIP_CVSS=true
+  ANSWER_SFT_N_GPUS_PER_NODE=4
+```
+
+This is the matched optimization-step ablation for Noctua: it uses the same
+GRPO loop and auxiliary SFT cadence, batch size, and LR scale, but replaces ACR
+trace generation/filtering with direct SFT on `\boxed{ground_truth}` targets.
