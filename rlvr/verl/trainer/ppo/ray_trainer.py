@@ -420,6 +420,7 @@ class RayPPOTrainer:
 
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
         self._init_distill_state()
+        self._init_answer_sft_state()
         self._init_acr_state()
         self._best_val_metric = None
         self._best_val_step = None
@@ -1402,6 +1403,7 @@ class RayPPOTrainer:
         slhc_cfg = self.config.data.get("stochastic_slhc", {}) if self.config is not None else {}
         tarba_cfg = self.config.data.get("tarba", {}) if self.config is not None else {}
         acr_cfg = self.config.data.get("acr", {}) if self.config is not None else {}
+        answer_sft_cfg = self.config.data.get("answer_sft", {}) if self.config is not None else {}
         distill_cfg = None
         distill_source = None
 
@@ -1427,6 +1429,14 @@ class RayPPOTrainer:
             elif isinstance(acr_cfg, dict):
                 distill_cfg = acr_cfg.get("distill", None)
                 distill_source = "acr" if distill_cfg is not None else distill_source
+
+        if distill_cfg is None:
+            if isinstance(answer_sft_cfg, DictConfig):
+                distill_cfg = answer_sft_cfg.get("distill", None)
+                distill_source = "answer_sft" if distill_cfg is not None else distill_source
+            elif isinstance(answer_sft_cfg, dict):
+                distill_cfg = answer_sft_cfg.get("distill", None)
+                distill_source = "answer_sft" if distill_cfg is not None else distill_source
 
         if distill_cfg is None:
             distill_cfg = {}
@@ -1492,6 +1502,14 @@ class RayPPOTrainer:
             defaults["max_buffer"] = 1024
             defaults["batch_size"] = 256
             defaults["min_buffer"] = 256
+        elif distill_source == "answer_sft":
+            defaults["interval"] = 10
+            defaults["reward_threshold"] = 1.0
+            defaults["selection_mode"] = "random"
+            defaults["max_buffer"] = 1024
+            defaults["batch_size"] = 256
+            defaults["min_buffer"] = 0
+            defaults["disable_filters"] = True
         for key, value in defaults.items():
             distill_cfg.setdefault(key, value)
 
@@ -1535,6 +1553,82 @@ class RayPPOTrainer:
         self._distill_buffer_local = []
         self._distill_last_run_step = -1
         self._distill_actor_dp_size = None
+
+    def _init_answer_sft_state(self) -> None:
+        self._answer_sft_enabled = False
+        self._answer_sft_cfg: dict = {}
+        self._answer_sft_reward_fn_key = self.config.data.get("reward_fn_key", "data_source")
+        self._answer_sft_skip_task_keys: set[str] = set()
+        self._answer_sft_hard_reward_threshold = None
+        self._answer_sft_hard_reward_threshold_set = False
+        self._answer_sft_hard_reward_no_perfect = True
+        self._answer_sft_hard_reward_mode = "max"
+        self._answer_sft_hard_only = True
+        self._answer_sft_response_template = "\\boxed{{{answer}}}"
+
+        answer_cfg = self.config.data.get("answer_sft", {}) if self.config is not None else {}
+        if isinstance(answer_cfg, DictConfig):
+            answer_cfg = OmegaConf.to_container(answer_cfg, resolve=True)
+        if not isinstance(answer_cfg, dict):
+            return
+        if self._distill_source != "answer_sft":
+            return
+        if not bool(self._distill_cfg.get("enabled", False)):
+            return
+        distill_method = str(self._distill_cfg.get("method", "sft")).lower().strip()
+        if distill_method != "sft":
+            print("Answer-SFT distillation disabled: only method=sft is supported.")
+            return
+        if self.processor is not None:
+            print("Answer-SFT distillation disabled: multimodal processor is not supported.")
+            return
+        if not bool(answer_cfg.get("enabled", True)):
+            return
+
+        self._answer_sft_cfg = answer_cfg
+        self._answer_sft_enabled = True
+        self._answer_sft_hard_only = bool(answer_cfg.get("hard_only", True))
+        response_template = str(answer_cfg.get("response_template", self._answer_sft_response_template))
+        if response_template.strip():
+            self._answer_sft_response_template = response_template
+
+        skip_task_keys = answer_cfg.get("skip_task_keys")
+        if skip_task_keys is None:
+            skip_task_keys = answer_cfg.get("skip_data_sources")
+        if isinstance(skip_task_keys, (list, tuple, set, ListConfig)):
+            skip_task_keys = list(skip_task_keys)
+        elif isinstance(skip_task_keys, str):
+            skip_task_keys = [item.strip() for item in skip_task_keys.split(",") if item.strip()]
+        else:
+            skip_task_keys = []
+        skip_set = {str(item).strip().lower() for item in skip_task_keys if str(item).strip()}
+        if bool(answer_cfg.get("skip_cvss", False)):
+            skip_set.update({"reward_cvss_v31", "reward_cvss_v40", "cve_to_cvss_v31", "cve_to_cvss_v40"})
+        self._answer_sft_skip_task_keys = skip_set
+
+        hard_reward_threshold = answer_cfg.get("hard_reward_threshold", None)
+        hard_reward_threshold_set = "hard_reward_threshold" in answer_cfg and hard_reward_threshold is not None
+        if hard_reward_threshold_set:
+            try:
+                self._answer_sft_hard_reward_threshold = float(hard_reward_threshold)
+            except (TypeError, ValueError):
+                self._answer_sft_hard_reward_threshold = None
+                hard_reward_threshold_set = False
+        self._answer_sft_hard_reward_threshold_set = hard_reward_threshold_set
+
+        self._answer_sft_hard_reward_no_perfect = False
+        hard_reward_mode = str(answer_cfg.get("hard_reward_mode", "no_perfect")).lower().strip()
+        if hard_reward_mode in {"mean", "avg", "average", "mean_reward"}:
+            hard_reward_mode = "mean"
+        elif hard_reward_mode in {"max", "max_reward"}:
+            hard_reward_mode = "max"
+        elif hard_reward_mode in {"no_perfect", "no_perfect_reward", "no_perfect_rollout"}:
+            hard_reward_mode = "max"
+            self._answer_sft_hard_reward_no_perfect = True
+        else:
+            hard_reward_mode = "max"
+            self._answer_sft_hard_reward_no_perfect = True
+        self._answer_sft_hard_reward_mode = hard_reward_mode
 
     def _init_acr_state(self) -> None:
         self._acr_enabled = False
@@ -1801,6 +1895,31 @@ class RayPPOTrainer:
             if _match(extra_info.get("task")):
                 return True
             if _match(extra_info.get("acr_task_key")):
+                return True
+            source_file = extra_info.get("source_file")
+            if source_file:
+                stem = os.path.splitext(os.path.basename(str(source_file)))[0]
+                if _match(stem):
+                    return True
+        return False
+
+    def _answer_sft_should_skip_task(self, data_source: Any, extra_info: Any = None) -> bool:
+        skip_keys = getattr(self, "_answer_sft_skip_task_keys", None)
+        if not skip_keys:
+            return False
+
+        def _match(value: Any) -> bool:
+            if value is None:
+                return False
+            text = str(value).strip().lower()
+            return bool(text) and text in skip_keys
+
+        if _match(data_source):
+            return True
+        if isinstance(extra_info, dict):
+            if _match(extra_info.get("task")):
+                return True
+            if _match(extra_info.get("answer_sft_task_key")):
                 return True
             source_file = extra_info.get("source_file")
             if source_file:
@@ -2610,11 +2729,19 @@ class RayPPOTrainer:
         non_tensors = {key: np.array(vals, dtype=object) for key, vals in non_tensor_lists.items()}
         return DataProto.from_dict(tensors=tensors, non_tensors=non_tensors), metrics
 
-    def _compute_acr_hard_uids(
-        self, batch: DataProto, reward_scalar: Optional[torch.Tensor]
+    def _compute_hard_uids_from_rewards(
+        self,
+        batch: DataProto,
+        reward_scalar: Optional[torch.Tensor],
+        *,
+        metric_prefix: str,
+        hard_reward_mode: str,
+        hard_reward_threshold: Optional[float],
+        hard_reward_threshold_set: bool,
+        hard_reward_no_perfect: bool,
     ) -> tuple[Optional[set[str]], dict[str, float]]:
         metrics: dict[str, float] = {}
-        if not self._acr_enabled or reward_scalar is None:
+        if reward_scalar is None:
             return None, metrics
 
         uid_arr = batch.non_tensor_batch.get("uid")
@@ -2638,7 +2765,7 @@ class RayPPOTrainer:
             if prev is None or reward_val > prev:
                 reward_max_by_uid[key] = reward_val
 
-        hard_mode = str(getattr(self, "_acr_hard_reward_mode", "max")).lower().strip()
+        hard_mode = str(hard_reward_mode or "max").lower().strip()
         if hard_mode in {"mean", "avg", "average", "mean_reward"}:
             hard_mode = "mean"
         elif hard_mode in {"max", "max_reward", "no_perfect", "no_perfect_reward", "no_perfect_rollout"}:
@@ -2652,27 +2779,57 @@ class RayPPOTrainer:
                 for uid in reward_sum_by_uid
             }
             total = len(mean_reward_by_uid)
-            if getattr(self, "_acr_hard_reward_threshold_set", False):
-                threshold = float(getattr(self, "_acr_hard_reward_threshold", 0.5))
+            if hard_reward_threshold_set and hard_reward_threshold is not None:
+                threshold = float(hard_reward_threshold)
             else:
                 threshold = 0.5
             hard_uids = {uid for uid, score in mean_reward_by_uid.items() if score < threshold}
         else:
             total = len(reward_max_by_uid)
-            if getattr(self, "_acr_hard_reward_no_perfect", False):
+            if hard_reward_no_perfect:
                 threshold = 1.0
-            elif getattr(self, "_acr_hard_reward_threshold_set", False):
-                threshold = float(getattr(self, "_acr_hard_reward_threshold", 1.0))
+            elif hard_reward_threshold_set and hard_reward_threshold is not None:
+                threshold = float(hard_reward_threshold)
             else:
                 threshold = 1.0
             hard_uids = {uid for uid, score in reward_max_by_uid.items() if score < (threshold - 1e-6)}
 
         if total > 0:
-            metrics["acr/hard_uid_total"] = float(total)
-            metrics["acr/hard_uid_count"] = float(len(hard_uids))
-            metrics["acr/hard_uid_frac"] = float(len(hard_uids) / total)
+            metrics[f"{metric_prefix}/hard_uid_total"] = float(total)
+            metrics[f"{metric_prefix}/hard_uid_count"] = float(len(hard_uids))
+            metrics[f"{metric_prefix}/hard_uid_frac"] = float(len(hard_uids) / total)
 
         return hard_uids, metrics
+
+    def _compute_acr_hard_uids(
+        self, batch: DataProto, reward_scalar: Optional[torch.Tensor]
+    ) -> tuple[Optional[set[str]], dict[str, float]]:
+        if not self._acr_enabled:
+            return None, {}
+        return self._compute_hard_uids_from_rewards(
+            batch=batch,
+            reward_scalar=reward_scalar,
+            metric_prefix="acr",
+            hard_reward_mode=getattr(self, "_acr_hard_reward_mode", "max"),
+            hard_reward_threshold=getattr(self, "_acr_hard_reward_threshold", None),
+            hard_reward_threshold_set=bool(getattr(self, "_acr_hard_reward_threshold_set", False)),
+            hard_reward_no_perfect=bool(getattr(self, "_acr_hard_reward_no_perfect", False)),
+        )
+
+    def _compute_answer_sft_hard_uids(
+        self, batch: DataProto, reward_scalar: Optional[torch.Tensor]
+    ) -> tuple[Optional[set[str]], dict[str, float]]:
+        if not self._answer_sft_enabled:
+            return None, {}
+        return self._compute_hard_uids_from_rewards(
+            batch=batch,
+            reward_scalar=reward_scalar,
+            metric_prefix="answer_sft",
+            hard_reward_mode=getattr(self, "_answer_sft_hard_reward_mode", "max"),
+            hard_reward_threshold=getattr(self, "_answer_sft_hard_reward_threshold", None),
+            hard_reward_threshold_set=bool(getattr(self, "_answer_sft_hard_reward_threshold_set", False)),
+            hard_reward_no_perfect=bool(getattr(self, "_answer_sft_hard_reward_no_perfect", False)),
+        )
 
     def _compute_uid_max_rewards(
         self, batch: DataProto, reward_scalar: Optional[torch.Tensor]
@@ -3105,6 +3262,225 @@ class RayPPOTrainer:
                     debug_remaining -= 1
                 self._acr_filter_debug_remaining = max(0, debug_remaining)
         return scores
+
+    def _coerce_chat_messages(self, value: Any) -> Optional[list[dict]]:
+        if isinstance(value, np.ndarray):
+            value = value.tolist()
+        if isinstance(value, tuple):
+            value = list(value)
+        if not isinstance(value, list):
+            return None
+        messages: list[dict] = []
+        for item in value:
+            if isinstance(item, np.ndarray):
+                item = item.tolist()
+            if not isinstance(item, dict):
+                return None
+            messages.append(dict(item))
+        return messages
+
+    def _answer_sft_resolve_prompt(self, extra_info: Any, raw_prompt: Any) -> Optional[list[dict]]:
+        if isinstance(extra_info, dict):
+            for key in (
+                "orig_prompt",
+                "acr_orig_prompt",
+                "slhc_prompt_nohint",
+                "tarba_prompt_no_tool",
+                "raw_prompt",
+                "prompt",
+            ):
+                messages = self._coerce_chat_messages(extra_info.get(key))
+                if messages is not None:
+                    return messages
+        return self._coerce_chat_messages(raw_prompt)
+
+    def _answer_sft_stringify_answer(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, np.ndarray):
+            value = value.tolist()
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (list, tuple, set)):
+            parts = [self._answer_sft_stringify_answer(item) for item in value]
+            return ", ".join(part for part in parts if part)
+        if isinstance(value, dict):
+            try:
+                return json.dumps(value, sort_keys=True, ensure_ascii=True)
+            except Exception:
+                return str(value).strip()
+        return str(value).strip()
+
+    def _answer_sft_extract_answer(self, reward_model: Any, extra_info: Any) -> str:
+        candidates = []
+        if isinstance(extra_info, dict):
+            candidates.extend(
+                [
+                    extra_info.get("answer_full"),
+                    extra_info.get("answer"),
+                    extra_info.get("ground_truth"),
+                ]
+            )
+        if isinstance(reward_model, dict):
+            candidates.append(reward_model.get("ground_truth"))
+        for value in candidates:
+            answer = self._answer_sft_stringify_answer(value)
+            if answer:
+                return answer
+        return ""
+
+    def _answer_sft_format_response(self, answer: str) -> str:
+        answer = str(answer or "").strip()
+        if not answer:
+            return ""
+        if "\\boxed" in answer:
+            return answer
+        template = str(getattr(self, "_answer_sft_response_template", "\\boxed{{{answer}}}") or "").strip()
+        if not template:
+            template = "\\boxed{{{answer}}}"
+        try:
+            return template.format(answer=answer)
+        except Exception:
+            return f"\\boxed{{{answer}}}"
+
+    def _collect_answer_sft_candidates(
+        self,
+        batch: Optional[DataProto],
+        hard_uids: Optional[set[str]],
+    ) -> dict[str, float]:
+        if not self._answer_sft_enabled or batch is None or len(batch) == 0:
+            return {}
+        cfg = self._distill_cfg
+        if not cfg.get("enabled", False):
+            return {}
+        if str(cfg.get("method", "sft")).lower().strip() != "sft":
+            return {}
+
+        metrics: dict[str, float] = {}
+        if bool(getattr(self, "_answer_sft_hard_only", True)) and hard_uids is None:
+            metrics["answer_sft/hard_uid_missing"] = 1.0
+            return metrics
+
+        uid_arr = batch.non_tensor_batch.get("uid")
+        if uid_arr is None:
+            return {}
+        uid_list = np.asarray(uid_arr, dtype=object).tolist()
+        total = len(uid_list)
+        if total == 0:
+            return {}
+
+        raw_prompt_arr = batch.non_tensor_batch.get("raw_prompt")
+        raw_prompt_list = (
+            np.asarray(raw_prompt_arr, dtype=object).tolist() if raw_prompt_arr is not None else [None] * total
+        )
+        extra_arr = batch.non_tensor_batch.get("extra_info")
+        extra_list = np.asarray(extra_arr, dtype=object).tolist() if extra_arr is not None else [None] * total
+        reward_arr = batch.non_tensor_batch.get("reward_model")
+        reward_list = np.asarray(reward_arr, dtype=object).tolist() if reward_arr is not None else [None] * total
+
+        data_source_arr = batch.non_tensor_batch.get(self._answer_sft_reward_fn_key)
+        if data_source_arr is None and self._answer_sft_reward_fn_key != "data_source":
+            data_source_arr = batch.non_tensor_batch.get("data_source")
+        data_source_list = (
+            np.asarray(data_source_arr, dtype=object).tolist() if data_source_arr is not None else [None] * total
+        )
+
+        first_idx_by_uid: dict[str, int] = {}
+        for idx, uid in enumerate(uid_list):
+            uid_str = str(uid)
+            if uid_str not in first_idx_by_uid:
+                first_idx_by_uid[uid_str] = idx
+
+        hard_uid_set = {str(uid) for uid in hard_uids} if hard_uids is not None else set()
+        hard_only = bool(getattr(self, "_answer_sft_hard_only", True))
+        records = []
+        skipped_not_hard = 0
+        skipped_task = 0
+        skipped_prompt = 0
+        skipped_answer = 0
+        skipped_tokenize = 0
+        response_lens: list[int] = []
+
+        for uid, idx in first_idx_by_uid.items():
+            if hard_only and uid not in hard_uid_set:
+                skipped_not_hard += 1
+                continue
+            extra_info = extra_list[idx] if isinstance(extra_list[idx], dict) else {}
+            data_source = data_source_list[idx] if idx < len(data_source_list) else None
+            if self._answer_sft_should_skip_task(data_source, extra_info):
+                skipped_task += 1
+                continue
+
+            raw_prompt = raw_prompt_list[idx] if idx < len(raw_prompt_list) else None
+            prompt_nohint = self._answer_sft_resolve_prompt(extra_info, raw_prompt)
+            if not isinstance(prompt_nohint, list):
+                skipped_prompt += 1
+                continue
+
+            reward_model = reward_list[idx] if isinstance(reward_list[idx], dict) else {}
+            answer = self._answer_sft_extract_answer(reward_model, extra_info)
+            response_text = self._answer_sft_format_response(answer)
+            if not response_text:
+                skipped_answer += 1
+                continue
+            try:
+                response_ids = self.tokenizer.encode(response_text, add_special_tokens=False)
+            except Exception:
+                response_ids = []
+            if not response_ids:
+                skipped_tokenize += 1
+                continue
+
+            task_key = data_source
+            if isinstance(extra_info, dict) and extra_info.get("task"):
+                task_key = extra_info.get("task")
+            records.append(
+                {
+                    "uid": uid,
+                    "task_key": str(task_key) if task_key is not None else "unknown",
+                    "prompt_nohint": deepcopy(prompt_nohint),
+                    "response_ids": response_ids,
+                    "response_text": response_text,
+                    "reward": 1.0,
+                    "entropy_proxy": float(len(response_ids)),
+                    "hint_used": False,
+                }
+            )
+            response_lens.append(len(response_ids))
+
+        if records:
+            self._distill_buffer_local.extend(records)
+            max_buffer = int(cfg.get("max_buffer", 0) or 0)
+            if max_buffer > 0:
+                world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
+                max_local = max(1, int(math.ceil(max_buffer / world_size)))
+                if len(self._distill_buffer_local) > max_local:
+                    buffer_mode = str(cfg.get("buffer_mode", "rolling")).lower().strip()
+                    if buffer_mode != "flush":
+                        self._distill_buffer_local = self._distill_buffer_local[-max_local:]
+
+        total_groups = len(first_idx_by_uid)
+        if total_groups > 0:
+            metrics["answer_sft/uid_group_total"] = float(total_groups)
+            metrics["answer_sft/selected_count"] = float(len(records))
+            metrics["answer_sft/selected_frac"] = float(len(records) / max(1, total_groups))
+        if hard_uids is not None:
+            metrics["answer_sft/hard_uid_available"] = float(len(hard_uid_set))
+        if skipped_not_hard:
+            metrics["answer_sft/skip_not_hard"] = float(skipped_not_hard)
+        if skipped_task:
+            metrics["answer_sft/skip_task"] = float(skipped_task)
+        if skipped_prompt:
+            metrics["answer_sft/skip_missing_prompt"] = float(skipped_prompt)
+        if skipped_answer:
+            metrics["answer_sft/skip_missing_answer"] = float(skipped_answer)
+        if skipped_tokenize:
+            metrics["answer_sft/skip_tokenize_error"] = float(skipped_tokenize)
+        if response_lens:
+            metrics["answer_sft/response_len_mean"] = float(np.mean(response_lens))
+            metrics["answer_sft/response_len_max"] = float(np.max(response_lens))
+        metrics["distill/buffer_size_local"] = float(len(self._distill_buffer_local))
+        return metrics
 
     def _collect_distill_candidates(
         self,
@@ -4960,6 +5336,7 @@ class RayPPOTrainer:
                         metrics.update(acr_build_metrics)
                 acr_hard_uids = None
                 acr_uid_max_rewards = None
+                answer_sft_hard_uids = None
 
                 gen_batch = self._get_gen_batch(batch)
 
@@ -5102,6 +5479,13 @@ class RayPPOTrainer:
                                 )
                                 if acr_hard_metrics:
                                     metrics.update(acr_hard_metrics)
+
+                        if self._answer_sft_enabled:
+                            answer_sft_hard_uids, answer_sft_hard_metrics = self._compute_answer_sft_hard_uids(
+                                batch=batch, reward_scalar=reward_scalar
+                            )
+                            if answer_sft_hard_metrics:
+                                metrics.update(answer_sft_hard_metrics)
 
                         # Optional: update adaptive label-hint curriculum on the training dataset.
                         if hasattr(self.train_dataset, "update_option_curriculum_from_rollout"):
@@ -5248,8 +5632,16 @@ class RayPPOTrainer:
                                     if isinstance(tarba_metrics, dict):
                                         metrics.update(tarba_metrics)
 
-                        if self._distill_source != "acr":
-                            distill_metrics = self._collect_distill_candidates(batch=batch, reward_scalar=reward_scalar)
+                        if self._distill_source == "answer_sft":
+                            distill_metrics = self._collect_answer_sft_candidates(
+                                batch=batch, hard_uids=answer_sft_hard_uids
+                            )
+                            if isinstance(distill_metrics, dict) and distill_metrics:
+                                metrics.update(distill_metrics)
+                        elif self._distill_source != "acr":
+                            distill_metrics = self._collect_distill_candidates(
+                                batch=batch, reward_scalar=reward_scalar
+                            )
                             if isinstance(distill_metrics, dict) and distill_metrics:
                                 metrics.update(distill_metrics)
 
