@@ -41,6 +41,43 @@ Staged LLMBench code adds:
 
 Approximate new LFS payload: 9 GB. Local LLMBench `.git/lfs/objects` after staging: about 14 GB.
 
+## Canonical Summary Files
+
+Use these committed LLMBench files as the starting point for tables or follow-up CI scripts.
+
+Pass@8 oracle summaries:
+
+- `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/llama3b_grpo/passk-oracle-summary.json`
+- `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/llama3b_minerva/passk-oracle-summary.json`
+- `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/llama8b_grpo/passk-oracle-summary.json`
+- `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/llama8b_minerva/passk-oracle-summary.json`
+- `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/qwen4b_grpo/passk-oracle-summary.json`
+- `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/qwen4b_minerva/passk-oracle-summary.json`
+- `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/qwen8b_grpo/passk-oracle-summary.json`
+- `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/qwen8b_minerva/passk-oracle-summary.json`
+
+Ablation Eval12 summaries:
+
+- `/home/shadeform/llmbench/runs/eval12_ablation_grpo12_llama8b_65536/eval12-summary.json`
+- `/home/shadeform/llmbench/runs/eval12_ablation_sft_answer_llama8b_65536/eval12-summary.json`
+- `/home/shadeform/llmbench/runs/eval12_ablation_emaoff_llama8b_65536/eval12-summary.json`
+- `/home/shadeform/llmbench/runs/eval12_ablation_filteroff_llama8b_65536/eval12-summary.json`
+- `/home/shadeform/llmbench/runs/eval12_ablation_mloff_llama8b_65536/eval12-summary.json`
+- `/home/shadeform/llmbench/runs/minerva_llama8b_answer_sft_best320_local/eval12-summary.json`
+
+Raw CI inputs:
+
+- Pass@8: `/home/shadeform/llmbench/runs/passk_eval12_t0.7_p0.95_k8/*/sample_*/*/*-scored.jsonl`
+- Ablations: `/home/shadeform/llmbench/runs/eval12_ablation_*_llama8b_65536/*-scored.jsonl`
+- Answer-matched ablation: `/home/shadeform/llmbench/runs/minerva_llama8b_answer_sft_best320_local/*-scored.jsonl`
+
+Useful commands:
+
+```bash
+cd /home/shadeform/llmbench
+python scripts/summarize_eval12_passk_oracle.py --run-root runs/passk_eval12_t0.7_p0.95_k8 --k 8
+```
+
 ## Answer-Matched Ablation Eval12
 
 `runs/minerva_llama8b_answer_sft_best320_local/eval12-summary.json`
