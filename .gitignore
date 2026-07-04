@@ -322,3 +322,4 @@ rlvr/mydata/**/*.ipynb
 rlvr/outputs/
 rlvr/checkpoints/
 rlvr/wandb/
+hf-token.txt
