@@ -1,0 +1,33 @@
+Summary Of Contributions:
+This paper studies RLVR for CTI tasks, where many outputs are structured identifiers that can be verified deterministically. It introduces Minerva-CTI, a 16-task training suite with task-specific verifiers, and MinervaRL, a GRPO-based RLVR method that adds answer-conditioned rationale self-distillation for hard examples. The paper evaluates the method across four open-weight backbones and 12 CTI benchmarks, with several controlled baselines trained on the same data and verifiers.
+
+The main strengths are clear. CTI is a natural domain for verifier-based RL, since many tasks have well-defined labels and evaluation rules. The paper is also unusually careful in documenting the training tasks, reward functions, filtering rules, and hyperparameters. The baseline comparisons are relatively fair, as most competing methods are re-implemented under the same data and verifier setting.
+
+The main weaknesses are also important. First, the paper does not report variance or uncertainty, even though some of the reported margins are quite small. Second, checkpoint selection uses AthenaBench-Mini, while several final evaluation benchmarks also come from AthenaBench; the paper should clarify whether the instances are disjoint. Third, the theoretical appendix is fairly limited, since some key assumptions already encode the quantities that the experiments are meant to establish.
+
+Are the claims made in the submission supported by accurate, convincing and clear evidence?: Yes
+Explain your answer above:
+The main claims are generally supported by a broad and consistent set of experiments. In particular, MinervaRL improves over GRPO across all four backbones, and the zero-solve-fraction analysis gives a plausible explanation for why the proposed method helps. The paper also presents the results carefully, reporting average gains while acknowledging exceptions.
+
+That said, I still see several weaknesses in the evidence. First, the paper does not report uncertainty estimates. Some important margins are quite small, so it is hard to know whether they are robust without multiple runs or confidence intervals. Second, the checkpoint selection protocol may partly overlap with the evaluation setting. Since AthenaBench-Mini covers several benchmark families used in the final evaluation, the paper should clarify whether the instances are disjoint and how this affects the transfer claims. Third, some evaluation details are missing, including the decoding setup and whether the same answer extraction rules are applied to all baselines.
+
+Overall, the experimental evidence is reasonably strong, but these clarifications are needed to make the conclusions fully convincing. The theoretical appendix is useful as a formal description, but I would not treat it as independent evidence for the empirical claims.
+
+Would at least some individuals in TMLR's audience be interested in knowing the findings of this paper?: Yes
+Explain your answer above:
+Two audiences will find this useful. First, the RLVR community: the paper is a carefully instrumented case study of extending verifiable-reward training beyond math/code to a domain with large, long-tailed canonical label spaces, and the sparse-reward failure mode it targets (all-zero rollout groups under small budgets) is a recognized, general problem; the hardness-gated answer-conditioned distillation recipe and its ablations are directly reusable. Second, the security-ML community: a 16-task verifier-checkable CTI training suite with documented reward functions, plus evidence that small open-weight models can be pushed well past larger security-SFT models on structured CTI tasks, is of clear practical interest (conditional on release — see requested changes). The negative/nuanced findings (answer-only SFT degrading OOD performance; judge-preference vs. verifier-score divergence) are also informative.
+
+Requested Changes:
+The most important issue is the lack of uncertainty reporting. Since several key differences are small, the paper should add confidence intervals, at least by bootstrapping evaluation instances. Multiple training seeds for GRPO and MinervaRL on one representative backbone would further strengthen the main comparison. Claims based on margins around one point or less should either be statistically supported or stated more cautiously.
+
+The checkpoint-selection protocol also needs clarification. AthenaBench-Mini is used for model selection, while several final evaluation benchmarks come from the same family. The paper should state whether the Mini instances are disjoint from the reported evaluation sets, confirm that all trained baselines use the same selection criterion, and discuss how this affects the transfer claim, especially for CKT.
+
+The evaluation protocol should be made explicit. Please report the decoding setup for the main evaluations and clarify whether the same answer-extraction rules are applied to all systems, including external security-SFT baselines whose output formats may differ.
+
+The paper should also add a data/code availability and licensing statement. Since Minerva-CTI is a central contribution, it is important to state whether the dataset, verifiers, and training code will be released, and how redistribution restrictions from the upstream CTI sources are handled.
+
+Several additional experiments would further improve the paper. An in-loop answer-only distillation ablation would help separate the effect of rationales from simply injecting gold answers. A compute-matched GRPO baseline would address the extra cost of MinervaRL. A standard SFT-then-GRPO baseline would also be useful, since it is a common practical recipe. Finally, the theoretical appendix would be more convincing if its key assumptions were empirically checked, or if the theorem were framed more modestly in the main text.
+
+Broader Impact Concerns:
+The broader impact statement should more directly discuss the dual-use implications of the results. In particular, CyberSecEval-2 CanaryExploit improves substantially after MinervaRL, and the paper presents this as a positive capability result. The revision should explain why improved exploit-generation performance is considered desirable, whether CTI-specialized training lowers the cost of offensive misuse, and how this affects the release plan for models and data.
+
