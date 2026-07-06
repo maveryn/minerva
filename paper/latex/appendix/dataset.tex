@@ -1,0 +1,142 @@
+% ---------------------------------------------------------------------------
+% Minerva training datasets section (ICML-style prose; each dataset in a paragraph)
+% ---------------------------------------------------------------------------
+
+\section{Minerva-CTI Dataset}
+\label{sec:minerva-datasets}
+
+Minerva-CTI comprises 16 tasks covering vulnerability descriptions, detection content, and structured threat knowledge bases. Each task is defined as an input--target prediction problem derived from a specific upstream source, with targets expressed as canonical identifiers (e.g., ATT\&CK technique, tactic, or mitigation IDs). Across all tasks, the dataset contains 32{,}000 training instances and 1{,}200 validation instances. \Cref{tab:minerva-datasets} summarizes the per-task sample counts for the training and validation splits in Minerva-CTI.
+
+
+
+\paragraph{1. Mappings-Explorer CVE$\rightarrow$ATT\&CK Exploitation.}
+This task maps vulnerability descriptions to the ATT\&CK technique directly used for exploitation. Given a CVE description as input, the model predicts a single ATT\&CK technique identifier (formatted as \texttt{Txxxx} or \texttt{Txxxx.yyy}). Ground-truth labels are obtained from the Center for Threat-Informed Defense Mappings Explorer CVE$\rightarrow$ATT\&CK mappings, with technique definitions aligned to the ATT\&CK catalog~\citep{mappings_explorer,mitre_attack}.
+
+\paragraph{2. Mappings-Explorer CVE$\rightarrow$ATT\&CK Primary Impact.}
+This task focuses on the main adversarial impact resulting from successful exploitation. The input is the CVE description, and the target is a single ATT\&CK technique identifier corresponding to the primary post-exploitation effect (e.g., credential access or privilege escalation). Labels are sourced from the Mappings Explorer and normalized using the ATT\&CK technique taxonomy~\citep{mappings_explorer,mitre_attack}.
+
+\paragraph{3. Mappings-Explorer CVE$\rightarrow$ATT\&CK Secondary Impact.}
+This task predicts a subsequent impact enabled by the primary impact. The input consists of the CVE description concatenated with the given primary-impact technique ID, and the target is a single ATT\&CK technique identifier representing the secondary effect. Ground-truth annotations are derived from the Mappings Explorer and mapped to canonical ATT\&CK identifiers~\citep{mappings_explorer,mitre_attack}.
+
+
+
+
+\paragraph{4. Sigma$\rightarrow$ATT\&CK Tactics.}
+This task infers high-level adversary intent from detection logic. Given a Sigma rule excerpt—including the rule title, \texttt{logsource}, and \texttt{detection} fields—the model predicts a multi-label set of ATT\&CK tactic identifiers (formatted as \texttt{TA000x}). Sigma rules are sourced from the public Sigma repository, and annotations are expressed using the ATT\&CK tactic taxonomy~\citep{sigma,mitre_attack}.
+
+\paragraph{5. Sigma$\rightarrow$ATT\&CK Technique.}
+This task maps detection logic to the specific adversarial behavior it is designed to identify. Using the same Sigma rule excerpt as input, the model predicts a single ATT\&CK technique identifier (formatted as \texttt{Txxxx} or \texttt{Txxxx.yyy}). Rules are drawn from the Sigma repository, with targets aligned to canonical ATT\&CK technique identifiers~\citep{sigma,mitre_attack}.
+
+
+
+
+
+
+
+
+\paragraph{6. Atomic Red Team$\rightarrow$ATT\&CK Technique.}
+This task maps adversary procedure descriptions to their corresponding ATT\&CK techniques. The input is an Atomic Red Team procedure snippet that includes execution steps or commands and platform context, and the target is a single ATT\&CK technique identifier. Examples are drawn from the Atomic Red Team repository, which is natively aligned with the ATT\&CK framework~\citep{atomic_red_team,mitre_attack}.
+
+\paragraph{7. Microsoft Sentinel$\rightarrow$ATT\&CK Technique.}
+This task links analytics rules to the ATT\&CK techniques they are intended to detect. The input comprises the rule title, description, and associated KQL query, and the target is a single ATT\&CK technique identifier. Rules are sourced from the Microsoft Sentinel content repository, with labels normalized to the ATT\&CK taxonomy~\citep{azure_sentinel,mitre_attack}.
+
+\paragraph{8. Splunk Security Content$\rightarrow$ATT\&CK Technique.}
+This task maps SPL-based detection content to the ATT\&CK technique it targets. The input consists of an SPL query, its detection narrative, and metadata, and the target is a single ATT\&CK technique identifier. Content is obtained from Splunk Security Content, with annotations expressed using canonical ATT\&CK technique IDs~\citep{splunk_security_content,mitre_attack}.
+
+
+
+
+
+
+
+
+\paragraph{9. ATT\&CK Scenario$\rightarrow$Technique.}
+This task identifies the ATT\&CK technique that best corresponds to a described adversary scenario. The input is a scenario text derived from ATT\&CK procedure examples, and the target is a single ATT\&CK technique identifier. Scenarios and labels are sourced directly from the ATT\&CK knowledge base and its machine-readable releases~\citep{mitre_attack,attack_stix_data}.
+
+\paragraph{10. ATT\&CK Scenario$\rightarrow$Tactics.}
+This task infers the adversary intent categories implied by a scenario. Given the same scenario text as input, the model predicts a multi-label set of ATT\&CK tactic identifiers (\texttt{TA000x}) associated with the underlying behavior. Annotations are derived from the ATT\&CK taxonomy and its structured releases~\citep{mitre_attack,attack_stix_data}.
+
+\paragraph{11. ATT\&CK Scenario$\rightarrow$Mitigations.}
+This task predicts mitigations relevant to the behaviors described in a scenario. The input is the ATT\&CK scenario text, and the target is a multi-label set of ATT\&CK mitigation identifiers (\texttt{Mxxxx}) associated with the corresponding techniques. Mitigation mappings are obtained from the ATT\&CK knowledge base~\citep{mitre_attack,attack_stix_data}.
+
+
+
+
+
+
+\begin{table}[!t]
+\vskip 0.15in
+\begin{center}
+\begin{small}
+\caption{Minerva training datasets and split sizes.}
+\label{tab:minerva-datasets}
+\begin{tabular}{l l r r}
+\toprule
+Dataset & Target & Train & Val \\
+\midrule
+Mappings-Explorer CVE$\rightarrow$ATT\&CK Exploitation & ATT\&CK technique ID & 245 & 20 \\
+Mappings-Explorer CVE$\rightarrow$ATT\&CK Primary Impact & ATT\&CK technique ID & 210 & 20 \\
+Mappings-Explorer CVE$\rightarrow$ATT\&CK Secondary Impact & ATT\&CK technique ID & 64 & 10 \\
+Sigma$\rightarrow$ATT\&CK Tactics & ATT\&CK tactic IDs & 950 & 50 \\
+Sigma$\rightarrow$ATT\&CK Technique & ATT\&CK technique ID & 950 & 50 \\
+Atomic Red Team$\rightarrow$ATT\&CK Technique & ATT\&CK technique ID & 950 & 50 \\
+Microsoft Sentinel$\rightarrow$ATT\&CK Technique & ATT\&CK technique ID & 950 & 50 \\
+Splunk Security Content$\rightarrow$ATT\&CK Technique & ATT\&CK technique ID & 280 & 20 \\
+ATT\&CK Scenario$\rightarrow$Technique & ATT\&CK technique ID & 7{,}780 & 220 \\
+ATT\&CK Scenario$\rightarrow$Tactics & ATT\&CK tactic IDs & 1{,}950 & 50 \\
+ATT\&CK Scenario$\rightarrow$Mitigations & ATT\&CK mitigation IDs & 7{,}780 & 220 \\
+NVD CVE$\rightarrow$CWE & CWE IDs & 6{,}696 & 220 \\
+NVD CVE$\rightarrow$CVSS v3.1 & CVSS v3.1 vector & 1{,}900 & 100 \\
+ATT\&CK Threat Actor Attribution & Threat actor name & 779 & 60 \\
+CAPEC Example$\rightarrow$CAPEC & CAPEC ID & 340 & 40 \\
+CAPEC Example$\rightarrow$CWE & CWE IDs & 176 & 20 \\
+\midrule
+Total & -- & 32{,}000 & 1{,}200 \\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+\vskip -0.1in
+\end{table}
+
+
+
+
+
+
+
+
+\paragraph{12. NVD CVE$\rightarrow$CWE.}
+This task maps vulnerability descriptions to their underlying weakness categories. The input is the CVE description text, and the target is a multi-label set of CWE identifiers (formatted as \texttt{CWE-xxx}). CVE records are obtained from the National Vulnerability Database, with labels aligned to the CWE taxonomy~\citep{nvd,cwe}.
+
+\paragraph{13. NVD CVE$\rightarrow$CVSS v3.1.}
+This task predicts the CVSS v3.1 base vector associated with a vulnerability. Given a CVE description as input, the model outputs the corresponding CVSS v3.1 base vector string (e.g., \texttt{CVSS:3.1/AV:N/...}). CVE entries are sourced from the National Vulnerability Database, and targets follow the official CVSS v3.1 specification~\citep{nvd,cvss_v31}.
+
+
+
+
+
+
+
+
+\paragraph{14. ATT\&CK Threat Actor Attribution.}
+This task performs threat actor attribution from observed behaviors expressed as procedure text. Examples are derived from MITRE ATT\&CK Enterprise intrusion-set (group) entries by collecting each actor’s \textit{techniques used} relationships and extracting the associated procedure descriptions that characterize how the actor operates~\citep{mitre_attack,attack_stix_data}. Training instances are sampled from per-actor pools of procedures, with counts allocated roughly in proportion to available procedure coverage (e.g., binning by technique count and enforcing minimum coverage) to prevent a small number of well-documented actors from dominating the dataset. To reduce lexical leakage, prompts are anonymized by replacing explicit actor mentions with a generic placeholder (e.g., ``A threat actor'') and by generalizing other named entities by type (e.g., campaign, malware, tool) while preserving the remaining structure. The true actor name is retained only as the target label, and aliases are recorded in a lookup table for evaluation and reward scoring.
+
+
+
+
+
+\paragraph{15. CAPEC Example$\rightarrow$CAPEC.}
+This task maps attack example narratives to the CAPEC attack pattern they exemplify. The input is a CAPEC example description, and the target is a single CAPEC identifier (formatted as \texttt{CAPEC-xxx}). Both example texts and pattern identifiers are sourced from the CAPEC catalog~\citep{capec}.
+
+\paragraph{16. CAPEC Example$\rightarrow$CWE.}
+This task associates CAPEC attack examples with the underlying software weakness categories they exploit. The input is the same CAPEC example narrative, and the target is a multi-label set of CWE identifiers (formatted as \texttt{CWE-xxx}). Example descriptions are drawn from CAPEC, with labels aligned to the CWE taxonomy~\citep{capec,cwe}.
+
+
+
+
+
+
+
+
+

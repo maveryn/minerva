@@ -1,0 +1,25 @@
+\section{Additional Baseline Construction Details}
+\label{app:additional-baselines}
+
+This appendix describes the three additional training-method baselines reported in \Cref{tab:main-results}. All baselines use the same 32{,}000-example Minerva-CTI train split, the same task verifiers, and the same 12-task evaluation protocol as MinervaRL unless stated otherwise. Training and sampling hyperparameters for these baselines are listed with the other implementation settings in Appendix~\ref{app:training-settings}.
+
+\subsection{STaR-CTI}
+\label{app:star-cti}
+
+STaR-CTI adapts STaR~\citep{NEURIPS2022_639a9a17} to verifier-scored CTI tasks. For each training example $(x,y^\star)$ in a round, we generate one \emph{original} trace from the original prompt $x$ and one \emph{rationalization} trace from a prompt that additionally reveals the gold answer $y^\star$. Both traces are scored by the Minerva verifier. We keep the original trace if it is verifier-correct; otherwise, we keep the rationalization trace if it is verifier-correct; otherwise, the example contributes no trace in that round.
+
+The selected traces form that round's SFT dataset. We train a fresh copy of the base model for each round rather than continuing from the previous SFT checkpoint. The resulting checkpoint is then used as the generator for the next round. Checkpoints are selected with the same validation criterion used for the RL baselines: the average of Minerva-Dev and AthenaBench-Mini validation performance. The validation suite contains 1{,}200 Minerva-Dev examples and 950 Athena CTI examples covering ATE, CKT, RCM, RMS, TAA, and VSP.
+
+\subsection{DART-CTI}
+\label{app:dart-cti}
+
+DART-CTI adapts DART-Math~\citep{NEURIPS2024_0ef1afa0} as a fixed rejection-finetuning baseline. We build a teacher-generated trace corpus once, then train each student model with SFT on that fixed corpus. The target corpus contains two accepted traces per Minerva-CTI training prompt, for 64{,}000 traces total.
+
+The final corpus is built in four stages. First, we run plain rejection sampling from the original prompt, with a target of two accepted traces per prompt and a cap of 32 attempts per prompt. This produces 16{,}807 accepted plain traces from 880{,}782 generated attempts. Second, for prompts still missing traces, we use answer-guided generation with the same ACR-style prompt used by MinervaRL and accept traces that pass the verifier plus the heuristic/TextCNN filters; this adds 38{,}868 traces. Third, for the remaining hard tail, we keep answer-guided generation but disable the heuristic/TextCNN filters and require only verifier success; this adds 8{,}296 traces. Finally, 29 remaining missing traces are filled with a deterministic boxed gold-answer completion that is still checked by the verifier. The final training corpus therefore contains 16{,}807 plain traces, 47{,}164 guided-fill traces, and 29 direct-answer tail traces.
+
+\subsection{LUFFY-CTI}
+\label{app:luffy-cti}
+
+LUFFY-CTI adapts LUFFY~\citep{yan2025luffy}, an off-policy RLVR method that uses precomputed correct traces as off-policy guidance during RL training. We derive the off-policy guidance corpus from the DART-CTI trace corpus by selecting one accepted trace per training prompt, giving a 32{,}000-trace guidance set aligned with the Minerva-CTI train split.
+
+We run LUFFY-CTI on the same four backbones used for GRPO and MinervaRL. This baseline is useful because it tests whether an off-policy trace-guided RL method closes the reward-sparsity gap without MinervaRL's online answer-conditioned rationale generation and periodic distillation. A practical distinction is that LUFFY-CTI requires the guidance corpus before RL begins: in our setup, constructing the 32{,}000-prompt trace corpus required 1{,}017{,}847 teacher attempts, or 31.8 attempts per prompt on average. By contrast, under the default MinervaRL schedule each prompt is seen about twice on average, with eight on-policy rollouts per visit and up to four additional ACR generations only for hard prompts, giving an upper bound of 24 generations per prompt across the full RL process.

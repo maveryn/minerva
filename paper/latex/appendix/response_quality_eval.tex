@@ -1,0 +1,110 @@
+\section{Response-Quality Evaluation Details}
+\label{app:response-quality-eval}
+
+This appendix describes the response-quality evaluation summarized in \Cref{fig:cti-judge-preference}. The goal is to complement verifier-based task metrics with a separate assessment of analyst-facing response quality, including readability, evidence use, and CTI concept precision.
+
+\subsection{Evaluation Scope and Rubric}
+\label{app:response-quality-scope}
+
+For each backbone family, we evaluate a shared set of 350 prompts: 50 prompts each from CKT, CyberMetric, RCM, VSP, ATE, RMS, and ElasticRule~\citep{elastic_detection_rules}. These tasks require justification or nontrivial CTI reasoning, making them suitable for prose-quality assessment. We exclude schema-heavy extraction and tagging tasks because their responses are dominated by format compliance and label recovery rather than explanatory quality.
+
+Within each backbone family, we compare five variants: the base model, GRPO, MinervaRL, STaR-CTI, and DART-CTI. Model identities are hidden from the judge. GPT-5.2 scores each prompt-response pair independently using the three-criterion rubric in \Cref{fig:pointwise-judge-prompt}. Each criterion is scored from 1 to 4, and the total response-quality score is the sum of writing quality, evidence use, and CTI concept use, giving a range of 3--12.
+
+\begin{figure}[!t]
+\centering
+\begin{tcolorbox}[title=Pointwise Response-Quality Judge Prompt]
+\small
+You are an expert cyber threat intelligence (CTI) analyst evaluating the quality of a single model response.
+
+Your job is to score the response using the rubric below.
+
+Rubric: use a 1--4 scale for each criterion, where 1 = poor, 2 = fair, 3 = good, and 4 = excellent.
+
+\begin{enumerate}
+  \setlength{\itemsep}{2pt}
+  \setlength{\parskip}{0pt}
+
+  \item \textbf{Writing quality.} Is the response easy to read and efficiently structured?
+  \begin{description}
+    \setlength{\itemsep}{0pt}
+    \setlength{\parskip}{0pt}
+    \item[\textbf{1:}] no rationale, or hard to follow because of rambling, disorganization, or awkward phrasing.
+    \item[\textbf{2:}] understandable, but noticeably wordy, repetitive, or clunky.
+    \item[\textbf{3:}] clear and easy to follow, with minor issues in concision or structure.
+    \item[\textbf{4:}] very clear, concise, well structured, and easy to scan.
+  \end{description}
+
+  \item \textbf{Evidence use.} Does the response justify its answer using details from the prompt?
+  \begin{description}
+    \setlength{\itemsep}{0pt}
+    \setlength{\parskip}{0pt}
+    \item[\textbf{1:}] mostly asserts the answer with little or no prompt-based support.
+    \item[\textbf{2:}] uses some prompt evidence, but the justification is weak, generic, or incomplete.
+    \item[\textbf{3:}] supports the main answer with relevant prompt details, with only minor gaps.
+    \item[\textbf{4:}] directly justifies the answer using strong and specific prompt evidence.
+  \end{description}
+
+  \item \textbf{CTI concept use.} Does the response use the right CTI concepts correctly?
+  \begin{description}
+    \setlength{\itemsep}{0pt}
+    \setlength{\parskip}{0pt}
+    \item[\textbf{1:}] uses no relevant CTI concepts, or uses irrelevant concepts.
+    \item[\textbf{2:}] uses some relevant CTI concepts, but with important mistakes or vague distinctions.
+    \item[\textbf{3:}] mostly uses the right CTI concepts correctly, with minor imprecision.
+    \item[\textbf{4:}] uses the right CTI concepts precisely and consistently to support the answer.
+  \end{description}
+\end{enumerate}
+
+Task: \texttt{\{task\}}
+
+Subtask: \texttt{\{subtask\}}
+
+Prompt: \texttt{\{prompt\}}
+
+Model Response: \texttt{\{response\}}
+
+Return JSON only with this exact schema:
+\begin{quote}
+\small
+\texttt{\{}\\
+\texttt{"writing\_quality\_score": 1,}\\
+\texttt{"evidence\_use\_score": 1,}\\
+\texttt{"cti\_concept\_focus\_score": 1,}\\
+\texttt{"notes": "short explanation"}\\
+\texttt{\}}
+\end{quote}
+
+Rules: each score must be an integer from 1 to 4; use the rubric exactly; keep notes short and concrete; return JSON only.
+\end{tcolorbox}
+\caption{Prompt template and rubric used for GPT-5.2 and Claude Sonnet 4.6 pointwise response-quality scoring.}
+\label{fig:pointwise-judge-prompt}
+\end{figure}
+
+\subsection{Pairwise Preference Construction}
+\label{app:deriving-pairwise-preferences}
+
+The heatmaps in \Cref{fig:cti-judge-preference} are derived from the pointwise rubric scores. For each prompt and each unordered pair of models within the same backbone family, we compare the two total response-quality scores. The model with the higher total score receives one pairwise win; if the scores are equal, the outcome is counted as a tie. Each heatmap cell reports the row model's win count divided by the number of shared prompts, with ties retained in the denominator rather than discarded.
+
+\subsection{Human and Cross-Judge Agreement}
+\label{app:human-gpt-agreement}
+
+We validate GPT-5.2 on a 100-example subset covering the five Llama-3.1-8B-family variants. Two human annotators independently score the same blind prompt-response items using the rubric in \Cref{fig:pointwise-judge-prompt}. We also score the same subset with Claude Sonnet 4.6 as a cross-judge comparison. Agreement is measured on the total rubric score using quadratic weighted kappa (QWK) and Spearman correlation.
+
+\begin{table}[!t]
+\centering
+\caption{Agreement on the response-quality validation subset. QWK denotes quadratic weighted kappa.}
+\label{tab:human-gpt-agreement}
+\begin{tabular}{lcc}
+\toprule
+Comparison & QWK & Spearman \\
+\midrule
+Annotator 1 vs. Annotator 2      & 0.6514 & 0.6461 \\
+Annotator 1 vs. GPT-5.2          & 0.6019 & 0.7822 \\
+Annotator 2 vs. GPT-5.2          & 0.5680 & 0.6440 \\
+Annotator average vs. GPT-5.2    & 0.6313 & 0.7722 \\
+Claude Sonnet 4.6 vs. GPT-5.2    & 0.7634 & 0.8266 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+GPT-5.2 agrees with the human annotator average at a level close to human--human agreement, and Claude Sonnet 4.6 shows strong agreement with GPT-5.2. These results support using GPT-5.2 as a scalable response-quality judge for the full preference study, while treating the preference heatmaps as complementary to the verifier-based task metrics.

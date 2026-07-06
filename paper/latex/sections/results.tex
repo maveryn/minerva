@@ -1,0 +1,212 @@
+
+
+\begin{table*}[!t]
+\caption{Benchmark results across 12 CTI evaluation suites. We compare MinervaRL with matched base models, GRPO, public security-SFT baselines, and STaR-CTI, DART-CTI, and LUFFY-CTI baselines. Bold indicates the best score within each backbone group.}
+\label{tab:main-results}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.1}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccccccc}
+\toprule
+Model & CKT & CyberMetric & SOCEval & RCM & VSP & ATE & RMS & ElasticRule & APTNER & LANCE & AnnoCTR & AZERG & Avg. \\
+\midrule
+Llama-3.1-8B-Instruct & 67.6 & 83.2 & 64.8 & 48.4 & 76.0 & 17.4 & 6.7 & 14.4 & 33.5 & 78.2 & 50.7 & 42.8 & 48.6 \\
+Llama-Primus-Merged & 76.5 & \textbf{85.9} & \textbf{68.0} & 56.0 & 72.6 & 33.6 & 7.8 & 27.3 & 22.0 & 59.4 & \textbf{51.8} & 40.9 & 50.2 \\
+Foundation-Sec-8B-Instruct & \textbf{77.1} & 81.3 & 67.9 & 61.0 & 65.8 & 39.2 & 15.4 & 33.6 & 34.0 & 59.5 & 43.5 & \textbf{44.4} & 51.9 \\
+Llama-3.1-8B-STaR-CTI & 70.0 & 81.8 & 61.7 & 57.4 & 73.8 & 29.2 & 9.6 & 21.3 & 33.1 & 80.0 & 46.5 & 32.1 & 49.7 \\
+Llama-3.1-8B-DART-CTI & 71.3 & 82.4 & 61.5 & 64.0 & 73.0 & 37.8 & 27.7 & 31.0 & 34.0 & 74.8 & 47.1 & 39.3 & 53.7 \\
+Llama-3.1-8B-GRPO & 71.9 & 85.4 & 63.0 & 66.3 & 82.6 & 32.0 & 30.9 & 32.2 & 32.7 & \textbf{86.2} & 49.5 & 39.5 & 56.0 \\
+Llama-3.1-8B-LUFFY-CTI & 73.9 & 83.7 & 63.3 & 63.8 & 79.6 & 40.6 & 34.3 & 33.8 & \textbf{35.4} & 82.4 & 49.7 & 43.1 & 57.0 \\
+Llama-3.1-8B-MinervaRL & 73.9 & 84.2 & 64.7 & \textbf{68.8} & \textbf{87.6} & \textbf{48.4} & \textbf{42.1} & \textbf{40.5} & 34.1 & 84.6 & 50.3 & 43.7 & \textbf{60.2} \\
+\midrule
+Llama-3.2-3B-Instruct & 71.6 & 77.0 & 55.7 & 15.2 & 2.8 & 1.0 & 0.4 & 1.2 & 25.4 & 77.8 & 35.9 & 32.8 & 33.1 \\
+Llama-3.2-3B-STaR-CTI & 64.3 & 70.5 & 50.3 & 36.4 & 53.4 & 4.2 & 7.0 & 1.9 & 21.4 & 76.3 & 33.8 & 28.0 & 37.3 \\
+Llama-3.2-3B-DART-CTI & \textbf{73.0} & 78.2 & 54.5 & 54.9 & 61.2 & 16.8 & 17.8 & 11.6 & 22.5 & 73.8 & 38.7 & 25.7 & 44.0 \\
+Llama-3.2-3B-GRPO & 71.2 & 77.8 & \textbf{58.3} & 48.9 & 56.5 & 5.2 & 15.4 & 5.3 & \textbf{27.5} & 70.6 & 38.5 & 29.7 & 42.1 \\
+Llama-3.2-3B-LUFFY-CTI & 70.6 & \textbf{78.5} & 55.4 & 43.8 & 71.6 & 19.4 & 24.2 & \textbf{20.4} & 15.0 & 68.0 & \textbf{46.0} & 32.1 & 45.4 \\
+Llama-3.2-3B-MinervaRL & 71.0 & 78.1 & 54.6 & \textbf{57.2} & \textbf{77.1} & \textbf{21.8} & \textbf{29.3} & 20.1 & 16.7 & \textbf{82.2} & 37.9 & \textbf{33.7} & \textbf{48.3} \\
+\midrule
+Qwen3-8B-Base & 71.7 & 69.3 & 63.8 & 52.6 & 69.0 & 13.4 & 6.5 & 9.0 & 31.3 & 45.1 & 9.8 & 9.8 & 37.6 \\
+Qwen3-8B-STaR-CTI & 37.9 & 49.3 & 65.1 & 36.8 & 68.7 & 15.6 & 3.5 & 4.9 & \textbf{37.9} & 55.7 & 40.0 & 26.4 & 36.8 \\
+Qwen3-8B-DART-CTI & 39.2 & 55.7 & 65.2 & 47.1 & 72.7 & 14.0 & 6.5 & 16.4 & \textbf{37.9} & \textbf{76.4} & \textbf{46.5} & \textbf{36.6} & 42.9 \\
+Qwen3-8B-GRPO & 69.8 & 72.7 & \textbf{69.0} & 60.5 & 68.8 & 23.6 & 8.2 & 18.1 & 37.7 & 66.1 & 37.8 & 31.1 & 47.0 \\
+Qwen3-8B-LUFFY-CTI & \textbf{78.6} & \textbf{88.3} & 64.8 & \textbf{65.3} & 73.2 & 29.4 & \textbf{25.8} & \textbf{32.4} & 34.3 & 74.5 & 45.1 & 26.8 & 53.2 \\
+Qwen3-8B-MinervaRL & 77.8 & 88.2 & 67.5 & 64.8 & \textbf{79.4} & \textbf{32.0} & 20.1 & 22.0 & 37.4 & 74.9 & 43.0 & 33.1 & \textbf{53.4} \\
+\midrule
+Qwen3-4B-Base & 45.6 & 50.1 & 56.1 & 45.6 & 76.5 & 4.2 & 6.5 & 4.6 & 1.2 & 18.0 & 16.6 & 6.5 & 27.6 \\
+Qwen3-4B-STaR-CTI & \textbf{76.1} & \textbf{88.2} & \textbf{66.1} & 21.1 & 80.2 & 5.8 & 6.6 & 12.3 & 31.8 & \textbf{62.0} & 46.9 & \textbf{47.7} & 45.4 \\
+Qwen3-4B-DART-CTI & 45.4 & 42.1 & 60.0 & 54.6 & 73.8 & 20.6 & 5.8 & 17.1 & 27.6 & 47.5 & 43.2 & 35.1 & 39.4 \\
+Qwen3-4B-GRPO & 74.2 & 85.8 & 63.9 & \textbf{60.8} & \textbf{88.1} & 20.2 & 3.8 & 20.4 & \textbf{32.4} & 58.2 & 39.6 & 24.0 & 47.6 \\
+Qwen3-4B-LUFFY-CTI & 54.1 & 56.5 & 60.9 & 59.9 & 72.6 & 17.6 & \textbf{10.3} & 23.4 & 29.2 & 60.4 & 46.7 & 36.2 & 44.0 \\
+Qwen3-4B-MinervaRL & 70.0 & 80.0 & 64.0 & 59.9 & 80.0 & \textbf{25.4} & 5.1 & \textbf{27.5} & 28.0 & 56.7 & \textbf{50.4} & 29.1 & \textbf{48.0} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+% \section{CTI Results}
+
+
+
+% \subsection{Main Results}
+% \label{sec:main-results}
+
+% \paragraph{GRPO consistently improves CTI performance.}
+% Across all four backbones, RLVR with GRPO improves the average score in \Cref{tab:main-results} over the base model: Llama-3.1-8B (48.6$\rightarrow$56.0), Llama-3.2-3B (33.1$\rightarrow$42.1), Qwen3-8B (37.6$\rightarrow$47.0), and Qwen3-4B (27.6$\rightarrow$47.6). This suggests verifiable rewards provide a strong learning signal for structured CTI outputs even without a learned reward model.
+
+
+
+% \paragraph{MinervaRL yields further gains over GRPO.}
+% MinervaRL improves over GRPO on every backbone, with an average relative gain of \textbf{8.9\%} across the four models (Avg: 48.2$\rightarrow$52.5). On Llama-3.1-8B, MinervaRL raises the average score from 48.6 to 60.2 (\textbf{23.9\%} over base; \textbf{16.0\%} over the strongest public SFT baseline on this backbone, Foundation-Sec-8B-Instruct at 51.9). On Llama-3.2-3B, it improves from 33.1 to 48.3 (\textbf{45.9\%} over base; \textbf{14.7\%} over GRPO). On Qwen3-8B, it increases from 37.6 to 53.4 (\textbf{42.0\%} over base; \textbf{13.6\%} over GRPO). On Qwen3-4B, it improves from 27.6 to 48.0 (\textbf{73.9\%} over base; \textbf{0.8\%} over GRPO), suggesting GRPO contributes most of the gains at this scale while MinervaRL provides a smaller additional lift.
+
+% \paragraph{MinervaRL is strongest against RFT and off-policy baselines on average.}
+% The expanded comparison in \Cref{tab:main-results} adds two rejection/self-training baselines (STaR-CTI and DART-CTI) and one off-policy RLVR baseline (LUFFY-CTI). MinervaRL has the best average score within each of the four primary backbone groups. Compared with LUFFY-CTI, MinervaRL improves Avg. by +3.2 on Llama-3.1-8B, +2.9 on Llama-3.2-3B, +0.2 on Qwen3-8B, and +4.0 on Qwen3-4B. Compared with STaR-CTI and DART-CTI, MinervaRL is consistently higher on Avg., indicating that the gains are not explained by fixed-trace supervised training alone.
+
+
+\section{CTI Benchmark Results}
+\label{sec:cti-results}
+
+\subsection{Main Results Across 12 CTI Tasks}
+\label{sec:main-results}
+
+\paragraph{Verifier rewards improve all backbones.}
+\Cref{tab:main-results} reports results across 12 CTI evaluation tasks and four open-weight backbones. Standard GRPO improves the average score over each matched base model: Llama-3.1-8B (48.6$\rightarrow$56.0), Llama-3.2-3B (33.1$\rightarrow$42.1), Qwen3-8B (37.6$\rightarrow$47.0), and Qwen3-4B (27.6$\rightarrow$47.6). Averaged across backbones, GRPO raises the mean score from 36.7 to 48.2, showing that deterministic CTI verifiers provide an effective optimization signal for structured CTI generation without a learned reward model.
+
+\paragraph{MinervaRL adds consistent gains over GRPO.}
+MinervaRL achieves the best average score within every backbone group and increases the four-backbone mean from 48.2 with GRPO to 52.5. The gains over GRPO are +4.2 points for Llama-3.1-8B, +6.2 for Llama-3.2-3B, +6.4 for Qwen3-8B, and +0.4 for Qwen3-4B. Improvements are especially strong on verifier-aligned structured tasks such as CWE mapping, CVSS prediction, ATT\&CK technique identification, mitigation recommendation, and rule-to-technique mapping. For example, on Llama-3.1-8B, MinervaRL improves RCM, VSP, ATE, RMS, and ElasticRule over the base model by +20.4, +11.6, +31.0, +35.4, and +26.1 points, respectively.
+
+\paragraph{MinervaRL outperforms SFT, rejection-finetuning, and off-policy RLVR baselines.}
+MinervaRL also achieves the highest average score among the controlled training baselines for all four primary backbones. Compared with LUFFY-CTI, the strongest off-policy RLVR baseline, MinervaRL improves Avg. by +3.2 on Llama-3.1-8B, +2.9 on Llama-3.2-3B, +0.2 on Qwen3-8B, and +4.0 on Qwen3-4B. It also outperforms STaR-CTI and DART-CTI on average for every backbone, indicating that the gains are not explained by verifier-filtered supervised traces alone. On Llama-3.1-8B, MinervaRL further exceeds external security-SFT reference models, reaching 60.2 Avg. compared with 50.2 for Llama-Primus-Merged and 51.9 for Foundation-Sec-8B-Instruct.
+
+% \subsection{In-Training vs. Not-in-Training Tasks}
+% \label{sec:intrain-vs-heldout}
+
+% \begin{table}[!t]
+% \centering
+% \begin{minipage}{0.70\textwidth}
+% \centering
+% \scriptsize
+% \caption{Seen vs. not-seen averages.}
+% \label{tab:seen-vs-heldout}
+% \setlength{\tabcolsep}{2pt}
+% \renewcommand{\arraystretch}{0.88}
+% \resizebox{\linewidth}{!}{%
+% \begin{tabular}{l cc cc cc cc}
+% \toprule
+% & \multicolumn{2}{c}{Llama-3.1-8B} & \multicolumn{2}{c}{Llama-3.2-3B} & \multicolumn{2}{c}{Qwen3-8B} & \multicolumn{2}{c}{Qwen3-4B} \\
+% \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+% Model & Seen & Not-seen & Seen & Not-seen & Seen & Not-seen & Seen & Not-seen \\
+% \midrule
+% Base      & 37.1 & 54.4 & 4.9  & 47.2 & 35.4 & 38.7 & 33.2 & 24.8 \\
+% GRPO      & 53.0 & 57.5 & 31.5 & 47.4 & 40.3 & 50.3 & 43.2 & 49.8 \\
+% MinervaRL & 61.7 & 59.5 & 46.4 & 49.3 & 49.1 & 55.5 & 42.6 & 50.7 \\
+% \bottomrule
+% \end{tabular}%
+% }
+% \end{minipage}
+% \end{table}
+
+% We split the 12 benchmarks in \Cref{tab:main-results} into tasks that are directly seen during Minerva-CTI training (\textbf{Seen}: RCM, VSP, ATE, RMS) and tasks that are not directly optimized as training objectives (\textbf{Not-in-training}: CKT, CyberMetric, SOCEval, ElasticRule, APTNER, LANCE, AnnoCTR, AZERG). For each model variant we report the mean score over tasks in the group.
+
+
+
+% As expected, GRPO and MinervaRL deliver the largest gains on the \emph{seen} tasks (which align closely with the verifiable training objectives), but we also observe consistent improvements on the \emph{not-in-training} suite, indicating that training on verifiable CTI tasks transfers to related CTI reasoning and extraction capabilities.
+
+
+
+
+
+\subsection{Response-Quality Preference Evaluation}
+\label{sec:qualitative}
+
+Verifier-based scores measure structured CTI correctness, but analyst-facing usefulness also depends on readability, evidence use, and CTI concept precision. We therefore run a blind GPT-5.2 response-quality evaluation within each backbone family, comparing the base model, GRPO, MinervaRL, STaR-CTI, and DART-CTI. Responses are scored with a three-criterion rubric covering writing quality, prompt-evidence use, and CTI concept use; pairwise preferences are derived from total scores, with ties retained. Full prompts, rubrics, and validation details are in \Cref{app:response-quality-eval}.
+
+
+
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=.9\linewidth]{figures/pairwise_preference_including_ties_1x4.pdf}
+  \caption{GPT-5.2 pairwise response-quality preferences for backbone-specific model groups. Each cell reports the probability that the row model is preferred over the column model, with ties retained in the denominator.}
+  \label{fig:cti-judge-preference}
+\end{figure}
+
+
+
+
+
+
+\paragraph{Preference results.}
+\Cref{fig:cti-judge-preference} shows that MinervaRL is preferred over GRPO for all four backbones and is top-ranked for Llama-3.2-3B, Qwen3-4B, and Qwen3-8B. On Llama-3.1-8B, STaR-CTI and DART-CTI receive higher preference rates, suggesting that fixed-trace SFT and rejection-finetuning baselines can produce stronger prose for a strong instruction-tuned backbone. MinervaRL nevertheless remains preferred over the base and GRPO variants and achieves the highest average task score in \Cref{tab:main-results}, indicating that its verifier-score gains generally coincide with improved judged response quality relative to standard GRPO.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\paragraph{Judge validation.}
+We validate GPT-5.2 on a 100-example subset over the five Llama-3.1-8B-family variants, using two human annotators and Claude Sonnet 4.6. GPT-5.2 agrees substantially with the human annotator average (QWK 0.6313, Spearman 0.7722), close to human--human agreement (QWK 0.6514, Spearman 0.6461), and also agrees strongly with Claude Sonnet 4.6 (QWK 0.7634, Spearman 0.8266). Full validation results are in \Cref{app:response-quality-eval}.
+
+
+
+
+\subsection{Training-Aligned vs. Not-in-Training Tasks}
+\label{sec:intrain-vs-heldout}
+
+\begin{table}[!t]
+\centering
+\begin{minipage}{0.80\textwidth}
+\centering
+\scriptsize
+\caption{Average performance on training-aligned and not-in-training evaluation tasks.}
+\label{tab:seen-vs-heldout}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.88}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{l cc cc cc cc}
+\toprule
+& \multicolumn{2}{c}{Llama-3.1-8B} & \multicolumn{2}{c}{Llama-3.2-3B} & \multicolumn{2}{c}{Qwen3-8B} & \multicolumn{2}{c}{Qwen3-4B} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+Model & Aligned & Not-in-train & Aligned & Not-in-train & Aligned & Not-in-train & Aligned & Not-in-train \\
+\midrule
+Base      & 37.1 & 54.4 & 4.9  & 47.2 & 35.4 & 38.7 & 33.2 & 24.8 \\
+GRPO      & 53.0 & 57.5 & 31.5 & 47.4 & 40.3 & 50.3 & 43.2 & 49.8 \\
+MinervaRL & 61.7 & 59.5 & 46.4 & 49.3 & 49.1 & 55.5 & 42.6 & 50.7 \\
+\bottomrule
+\end{tabular}%
+}
+\end{minipage}
+\end{table}
+
+We split the evaluation suite into tasks that directly match Minerva-CTI training objectives and tasks that are not directly optimized during training. The training-aligned group contains RCM, VSP, ATE, and RMS, corresponding to CVE-to-CWE mapping, CVSS vector prediction, ATT\&CK technique prediction, and mitigation recommendation. The not-in-training group contains CKT, CyberMetric, SOCEval, ElasticRule, APTNER, LANCE, AnnoCTR, and AZERG. \Cref{tab:seen-vs-heldout} reports the mean score for each group.
+
+MinervaRL delivers the largest gains on training-aligned tasks, improving over the base model by +24.6, +41.5, +13.7, and +9.4 points on Llama-3.1-8B, Llama-3.2-3B, Qwen3-8B, and Qwen3-4B, respectively. It also improves over GRPO on three of the four backbones in this group. On not-in-training tasks, MinervaRL improves over GRPO for every backbone, with gains of +2.0, +1.9, +5.2, and +0.9 points. These results indicate that verifier-based CTI training improves directly aligned structured tasks while also transferring to related CTI knowledge, rule-mapping, SOC reasoning, and extraction benchmarks not used as Minerva-CTI training objectives.
+
+

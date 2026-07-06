@@ -1,0 +1,29 @@
+\section{Experiments}
+
+
+\subsection{Evaluation Benchmarks}
+\label{sec:eval-benchmarks}
+
+We evaluate on the 12-task suite in \Cref{tab:main-results}, covering multiple-choice cybersecurity and CTI knowledge, structured taxonomy prediction, SOC-style reasoning, and information extraction. The suite includes \textbf{CKT}~\citep{alam2025athenabench}, a five-option CTI knowledge QA benchmark; \textbf{CyberMetric}~\citep{cybermetric}, a four-option cybersecurity knowledge QA benchmark; \textbf{SOCEval}~\citep{deason2025cybersoceval}, multi-select SOC-style reasoning over threat-intelligence reports; \textbf{RCM}~\citep{alam2025athenabench}, CVE-to-CWE root-cause mapping; \textbf{VSP}~\citep{alam2025athenabench}, CVSS v3.1 base-vector prediction; \textbf{ATE}~\citep{alam2025athenabench}, ATT\&CK technique identification from attack scenarios; \textbf{RMS}~\citep{alam2025athenabench}, ATT\&CK mitigation recommendation; \textbf{ElasticRule}~\citep{elastic_detection_rules}, Elastic detection-rule to ATT\&CK technique mapping; \textbf{APTNER}~\citep{wang2022aptner}, APT-focused named-entity recognition; \textbf{LANCE}~\citep{froudakis2025revealing}, IoC identification over IP, URL, domain, and hash candidates; \textbf{AnnoCTR}~\citep{lange2024annoctr}, STIX-style entity and relation extraction; and \textbf{AZERG}~\citep{lekssays2025text}, STIX-style entity and relation extraction from CTI text. Full task definitions, output formats, and sample counts are provided in Appendix~\ref{app:eval-datasets}.
+
+\paragraph{Contamination and overlap considerations.}
+Because CTI benchmarks often draw on shared public standards and threat intelligence resources, fully eliminating train-test overlap is difficult. We therefore design Minerva-CTI to minimize direct leakage where possible. We exclude multiple-choice formats during training to reduce overlap with CKT and CyberMetric. SOCEval is derived from threat-intelligence reports that are not used as training targets. For CVE-based tasks, Minerva-CTI uses pre-2025 CVEs, while AthenaBench RCM and VSP evaluations emphasize 2025-era entries. For ATT\&CK scenario tasks, Minerva-CTI uses ATT\&CK-derived training scenarios, whereas ATE and RMS evaluation use independently curated model-generated scenarios conditioned on technique descriptions. Finally, ElasticRule, APTNER, LANCE, AnnoCTR, and AZERG are used only for evaluation and are not included as supervised training objectives.
+
+
+
+
+\subsection{Experimental Settings}
+\label{sec:exp-settings}
+
+\paragraph{RLVR and MinervaRL training.}
+All RLVR models use GRPO with batch size 128, $N=8$ on-policy rollouts per prompt, 2048-token prompt truncation, 1024-token response truncation, actor learning rate $1\times10^{-6}$, and 500 training steps. Checkpoints are selected by average performance on Minerva-Dev and AthenaBench-Mini~\citep{alam2025athenabench}. MinervaRL uses the same GRPO loop, but for hard prompts with no fully verified rollout, an EMA teacher ($\alpha=0.995$) samples $K=4$ ACR traces at temperature $0.7$ and nucleus sampling $p=0.9$ using a 4096-token ACR context. Every $I=10$ steps, up to $M=256$ accepted traces are distilled onto the original answer-free prompts with learning rate $\gamma\cdot\mathrm{lr}_{\mathrm{rlvr}}$, where $\gamma=0.05$. Full implementation details are in Appendix~\ref{app:training-settings}.
+
+\paragraph{LLM backbones.}
+We evaluate four open-weight backbones: \textbf{Llama-3.1-8B-Instruct}~\citep{llama31_8b_instruct}, \textbf{Llama-3.2-3B-Instruct}~\citep{llama32_3b_instruct}, \textbf{Qwen3-4B-Base}~\citep{qwen3_4b_base}, and \textbf{Qwen3-8B-Base}~\citep{qwen3_8b_base}. For each backbone, we report the unadapted base model, a GRPO-trained RLVR model, and a MinervaRL model trained with the same GRPO setup plus hardness-gated ACR generation and original-prompt distillation.
+
+\paragraph{Baselines.}
+We compare against three controlled baselines using the same Minerva-CTI training split and verifiers: \textbf{STaR-CTI}, which iteratively bootstraps verifier-correct traces and retrains with SFT~\citep{NEURIPS2022_639a9a17}; \textbf{DART-CTI}, a rejection-finetuning baseline with a fixed verifier-filtered trace corpus~\citep{NEURIPS2024_0ef1afa0}; and \textbf{LUFFY-CTI}, an off-policy RLVR baseline using one accepted guidance trace per prompt~\citep{yan2025luffy}. We also include two external Llama-3.1-8B security-SFT reference models, \textbf{Llama-Primus-Merged} and \textbf{Foundation-Sec-8B-Instruct}~\citep{llama_primus_merged,foundation_sec_8b_instruct}. Baseline construction details are provided in Appendix~\ref{app:additional-baselines}.
+
+\paragraph{Evaluation metrics.}
+We use each benchmark's official or task-specific metric. Multiple-choice tasks use exact-match accuracy; taxonomy and mapping tasks use exact match on extracted ATT\&CK or CWE labels; APTNER uses micro-F1 over JSON entities; RMS uses multi-label F1 over mitigation sets; and LANCE, AnnoCTR, and AZERG report averages over subtasks. For VSP, we follow the benchmark verifier and report the normalized CVSS score $1-\mathrm{MAD}/7.7$, where $\mathrm{MAD}$ is the mean absolute deviation between predicted and gold CVSS v3.1 base scores.
+

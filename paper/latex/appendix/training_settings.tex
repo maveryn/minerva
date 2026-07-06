@@ -1,0 +1,65 @@
+\section{Training Hyperparameters and Implementation Details}
+\label{app:training-settings}
+
+This appendix lists the training hyperparameters used for RLVR (GRPO), MinervaRL, and the controlled training baselines. We report only settings that directly affect optimization, sampling, or sequence truncation.
+
+\subsection{RLVR (GRPO) settings}
+\begin{itemize}
+  \item \textbf{Optimizer:} GRPO with actor learning rate $1\times 10^{-6}$.
+  \item \textbf{Batching:} 128 prompts per training step.
+  \item \textbf{Rollouts:} $N=8$ sampled completions per prompt per step.
+  \item \textbf{Sequence lengths:} max prompt length 2048 tokens; max response length 1024 tokens.
+  \item \textbf{Schedule:} 500 training steps.
+\end{itemize}
+
+\subsection{MinervaRL (ACR + distillation) settings}
+\begin{itemize}
+  \item \textbf{Hard-example criterion:} mark a prompt ``hard'' if the best base-rollout reward is $<1.0$ (CVSS prompts excluded).
+  \item \textbf{ACR prompt context:} max ACR prompt length 4096 tokens; max response length 1024 tokens.
+  \item \textbf{ACR sampling:} $K=4$ traces per ACR prompt; temperature $0.7$; nucleus sampling $p=0.9$.
+  \item \textbf{Deferred generation cadence:} generate/distill every $I=10$ steps.
+  \item \textbf{Teacher:} EMA teacher with decay $\alpha=0.995$.
+  \item \textbf{Distillation:} supervised fine-tuning on original prompts using up to 256 accepted traces per distillation interval; learning rate is scaled by $\gamma=0.05$ relative to the RLVR learning rate.
+  \item \textbf{Trace filtering:} a two-stage pipeline (heuristics + ML filter) is applied before distillation; the ML filter acceptance threshold is $\tau_q=0.5$.
+\end{itemize}
+
+\subsection{Controlled baseline settings}
+\label{app:controlled-baseline-settings}
+
+\paragraph{STaR-CTI.}
+\begin{itemize}
+  \item \textbf{Trace generation:} maximum generation length 2048 tokens; temperature 0.7; top-$p=0.95$.
+  \item \textbf{Trace selection:} one original trace and one rationalization trace per training example in each round; verifier success threshold 1.0.
+  \item \textbf{SFT training:} one epoch per round; train batch size 128; maximum sequence length 3072 tokens; bfloat16 FSDP; gradient checkpointing.
+  \item \textbf{Optimizer:} AdamW with learning rate $1\times10^{-5}$, betas $(0.9,0.95)$, weight decay 0.01, gradient clipping 1.0, and cosine scheduling with warmup ratio 0.1.
+  \item \textbf{Micro-batching:} micro-batch size 8 for Llama-3.1-8B, Llama-3.2-3B, and Qwen3-8B; micro-batch size 4 for Qwen3-4B.
+\end{itemize}
+
+\paragraph{DART-CTI.}
+\begin{itemize}
+  \item \textbf{Corpus generation:} Llama-3.1-8B-Instruct teacher; maximum generation length 1024 tokens; temperature 0.7; top-$p=0.95$; verifier threshold 1.0.
+  \item \textbf{Rejection sampling:} plain stage targets two accepted traces per prompt with a cap of 32 attempts.
+  \item \textbf{Guided fill:} maximum prompt length 4096 tokens; at most 8096 label-reference characters.
+  \item \textbf{Filtering:} when enabled, use the response-only TextCNN filter with threshold 0.5, filter batch size 128, and filter maximum length 1024 tokens.
+  \item \textbf{Student SFT training:} one epoch; train batch size 128; micro-batch size 8; maximum sequence length 4096 tokens; bfloat16 FSDP; gradient checkpointing.
+  \item \textbf{Optimizer and selection:} AdamW with learning rate $1\times10^{-5}$, betas $(0.9,0.95)$, weight decay 0.01, gradient clipping 1.0, and cosine scheduling with warmup ratio 0.1; checkpoints selected by synthetic-validation loss.
+\end{itemize}
+
+\paragraph{LUFFY-CTI.}
+\begin{itemize}
+  \item \textbf{Guidance corpus:} 32{,}000-row one-trace-per-prompt off-policy corpus derived from DART-CTI.
+  \item \textbf{RL training:} GRPO advantages with actor learning rate $1\times10^{-6}$; train batch size 128; PPO mini-batch size 128; PPO micro-batch size 16; 500 training steps.
+  \item \textbf{Rollout sampling:} $N=8$ completions per prompt; maximum prompt length 2048 tokens; maximum response length 1024 tokens; rollout temperature 1.0; validation temperature 0.6.
+  \item \textbf{Distributed training:} gradient checkpointing, dynamic batching, FSDP, maximum actor token length 32768 per GPU, and four GPUs per run.
+  \item \textbf{Off-policy objective:} token-level off-policy loss, no off-policy normalization, \texttt{p\_div\_p\_0.1} reshape setting, KL loss disabled, KL coefficient 0, entropy coefficient 0, and reference model disabled.
+  \item \textbf{Prefix guidance:} one random prefix per prompt with maximum prefix length 1024 tokens and min/max prefix ratio 1.0.
+\end{itemize}
+
+\subsection{Timing overhead}
+\label{app:timing-overhead}
+
+To isolate per-step overhead, we ran a small-scale timing study on Llama-3.1-8B-Instruct for 10 training steps with validation disabled and one ACR/SFT interleave at step 10.
+Including end-to-end process time, GRPO took 469.8s and MinervaRL took 654.5s, a 39.3\% increase.
+The measured MinervaRL components were: GRPO rollout 110.3s, GRPO reward 2.3s, ACR prompt construction 2.9s, ACR generation 36.4s, ACR reward 5.9s, and SFT distillation 9.3s.
+The remaining gap comes mainly from ACR log-prob computation (32.1s) and a modest increase in the shared actor update (+16.9s relative to GRPO).
+Thus, MinervaRL is not strictly Pareto-dominant at equal step count, but \Cref{fig:validation-accuracy-dynamics} shows that the additional cost can be favorable in time-to-performance because MinervaRL reaches the best GRPO validation accuracy earlier and continues improving.

@@ -1,0 +1,90 @@
+\section{Reward Functions for RLVR}
+\label{sec:minerva-rewards}
+
+Each Minerva-CTI task is paired with a deterministic verifier whose form depends on the task output type. Given a prompt $x$, a model completion $c$, and a ground-truth target $t$, the verifier first extracts a task-specific prediction $\hat{y}$ from $c$ and then assigns a reward $r\in[0,1]$. Single-label tasks use exact identifier matching, hierarchical ATT\&CK tasks use partial credit for base-technique matches, set-valued tasks use set-$F_1$, CVSS tasks use score-distance credit, and threat-actor attribution accepts known aliases. Thus, rewards measure task correctness after answer extraction and normalization rather than surface-form similarity.
+
+\paragraph{System prompt and answer extraction.}
+All Minerva-CTI training tasks use a shared system prompt that asks the model to reason step by step and place the final answer inside \verb|\boxed{...}|:
+
+\begin{tcolorbox}[title=Train System Prompt]
+You are given a cyber threat intelligence question. Solve it by reasoning step by step.\\
+Present the final answer clearly inside \textbackslash boxed\{\}.
+\end{tcolorbox}
+
+For reward computation, we prioritize the final \verb|\boxed{...}| span when present. During training, extraction is intentionally strict: if no boxed span is found, we accept only explicit answer lines such as \texttt{Answer:} or \texttt{Final answer:}, and require either one unambiguous identifier for single-label tasks or a well-formed identifier set for multi-label tasks. During validation and testing, extraction is more permissive: if no boxed answer is present, we try answer-line parsing, tagged answer spans, and the last non-empty line, then apply task-specific regular expressions to recover candidate identifiers.
+
+\paragraph{Normalization.}
+Before scoring, predictions and targets are canonicalized. The function $\mathrm{norm}_{\mathrm{id}}(\cdot)$ trims whitespace and uppercases identifiers. For ATT\&CK technique IDs, we additionally normalize sub-technique notation by zero-padding suffixes when needed, e.g., \texttt{T1059.3} $\mapsto$ \texttt{T1059.003}. For threat-actor names, $\mathrm{norm}_{\mathrm{actor}}(\cdot)$ lowercases text, removes non-alphanumeric characters, and collapses repeated whitespace. Set-valued predictions are deduplicated after normalization.
+
+\paragraph{Single identifier exact match.}
+For tasks with a single canonical identifier, such as CAPEC Example$\rightarrow$CAPEC, the extracted prediction $\hat{y}$ receives binary exact-match credit:
+\[
+r
+=
+\mathbb{1}\!\left[
+\mathrm{norm}_{\mathrm{id}}(\hat{y})
+=
+\mathrm{norm}_{\mathrm{id}}(t)
+\right].
+\]
+
+\paragraph{ATT\&CK technique identifier.}
+For tasks whose target is an ATT\&CK technique ID, including CVE$\rightarrow$ATT\&CK, scenario$\rightarrow$technique, and detection$\rightarrow$technique tasks, we give full credit for an exact normalized ID match and partial credit when the base technique matches but sub-technique specificity differs. Let $b(\cdot)$ return the base technique ID, e.g., \texttt{T1059}, and let $s(\cdot)\in\{0,1\}$ indicate whether the ID includes a sub-technique suffix. The reward is
+\[
+r =
+\begin{cases}
+1.0, &
+\mathrm{norm}_{\mathrm{id}}(\hat{y})
+=
+\mathrm{norm}_{\mathrm{id}}(t),\\
+0.5, &
+b(\hat{y})=b(t)
+\ \wedge\
+\bigl(s(\hat{y})=1 \ \vee\ s(t)=1\bigr),\\
+0.0, &
+\text{otherwise.}
+\end{cases}
+\]
+This credit reflects the fact that upstream CTI sources sometimes annotate the same behavior at different levels of ATT\&CK granularity.
+
+\paragraph{Multi-label identifier sets.}
+For set-valued targets, including scenario$\rightarrow$tactics, scenario$\rightarrow$mitigations, NVD CVE$\rightarrow$CWE, and CAPEC Example$\rightarrow$CWE, we normalize the predicted and target identifier sets as $P$ and $T$. Invalid identifiers are discarded and duplicates are removed. The reward is set-$F_1$:
+\[
+r =
+\begin{cases}
+1.0, & P=T=\varnothing,\\
+0.0, & (P=\varnothing) \oplus (T=\varnothing),\\
+\dfrac{2|P\cap T|}{|P|+|T|}, & \text{otherwise,}
+\end{cases}
+\]
+where $\oplus$ denotes exclusive-or. This penalizes both missing required labels and adding spurious labels.
+
+\paragraph{CVSS v3.1 base vector.}
+For NVD CVE$\rightarrow$CVSS v3.1, the prediction must parse as a valid CVSS v3.1 base vector. We require each of the eight base metrics to appear exactly once:
+\[
+\mathcal{M}
+=
+\{\mathrm{AV},\mathrm{AC},\mathrm{PR},\mathrm{UI},\mathrm{S},\mathrm{C},\mathrm{I},\mathrm{A}\}.
+\]
+Base metrics may appear in any order, and Temporal or Environmental metrics are ignored if present. If the prefix, version, metric set, or metric values are invalid, the reward is $0$. Otherwise, we compute the CVSS v3.1 base score $s(\cdot)\in[0,10]$ for the predicted and target vectors and assign distance-based credit:
+\[
+r
+=
+\max\!\left(
+0,\,
+1-\frac{|s(\hat{y})-s(t)|}{\delta}
+\right),
+\qquad
+\delta=10.
+\]
+
+\paragraph{Threat actor attribution.}
+For ATT\&CK threat-actor attribution, each target actor has an alias set $A(t)$ derived from ATT\&CK group profiles, including the canonical name and known aliases. From the extracted answer span, we form a normalized candidate set $Y$ by splitting on commas and semicolons and applying $\mathrm{norm}_{\mathrm{actor}}(\cdot)$. The reward is
+\[
+r
+=
+\mathbb{1}\!\left[
+Y\cap A(t)\neq\varnothing
+\right].
+\]
+This gives credit when the model predicts either the canonical actor name or a recognized alias.

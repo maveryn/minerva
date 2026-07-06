@@ -1,0 +1,71 @@
+% ---------------------------------------------------------------------------
+% Evaluation datasets
+% ---------------------------------------------------------------------------
+
+\section{Evaluation Datasets}
+\label{app:eval-datasets}
+
+We evaluate on 12 CTI and cybersecurity benchmarks covering multiple-choice knowledge QA, SOC-style reasoning, structured taxonomy prediction, vulnerability assessment, and information extraction. Each benchmark is evaluated with task-specific answer extraction and the corresponding exact-match or structured metric described in \Cref{sec:exp-settings}. Meta tasks report the aggregate sample count over their constituent subtasks.
+
+\begin{table}[!t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.12}
+\caption{Evaluation datasets used for \Cref{tab:main-results}.}
+\label{tab:eval-datasets}
+\begin{tabular}{p{3.0cm} r p{8.4cm}}
+\toprule
+Task & \# Samples & Output format and evaluation target \\
+\midrule
+CKT~\citep{alam2025athenabench}
+& 3000
+& Five-option CTI knowledge QA; output a single option A--E. \\
+
+CyberMetric~\citep{cybermetric}
+& 2000
+& Four-option cybersecurity knowledge QA; output a single option A--D. \\
+
+SOCEval~\citep{deason2025cybersoceval}
+& 588
+& Multi-select SOC-style reasoning over threat-intelligence reports; output a JSON object in \texttt{<json\_object>} tags with a \texttt{correct\_answers} array. \\
+
+RCM~\citep{alam2025athenabench}
+& 2000
+& Root-cause mapping from CVE description to a single CWE identifier, e.g., \texttt{CWE-\#\#\#\#}. \\
+
+VSP~\citep{alam2025athenabench}
+& 2000
+& Vulnerability severity prediction; output a full CVSS v3.1 base vector, e.g., \texttt{CVSS:3.1/AV:N/...}. \\
+
+ATE~\citep{alam2025athenabench}
+& 500
+& ATT\&CK technique extraction from an attack scenario; output a single technique or sub-technique ID, e.g., \texttt{T\#\#\#\#} or \texttt{T\#\#\#\#.\#\#\#}. \\
+
+RMS~\citep{alam2025athenabench}
+& 500
+& Risk mitigation recommendation; output a set of ATT\&CK mitigation IDs, e.g., \texttt{M10xx}. \\
+
+ElasticRule~\citep{elastic_detection_rules}
+& 432
+& Detection-rule mapping; map an Elastic rule and metadata to a single ATT\&CK technique ID. \\
+
+APTNER~\citep{wang2022aptner}
+& 1505
+& APT-focused named-entity recognition; output a JSON object mapping entity types to extracted spans. \\
+
+LANCE~\citep{froudakis2025revealing}
+& 466
+& Indicator-of-compromise identification over candidate IPs, URLs, domains, and hashes; output candidate-level IoC labels. \\
+
+AnnoCTR~\citep{lange2024annoctr}
+& 1230
+& STIX-style entity and relation extraction; meta task over entity extraction, entity typing, relation existence, and relation labeling with XML-like output tags. \\
+
+AZERG~\citep{lekssays2025text}
+& 1333
+& STIX-style entity and relation extraction; meta task over entity extraction, entity typing, relation existence, and relation labeling with XML-like output tags. \\
+\bottomrule
+\end{tabular}
+\end{table}
+\FloatBarrier

@@ -215,6 +215,34 @@ _scratch/
 athenabench/
 outputs/
 
+# LaTeX build byproducts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+
+# Generated revision-diff outputs
+paper/latex_diff/
+paper/latex/main-diff.*
+paper/latex/*-diff*.tex
+paper/latex/*-diff*.pdf
+
+# Uploaded/compiled manuscript bundles
+paper/Minerva_TMLR*.zip
+paper/latex/main.pdf
+paper/latex/main-accepted.pdf
+paper/latex/minerva-tmlr*.pdf
+
 # Minerva datasets (generated / local)
 dataset/detection_cache/
 
