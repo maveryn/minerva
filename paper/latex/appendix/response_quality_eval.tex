@@ -10,7 +10,7 @@ For each backbone family, we evaluate a shared set of 350 prompts: 50 prompts ea
 
 Within each backbone family, we compare five variants: the base model, GRPO, MinervaRL, STaR-CTI, and DART-CTI. Model identities are hidden from the judge. GPT-5.2 scores each prompt-response pair independently using the three-criterion rubric in \Cref{fig:pointwise-judge-prompt}. Each criterion is scored from 1 to 4, and the total response-quality score is the sum of writing quality, evidence use, and CTI concept use, giving a range of 3--12.
 
-\begin{figure}[!t]
+\begin{figure}[t]
 \centering
 \begin{tcolorbox}[title=Pointwise Response-Quality Judge Prompt]
 \small
@@ -90,7 +90,7 @@ The heatmaps in \Cref{fig:cti-judge-preference} are derived from the pointwise r
 
 We validate GPT-5.2 on a 100-example subset covering the five Llama-3.1-8B-family variants. Two human annotators independently score the same blind prompt-response items using the rubric in \Cref{fig:pointwise-judge-prompt}. We also score the same subset with Claude Sonnet 4.6 as a cross-judge comparison. Agreement is measured on the total rubric score using quadratic weighted kappa (QWK) and Spearman correlation.
 
-\begin{table}[!t]
+\begin{table}[t]
 \centering
 \caption{Agreement on the response-quality validation subset. QWK denotes quadratic weighted kappa.}
 \label{tab:human-gpt-agreement}

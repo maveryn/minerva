@@ -1,0 +1,111 @@
+\documentclass[10pt]{article}
+
+\usepackage{tmlr}
+\renewcommand{\headrulewidth}{0pt}
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{wrapfig}
+\usepackage{booktabs}
+\usepackage{placeins}
+\usepackage{flafter}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{0}
+\setcounter{totalnumber}{3}
+\setcounter{dbltopnumber}{2}
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.6}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage[many]{tcolorbox}
+\usepackage[plain]{algorithm}
+\let\TMLRauthorAND\AND
+\makeatletter\let\AND\@undefined\makeatother
+\usepackage[noend]{algorithmic}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+\usepackage{url}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+}
+\usepackage[capitalize,noabbrev]{cleveref}
+\crefname{assumption}{assumption}{assumptions}
+\Crefname{assumption}{Assumption}{Assumptions}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% THEOREMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\title{Minerva: Reinforcement Learning with Verifiable Rewards \\for Cyber Threat Intelligence LLMs}
+\author{Anonymous authors}
+
+\begin{document}
+
+\maketitle
+
+\input{sections/abstract}
+\input{sections/introduction}
+\input{sections/related}
+\input{sections/dataset}
+\input{sections/method}
+\input{sections/theory}
+\input{sections/experiments}
+\input{sections/results}
+\input{sections/ablation}
+\input{sections/limitations}
+\input{sections/conclusion}
+
+\subsubsection*{Data and Code Availability}
+
+We will release the Minerva codebase, data-construction pipeline, evaluation tools, and derived Minerva-CTI splits for research use.
+Minerva-CTI is built from public CTI sources with reuse-compatible terms, including MITRE ATT\&CK/CWE/CAPEC, CVE/NVD, Mappings Explorer, Sigma, Atomic Red Team, Microsoft Sentinel, and Splunk Security Content.
+Released artifacts will preserve required upstream notices, licenses, and attribution.
+
+\subsubsection*{Broader Impact Statement}
+
+This work is intended to improve open-weight LLMs for defensive CTI analysis.
+Minerva-CTI is curated from public CTI and detection-engineering resources and targets analyst workflows such as indicator/entity extraction, vulnerability triage, ATT\&CK/CWE/CVSS mapping, mitigation recommendation, and detection-rule interpretation.
+We do not train models for exploit generation, malware development, phishing, intrusion execution, or operational attack planning.
+Some evaluations, including exploit-related diagnostics, may nevertheless improve because stronger models better understand vulnerability semantics and attack-technique mappings; we treat such results as dual-use signals rather than deployment objectives.
+Potential misuse includes helping adversaries organize vulnerability knowledge, map attack techniques, prioritize targets, or automate threat analysis.
+We will therefore accompany released artifacts with defensive-use documentation, model/data cards, and cyber-safety review, and use staged release for model checkpoints or artifacts if review indicates elevated misuse risk.
+Finally, incorrect CWE labels, ATT\&CK techniques, CVSS vectors, or mitigation recommendations can mislead downstream security decisions, so Minerva outputs should be treated as analyst-assistive signals rather than authoritative judgments.
+
+\bibliography{minerva-tmlr}
+\bibliographystyle{tmlr}
+
+\clearpage
+
+\appendix
+
+\input{appendix/dataset}
+\input{appendix/reward_fns}
+\input{appendix/filter}
+\input{appendix/eval_dataset}
+\input{appendix/uncertainty}
+\input{appendix/additional_results}
+\input{appendix/additional_baselines}
+\input{appendix/response_quality_eval}
+\input{appendix/minervarl_support}
+\input{appendix/training_settings}
+
+\end{document}

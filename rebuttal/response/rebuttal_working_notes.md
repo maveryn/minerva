@@ -1,8 +1,8 @@
 # TMLR Rebuttal Working Notes
 
 Context read on 2026-06-29:
-- Paper PDF: `rebuttal/8809_Minerva_Reinforcement_Lea (1).pdf`
-- Review: `rebuttal/review.txt`
+- Paper PDF: `rebuttal/source/8809_Minerva_Reinforcement_Lea (1).pdf`
+- Reviews: `rebuttal/reviews/review-1.txt`, `rebuttal/reviews/review-2.txt`
 - Local rebuttal skill: `ml-codex-skills/paper-reviewer-rebuttal/SKILL.md`
 - Supporting skills inspected: `ml-results-reporting`, `paper-prose-revision`, `paper-section-writing`
 - Code paths inspected: dataset builder, RLVR launchers, reward functions, ACR prompt/filter/distillation trainer code, DART/STaR artifacts, paper figure/table artifacts
@@ -79,8 +79,8 @@ Key files inspected:
 - `/home/jovyan/work/llmbench/paper/build_eval12_table.py`
 - `/home/jovyan/work/llmbench/paper/eval12_8b_model_results.md`
 - `/home/jovyan/work/llmbench/paper/results.tex`
-- `rebuttal/analyze_llmbench_eval12.py`
-- `rebuttal/llmbench_eval12_stats.md`
+- `rebuttal/scripts/analyze_llmbench_eval12.py`
+- `rebuttal/results/llmbench_eval12_stats.md`
 
 Paper Table 1 provenance:
 - The paper's `eval12` columns are backed by `runs/<model>/<task>.jsonl`, `runs/<model>/<task>-scored.jsonl`, and a summary JSON.
@@ -142,8 +142,8 @@ Recomputed paper 12-column averages from `evalall-summary.json`:
 - Qwen-8B: GRPO 46.9, MinervaRL 53.4
 - Qwen-4B: GRPO 47.6, MinervaRL 48.0
 
-Bootstrap results generated in `rebuttal/llmbench_eval12_stats.md`:
-- Script: `rebuttal/analyze_llmbench_eval12.py`
+Bootstrap results generated in `rebuttal/results/llmbench_eval12_stats.md`:
+- Script: `rebuttal/scripts/analyze_llmbench_eval12.py`
 - Resamples: 2000; seed: 8809
 - The script verifies all computed point estimates against `evalall-summary.json` before writing the report.
 - SOCEval detail: `ThreatIntelReasoning` averages Jaccard over parsed answers and reports parsing errors separately; the script matches that denominator.
@@ -219,6 +219,6 @@ We will expand the broader-impact statement with concrete mitigations: defensive
 
 ## Immediate Next Steps
 
-1. Use `rebuttal/llmbench_eval12_stats.md` to draft the evaluation/reliability portion of the TMLR response.
+1. Use `rebuttal/results/llmbench_eval12_stats.md` to draft the evaluation/reliability portion of the TMLR response.
 2. Optionally run a matched k-generation evaluation for GRPO and MinervaRL on the most relevant exact-match tasks first: RCM, ATE, RMS, ElasticRule, CKT/CyberMetric.
 3. Draft the final TMLR response in 3-6 grouped points, using cautious language for mixed or non-separated task groups.

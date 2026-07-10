@@ -17,7 +17,7 @@ summaries from the target-level statistics show that ATE is sparser than RCM: AT
 responses, and a 61.5\% cap rate for RCM. Both tasks also exhibit long target-level tails, with many
 identifiers clustered near the attempt cap and below one successful response per question.
 
-\begin{figure}[!t]
+\begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figures/reward_sparsity_ate_rcm.pdf}
   \caption{Target-level reward sparsity for ATE and RCM in DART-CTI stage-1 plain-generation attempts. Each point is one target identifier; the x-axis is mean attempts per question, the y-axis is mean verifier-successful responses per question, and color indicates the fraction of questions that reached the 32-attempt cap.}
@@ -175,7 +175,7 @@ identifiers clustered near the attempt cap and below one successful response per
 Consider a training instance $(x,a^\star)$, where $x\in\mathcal{X}$ is the original prompt and
 $a^\star\in\mathcal{A}$ is the ground-truth structured answer, such as an ATT\&CK technique ID,
 a set of mitigation IDs, or a CVSS vector. Let $g:\mathcal{Y}\to\mathcal{A}$ denote the
-task-specific extractor that maps a full completion $y\in\mathcal{Y}$ to its final extracted answer.
+task-specific extractor that maps a model output sequence $y\in\mathcal{Y}$ to its final extracted answer.
 For this analysis, we focus on the event of full verification and write
 \begin{equation}
     S(x,y;a^\star)
@@ -279,9 +279,11 @@ samples ACR candidates from $\pi_\phi(\cdot\mid \tilde{x})$. A candidate is acce
 verifier-correct under the original task target and passes the leakage and quality filters. The accepted
 trace is then distilled onto the original prompt $x$, not onto $\tilde{x}$.
 
-We formalize this mechanism with two assumptions. The first states that answer-conditioned generation
-can produce an accepted verified trace with nonzero probability; the second states that distilling such a
-trace increases the actor's probability of producing the correct answer from the original prompt.
+We model this mechanism at the answer level through two finite-sampling assumptions. The first captures
+the probability that answer-conditioned generation yields an accepted verified trace; the second captures
+the effect of distilling that trace onto the original prompt. Under these assumptions, the theorem below
+characterizes when repeated accepted traces raise the correct-answer probability above the detectability
+threshold for a fixed rollout budget.
 
 \begin{assumption}[Answer-conditioned exposure]
 \label{ass:exposure}
@@ -349,3 +351,4 @@ zero-success rollout groups under a fixed, small rollout budget by seeding verif
 them onto the original prompt. It does not claim that ACR traces are faithful proofs, that every accepted
 trace improves general reasoning, or that answer conditioning is sufficient in domains where knowing the
 final answer does not help construct a valid derivation.
+It also does not analyze gradient interference between GRPO and SFT, partial-credit reward dynamics, checkpoint selection, or full language-model fine-tuning dynamics.

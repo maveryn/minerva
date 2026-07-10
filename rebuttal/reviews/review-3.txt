@@ -1,0 +1,78 @@
+Summary
+This paper introduces Minerva, a verifiable-reward RL framework for cyber threat intelligence (CTI). Its key insight is that many CTI tasks, such as ATT&CK mapping, CWE prediction, CVSS scoring, and mitigation selection, have canonical answers or fixed schemas, making them well suited for programmatic verification and RLVR. The authors build Minerva-CTI, covering 16 verifiable CTI task types, and propose MinervaRL to address the sparse-reward issue in standard GRPO. For hard samples, MinervaRL uses gold labels to generate answer-conditioned rationales, filters them through verification, and distills the resulting traces back into the original answer-free prompts. Experiments across 12 CTI benchmarks and 4 open-weight backbones show consistent gains, especially on structured verifiable tasks. Overall, I think the paper convincingly shows that CTI is a strong application domain for verifier-driven post-training, and that ACR is a useful mechanism for reducing sparse rewards in RLVR.
+
+Strengths
+The paper studies a meaningful and well-motivated problem in CTI. Many CTI tasks require standardized identifiers or structured schemas, which naturally have canonical answers and can be automatically verified.
+
+The proposed task suite is broad and fairly complete. Minerva-CTI covers 16 types of verifiable CTI tasks, so the paper is not limited to a single narrow benchmark. Instead, it attempts to build a more unified verifier-based training suite for CTI.
+
+The experimental evaluation is comprehensive. The authors evaluate on 12 CTI benchmarks and 4 open-weight backbone models, and compare against base models, GRPO, STaR-CTI, DART-CTI, LUFFY-CTI, and external security-SFT models.
+
+The ablation study is convincing. The paper compares several variants, including more GRPO rollouts, answer-only SFT, removing the EMA teacher, removing verification filtering, and removing the ML filter. These results suggest that the gains come from the full MinervaRL pipeline rather than one isolated component.
+
+The analysis is stronger than simple benchmark reporting. The paper provides theoretical insights and uses the zero-solve fraction to show that MinervaRL reduces the number of samples where all rollouts fail. This directly supports the sparse-reward motivation.
+
+The method is especially well matched to structured CTI tasks such as CWE prediction, CVSS vector prediction, ATT&CK technique mapping, and mitigation recommendation, where automatic verification is both practical and meaningful.
+
+Are the claims made in the submission supported by accurate, convincing and clear evidence?: Yes
+Explain your answer above:
+Overall, the main claims of the paper are mostly supported by the experimental evidence.
+
+The claim that CTI is suitable for verifier-driven post-training is convincing. Tasks such as ATT&CK technique prediction, CWE prediction, CVSS vector prediction, and mitigation selection have standardized outputs and clear verification rules, making them suitable for programmatic verifiers.
+
+The claim that MinervaRL improves over standard GRPO is supported by the reported results. The paper shows consistent improvements across 12 CTI benchmarks and 4 open-weight backbone models, with an average gain of 15.8 percentage points over the base model and 4.3 percentage points over standard GRPO.
+
+The sparse-reward motivation is also directly supported. The zero-solve fraction analysis shows that MinervaRL reduces the proportion of rollout groups where all completions fail, which is consistent with the motivation behind ACR.
+
+The ablation study supports the importance of the full pipeline. The performance drops observed when removing the EMA teacher, filtering, ML filter, or distillation suggest that these components all contribute to the final performance.
+
+However, I think some claims should be stated more cautiously.
+
+The generalization claim should be softened. The strongest evidence comes from training-aligned, structured, verifier-friendly tasks, while the gains on not-in-training tasks are smaller.
+
+The claim about improved reasoning should also be made more carefully. Since ACR generation uses gold labels, the current experiments do not fully rule out the possibility that the model learns answer-conditioned rationale patterns rather than genuinely improving CTI reasoning.
+
+The claim about real-world CTI usefulness needs more analysis. Verifier scores can evaluate whether structured answers are correct, but they do not fully capture analyst-facing CTI quality.
+
+Would at least some individuals in TMLR's audience be interested in knowing the findings of this paper?: Yes
+Explain your answer above:
+I believe this paper would be interesting to at least part of the TMLR audience.
+
+Researchers working on RLVR and verifier-based post-training may find this paper useful because it provides a natural and practically meaningful application domain.
+
+Researchers interested in domain-specific LLM post-training may also find the paper relevant, since it shows how domain knowledge, structured outputs, and automatic verification can be combined in a systematic way.
+
+Readers working on cybersecurity or CTI may find the paper valuable because it introduces a broad verifiable CTI task suite and demonstrates the potential of RL-style training on structured security tasks.
+
+That said, the paper may be less appealing to readers looking for a general-purpose RL algorithmic contribution. The main advantage of MinervaRL is closely tied to structured and verifiable CTI tasks, so I view it more as a domain-driven RLVR framework than a fully general RL method.
+
+Requested Changes:
+The authors should more thoroughly discuss the risk of shortcut learning or reward hacking introduced by gold-label-conditioned rationales. Since ACR traces are generated with access to the answer, the paper should explain why this mechanism does not simply teach the model to imitate answer-driven explanations, but instead improves CTI reasoning.
+
+The authors should provide a clearer cost-performance analysis. MinervaRL introduces 39.3% additional training overhead compared with GRPO, while the average improvement over GRPO is 4.3 percentage points. The paper should clarify in which scenarios this extra cost is justified.
+
+The authors should weaken or more precisely state their generalization claims. The current results show that MinervaRL performs best on training-aligned tasks, while improvements on not-in-training tasks are more limited. The paper should explicitly acknowledge that the method is mainly effective for verifier-aligned structured tasks.
+
+The authors should discuss the limitations of verifier-based evaluation more thoroughly. Real CTI analysis is not only about producing the correct standardized answer; it also requires sufficient evidence, trustworthy explanations, and technically correct reasoning.
+
+Changes That Would Strengthen the Paper
+The paper would benefit from a deeper analysis of the reliability of the filtering mechanism. The current lightweight heuristics and TextCNN filter may not be sufficient to evaluate semantic quality, evidence grounding, and technical correctness in complex CTI rationales.
+
+The paper could include a more fine-grained failure-mode analysis of hard prompts. The current definition of “no fully verified rollout” mixes formatting errors, missing knowledge, reasoning failures, and ambiguous samples, which may require different training strategies.
+
+The authors could discuss how to better use partial rewards or partial correctness signals. Many CTI tasks may have partially correct answers, while the current MinervaRL design mainly relies on fully verified completions for hard-prompt gating.
+
+The paper could include more analyst-facing evaluation. Metrics such as prose preference, evidence grounding quality, and explanation correctness would provide a more complete picture of model quality in realistic CTI use cases.
+
+Broader Impact Concerns:
+I do not see major ethical concerns that would directly prevent publication. However, since CTI is inherently dual-use, the paper should discuss broader impact more explicitly.
+
+On the positive side, stronger CTI models could help security analysts perform vulnerability mapping, threat classification, and mitigation recommendation more efficiently.
+
+On the risk side, stronger CTI models could also be useful to malicious actors by improving vulnerability understanding, attack technique mapping, or automated threat analysis.
+
+The authors should clearly state the intended defensive use cases of the proposed method and discuss possible misuse risks.
+
+The authors should also discuss reliability risks. In CTI settings, incorrect CWE labels, ATT&CK techniques, CVSS vectors, or mitigation recommendations could mislead analysts or affect downstream security decisions.
+
+Overall, I suggest that the authors add a broader impact statement, especially around the dual-use nature of CTI, model reliability, and boundaries for defensive use.

@@ -298,7 +298,7 @@ def main() -> None:
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("rebuttal/llmbench_eval12_all_pairwise_stats.md"),
+        default=Path("rebuttal/results/llmbench_eval12_all_pairwise_stats.md"),
     )
     args = parser.parse_args()
     out = report(load_all(), args.boot, args.seed, all_pair_cis=args.all_pair_cis)

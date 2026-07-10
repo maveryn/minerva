@@ -320,9 +320,16 @@ minerva-judge/human-judge/**/__pycache__/
 # Paper workspace: keep scripts/docs only; treat figures, tables, json/csv/jsonl, and bundles as generated
 paper/**
 !paper/**/
+paper/latex_submitted_baseline/
+paper/latex_submitted_baseline/**
+!paper/latex/minerva-tmlr.tex
+!paper/latex/appendix/uncertainty.tex
+!paper/latex/appendix/additional_results.tex
+!paper/latex/figures/minerva_separated_from_original.pdf
 !paper/**/*.py
 !paper/**/*.md
 !paper/**/*.sh
+paper/scripts/generate_minerva_simplified_figure.py
 !paper/**/*.bat
 !paper/valacc/*.csv
 !paper/expansion/*.csv
@@ -334,6 +341,10 @@ paper/human-annotation-qwk50-80/
 paper/human-annotation-2-3-qwk55/
 paper/human-annotation-211-3-qwk60/
 paper/human-annotator-minerva-100/
+
+# Rebuttal local snapshots / nested shared skill checkout
+ml-codex-skills/
+rebuttal/*.mhtml
 
 # STaR local artifacts / experiment outputs
 star/artifacts/

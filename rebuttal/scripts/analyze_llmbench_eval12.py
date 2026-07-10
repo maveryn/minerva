@@ -628,7 +628,7 @@ def main() -> None:
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("rebuttal/llmbench_eval12_stats.md"),
+        default=Path("rebuttal/results/llmbench_eval12_stats.md"),
         help="markdown output path",
     )
     args = parser.parse_args()

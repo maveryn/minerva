@@ -272,7 +272,7 @@ def main() -> None:
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("rebuttal/eval12_pairwise_ci_packet.md"),
+        default=Path("rebuttal/results/eval12_pairwise_ci_packet.md"),
     )
     args = parser.parse_args()
     args.out.write_text(build_packet(args.boot, args.seed), encoding="utf-8")

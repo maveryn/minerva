@@ -4,7 +4,53 @@
 \subsection{Evaluation Benchmarks}
 \label{sec:eval-benchmarks}
 
-We evaluate on the 12-task suite in \Cref{tab:main-results}, covering multiple-choice cybersecurity and CTI knowledge, structured taxonomy prediction, SOC-style reasoning, and information extraction. The suite includes \textbf{CKT}~\citep{alam2025athenabench}, a five-option CTI knowledge QA benchmark; \textbf{CyberMetric}~\citep{cybermetric}, a four-option cybersecurity knowledge QA benchmark; \textbf{SOCEval}~\citep{deason2025cybersoceval}, multi-select SOC-style reasoning over threat-intelligence reports; \textbf{RCM}~\citep{alam2025athenabench}, CVE-to-CWE root-cause mapping; \textbf{VSP}~\citep{alam2025athenabench}, CVSS v3.1 base-vector prediction; \textbf{ATE}~\citep{alam2025athenabench}, ATT\&CK technique identification from attack scenarios; \textbf{RMS}~\citep{alam2025athenabench}, ATT\&CK mitigation recommendation; \textbf{ElasticRule}~\citep{elastic_detection_rules}, Elastic detection-rule to ATT\&CK technique mapping; \textbf{APTNER}~\citep{wang2022aptner}, APT-focused named-entity recognition; \textbf{LANCE}~\citep{froudakis2025revealing}, IoC identification over IP, URL, domain, and hash candidates; \textbf{AnnoCTR}~\citep{lange2024annoctr}, STIX-style entity and relation extraction; and \textbf{AZERG}~\citep{lekssays2025text}, STIX-style entity and relation extraction from CTI text. Full task definitions, output formats, and sample counts are provided in Appendix~\ref{app:eval-datasets}.
+We evaluate on the 12 CTI evaluation tasks in \Cref{tab:main-results}, covering multiple-choice cybersecurity and CTI knowledge, structured taxonomy prediction, SOC-style reasoning, and information extraction. These tasks include \textbf{CKT}~\citep{alam2025athenabench}, a five-option CTI knowledge QA benchmark; \textbf{CyberMetric}~\citep{cybermetric}, a four-option cybersecurity knowledge QA benchmark; \textbf{SOCEval}~\citep{deason2025cybersoceval}, multi-select SOC-style reasoning over threat-intelligence reports; \textbf{RCM}~\citep{alam2025athenabench}, CVE-to-CWE root-cause mapping; \textbf{VSP}~\citep{alam2025athenabench}, CVSS v3.1 base-vector prediction; \textbf{ATE}~\citep{alam2025athenabench}, ATT\&CK technique identification from attack scenarios; \textbf{RMS}~\citep{alam2025athenabench}, ATT\&CK mitigation recommendation; \textbf{ElasticRule}~\citep{elastic_detection_rules}, Elastic detection-rule to ATT\&CK technique mapping; \textbf{APTNER}~\citep{wang2022aptner}, APT-focused named-entity recognition; \textbf{LANCE}~\citep{froudakis2025revealing}, IoC identification over IP, URL, domain, and hash candidates; \textbf{AnnoCTR}~\citep{lange2024annoctr}, STIX-style entity and relation extraction; and \textbf{AZERG}~\citep{lekssays2025text}, STIX-style entity and relation extraction from CTI text. Full task definitions, output formats, and sample counts are provided in Appendix~\ref{app:eval-datasets}.
+
+\begin{table}[t]
+\caption{Benchmark results across 12 CTI evaluation tasks. We compare MinervaRL with matched base models, GRPO, public security-SFT baselines, and STaR-CTI, DART-CTI, and LUFFY-CTI baselines. Underlined values indicate the best score within each backbone group.}
+\label{tab:main-results}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.1}
+\resizebox{0.95\textwidth}{!}{%
+\begin{tabular}{lccccccccccccc}
+\toprule
+Model & CKT & CyberMetric & SOCEval & RCM & VSP & ATE & RMS & ElasticRule & APTNER & LANCE & AnnoCTR & AZERG & Avg. \\
+\midrule
+Llama-3.1-8B-Instruct & 67.6 & 83.2 & 64.8 & 48.4 & 76.0 & 17.4 & 6.7 & 14.4 & 33.5 & 78.2 & 50.7 & 42.8 & 48.6 \\
+Llama-Primus-Merged & 76.5 & \underline{85.9} & \underline{68.0} & 56.0 & 72.6 & 33.6 & 7.8 & 27.3 & 22.0 & 59.4 & \underline{51.8} & 40.9 & 50.2 \\
+Foundation-Sec-8B-Instruct & \underline{77.1} & 81.3 & 67.9 & 61.0 & 65.8 & 39.2 & 15.4 & 33.6 & 34.0 & 59.5 & 43.5 & \underline{44.4} & 51.9 \\
+Llama-3.1-8B-STaR-CTI & 70.0 & 81.8 & 61.7 & 57.4 & 73.8 & 29.2 & 9.6 & 21.3 & 33.1 & 80.0 & 46.5 & 32.1 & 49.7 \\
+Llama-3.1-8B-DART-CTI & 71.3 & 82.4 & 61.5 & 64.0 & 73.0 & 37.8 & 27.7 & 31.0 & 34.0 & 74.8 & 47.1 & 39.3 & 53.7 \\
+Llama-3.1-8B-GRPO & 71.9 & 85.4 & 63.0 & 66.3 & 82.6 & 32.0 & 30.9 & 32.2 & 32.7 & \underline{86.2} & 49.5 & 39.5 & 56.0 \\
+Llama-3.1-8B-LUFFY-CTI & 73.9 & 83.7 & 63.3 & 63.8 & 79.6 & 40.6 & 34.3 & 33.8 & \underline{35.4} & 82.4 & 49.7 & 43.1 & 57.0 \\
+Llama-3.1-8B-MinervaRL & 73.9 & 84.2 & 64.7 & \underline{68.8} & \underline{87.6} & \underline{48.4} & \underline{42.1} & \underline{40.5} & 34.1 & 84.6 & 50.3 & 43.7 & \underline{60.2} \\
+\midrule
+Llama-3.2-3B-Instruct & 71.6 & 77.0 & 55.7 & 15.2 & 2.8 & 1.0 & 0.4 & 1.2 & 25.4 & 77.8 & 35.9 & 32.8 & 33.1 \\
+Llama-3.2-3B-STaR-CTI & 64.3 & 70.5 & 50.3 & 36.4 & 53.4 & 4.2 & 7.0 & 1.9 & 21.4 & 76.3 & 33.8 & 28.0 & 37.3 \\
+Llama-3.2-3B-DART-CTI & \underline{73.0} & 78.2 & 54.5 & 54.9 & 61.2 & 16.8 & 17.8 & 11.6 & 22.5 & 73.8 & 38.7 & 25.7 & 44.0 \\
+Llama-3.2-3B-GRPO & 71.2 & 77.8 & \underline{58.3} & 48.9 & 56.5 & 5.2 & 15.4 & 5.3 & \underline{27.5} & 70.6 & 38.5 & 29.7 & 42.1 \\
+Llama-3.2-3B-LUFFY-CTI & 70.6 & \underline{78.5} & 55.4 & 43.8 & 71.6 & 19.4 & 24.2 & \underline{20.4} & 15.0 & 68.0 & \underline{46.0} & 32.1 & 45.4 \\
+Llama-3.2-3B-MinervaRL & 71.0 & 78.1 & 54.6 & \underline{57.2} & \underline{77.1} & \underline{21.8} & \underline{29.3} & 20.1 & 16.7 & \underline{82.2} & 37.9 & \underline{33.7} & \underline{48.3} \\
+\midrule
+Qwen3-8B-Base & 71.7 & 69.3 & 63.8 & 52.6 & 69.0 & 13.4 & 6.5 & 9.0 & 31.3 & 45.1 & 9.8 & 9.8 & 37.6 \\
+Qwen3-8B-STaR-CTI & 37.9 & 49.3 & 65.1 & 36.8 & 68.7 & 15.6 & 3.5 & 4.9 & \underline{37.9} & 55.7 & 40.0 & 26.4 & 36.8 \\
+Qwen3-8B-DART-CTI & 39.2 & 55.7 & 65.2 & 47.1 & 72.7 & 14.0 & 6.5 & 16.4 & \underline{37.9} & \underline{76.4} & \underline{46.5} & \underline{36.6} & 42.9 \\
+Qwen3-8B-GRPO & 69.8 & 72.7 & \underline{69.0} & 60.5 & 68.8 & 23.6 & 8.2 & 18.1 & 37.7 & 66.1 & 37.8 & 31.1 & 47.0 \\
+Qwen3-8B-LUFFY-CTI & \underline{78.6} & \underline{88.3} & 64.8 & \underline{65.3} & 73.2 & 29.4 & \underline{25.8} & \underline{32.4} & 34.3 & 74.5 & 45.1 & 26.8 & 53.2 \\
+Qwen3-8B-MinervaRL & 77.8 & 88.2 & 67.5 & 64.8 & \underline{79.4} & \underline{32.0} & 20.1 & 22.0 & 37.4 & 74.9 & 43.0 & 33.1 & \underline{53.4} \\
+\midrule
+Qwen3-4B-Base & 45.6 & 50.1 & 56.1 & 45.6 & 76.5 & 4.2 & 6.5 & 4.6 & 1.2 & 18.0 & 16.6 & 6.5 & 27.6 \\
+Qwen3-4B-STaR-CTI & \underline{76.1} & \underline{88.2} & \underline{66.1} & 21.1 & 80.2 & 5.8 & 6.6 & 12.3 & 31.8 & \underline{62.0} & 46.9 & \underline{47.7} & 45.4 \\
+Qwen3-4B-DART-CTI & 45.4 & 42.1 & 60.0 & 54.6 & 73.8 & 20.6 & 5.8 & 17.1 & 27.6 & 47.5 & 43.2 & 35.1 & 39.4 \\
+Qwen3-4B-GRPO & 74.2 & 85.8 & 63.9 & \underline{60.8} & \underline{88.1} & 20.2 & 3.8 & 20.4 & \underline{32.4} & 58.2 & 39.6 & 24.0 & 47.6 \\
+Qwen3-4B-LUFFY-CTI & 54.1 & 56.5 & 60.9 & 59.9 & 72.6 & 17.6 & \underline{10.3} & 23.4 & 29.2 & 60.4 & 46.7 & 36.2 & 44.0 \\
+Qwen3-4B-MinervaRL & 70.0 & 80.0 & 64.0 & 59.9 & 80.0 & \underline{25.4} & 5.1 & \underline{27.5} & 28.0 & 56.7 & \underline{50.4} & 29.1 & \underline{48.0} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
 
 \paragraph{Contamination and overlap considerations.}
 Because CTI benchmarks often draw on shared public standards and threat intelligence resources, fully eliminating train-test overlap is difficult. We therefore design Minerva-CTI to minimize direct leakage where possible. We exclude multiple-choice formats during training to reduce overlap with CKT and CyberMetric. SOCEval is derived from threat-intelligence reports that are not used as training targets. For CVE-based tasks, Minerva-CTI uses pre-2025 CVEs, while AthenaBench RCM and VSP evaluations emphasize 2025-era entries. For ATT\&CK scenario tasks, Minerva-CTI uses ATT\&CK-derived training scenarios, whereas ATE and RMS evaluation use independently curated model-generated scenarios conditioned on technique descriptions. Finally, ElasticRule, APTNER, LANCE, AnnoCTR, and AZERG are used only for evaluation and are not included as supervised training objectives.
@@ -16,7 +62,7 @@ Because CTI benchmarks often draw on shared public standards and threat intellig
 \label{sec:exp-settings}
 
 \paragraph{RLVR and MinervaRL training.}
-All RLVR models use GRPO with batch size 128, $N=8$ on-policy rollouts per prompt, 2048-token prompt truncation, 1024-token response truncation, actor learning rate $1\times10^{-6}$, and 500 training steps. Checkpoints are selected by average performance on Minerva-Dev and AthenaBench-Mini~\citep{alam2025athenabench}. MinervaRL uses the same GRPO loop, but for hard prompts with no fully verified rollout, an EMA teacher ($\alpha=0.995$) samples $K=4$ ACR traces at temperature $0.7$ and nucleus sampling $p=0.9$ using a 4096-token ACR context. Every $I=10$ steps, up to $M=256$ accepted traces are distilled onto the original answer-free prompts with learning rate $\gamma\cdot\mathrm{lr}_{\mathrm{rlvr}}$, where $\gamma=0.05$. Full implementation details are in Appendix~\ref{app:training-settings}.
+All RLVR models use GRPO with batch size 128, $N=8$ on-policy rollouts per prompt, 2048-token prompt truncation, 1024-token response truncation, actor learning rate $1\times10^{-6}$, and 500 training steps. Checkpoints for GRPO, MinervaRL, and the controlled trained baselines are selected using the same validation criterion: average performance on the held-out Minerva validation split (Minerva-Dev) and AthenaBench-Mini~\citep{alam2025athenabench}. MinervaRL uses the same GRPO loop, but for hard prompts with no fully verified rollout, an EMA teacher ($\alpha=0.995$) samples $K=4$ ACR traces at temperature $0.7$ and nucleus sampling $p=0.9$ using a 4096-token ACR context. Every $I=10$ steps, up to $M=256$ accepted traces are distilled onto the original answer-free prompts with learning rate $\gamma\cdot\mathrm{lr}_{\mathrm{rlvr}}$, where $\gamma=0.05$. Full implementation details are in Appendix~\ref{app:training-settings}.
 
 \paragraph{LLM backbones.}
 We evaluate four open-weight backbones: \textbf{Llama-3.1-8B-Instruct}~\citep{llama31_8b_instruct}, \textbf{Llama-3.2-3B-Instruct}~\citep{llama32_3b_instruct}, \textbf{Qwen3-4B-Base}~\citep{qwen3_4b_base}, and \textbf{Qwen3-8B-Base}~\citep{qwen3_8b_base}. For each backbone, we report the unadapted base model, a GRPO-trained RLVR model, and a MinervaRL model trained with the same GRPO setup plus hardness-gated ACR generation and original-prompt distillation.
@@ -27,3 +73,8 @@ We compare against three controlled baselines using the same Minerva-CTI trainin
 \paragraph{Evaluation metrics.}
 We use each benchmark's official or task-specific metric. Multiple-choice tasks use exact-match accuracy; taxonomy and mapping tasks use exact match on extracted ATT\&CK or CWE labels; APTNER uses micro-F1 over JSON entities; RMS uses multi-label F1 over mitigation sets; and LANCE, AnnoCTR, and AZERG report averages over subtasks. For VSP, we follow the benchmark verifier and report the normalized CVSS score $1-\mathrm{MAD}/7.7$, where $\mathrm{MAD}$ is the mean absolute deviation between predicted and gold CVSS v3.1 base scores.
 
+\paragraph{Evaluation protocol.}
+For the main single-sample results in \Cref{tab:main-results}, we use greedy decoding with temperature $0.0$ and a maximum of 2048 new tokens. Each evaluation example is evaluated with its fixed task prompt, without model-specific prompt rewriting. The prompts specify the required output format, summarized in \Cref{tab:eval-datasets}, such as a multiple-choice letter, CWE/ATT\&CK/CVSS identifier, JSON object in \texttt{<json\_object>} tags, or XML-like entity/relation tags. We score every system with the same task-specific parser, normalizer, and scoring script: the evaluator extracts the requested final answer or structured field using regex, JSON, or tag parsing as appropriate, canonicalizes identifiers where needed, and treats unparseable outputs as empty predictions. These rules are shared across all systems, including the external security-SFT baselines. The rollout-aware best-of-$k$ analysis in \Cref{sec:rollout-aware} uses a separate sampled decoding protocol.
+
+\paragraph{Uncertainty estimates.}
+To quantify evaluation uncertainty, we compute paired bootstrap 95\% confidence intervals over evaluation examples. For each task, backbone, and baseline comparison, we resample task examples with replacement, recompute the original task metric for MinervaRL and the baseline on the same resampled examples, and report the percentile interval of the paired difference, MinervaRL minus the baseline. Dataset sizes for all evaluation tasks are listed in \Cref{tab:eval-datasets}.

@@ -1,0 +1,43 @@
+Summary Of Contributions:
+This paper presents Minerva, an RLVR framework for Cyber Threat Intelligence (CTI). The authors first construct Minerva-CTI, a training suite consisting of verifier-checkable CTI tasks, including vulnerability classification, ATT&CK mapping, CVSS prediction, and mitigation recommendation. Building on this benchmark, they propose MinervaRL, which extends GRPO with hardness-gated answer-conditioned rationale (ACR) generation and periodic distillation to alleviate sparse verifier rewards. The proposed method is evaluated on four open-weight LLMs and twelve CTI benchmarks, showing consistent improvements over GRPO and several CTI-specific baselines. The paper also includes ablation studies, training dynamics analysis, and a preliminary transfer experiment on text-to-SQL.
+
+The paper addresses an important application domain where verifier-based reinforcement learning is particularly well suited, and the benchmark itself is likely to be useful for future research. The empirical evaluation is broad and carefully conducted. However, I found the methodological contribution to be relatively incremental, and several aspects of the experimental methodology make it difficult to fully support the broader claims regarding reasoning improvement and generalization.
+
+Are the claims made in the submission supported by accurate, convincing and clear evidence?: No
+Explain your answer above:
+The empirical results generally support the claim that MinervaRL improves performance over standard GRPO on the evaluated CTI benchmarks. The experimental section is comprehensive, covering multiple backbone models, controlled baselines, ablation studies, and analyses of training dynamics. The reduction in zero-solve fraction also provides a plausible explanation for why the proposed method is effective under sparse verifier rewards.
+
+However, I do not think the current evidence fully supports several of the broader conclusions made in the paper.
+
+First, the paper repeatedly suggests that MinervaRL improves reasoning. Since the rationale generator is explicitly conditioned on the gold answer, the current experiments cannot distinguish between genuine reasoning improvements, answer-conditioned explanation imitation, and simply learning from additional supervised signals. An answer-only distillation baseline would be necessary to isolate the contribution of rationale distillation.
+
+Second, the paper makes relatively broad generalization claims. While MinervaRL performs well on tasks aligned with the training objectives, the improvements on tasks outside the training objectives are considerably smaller, and the evidence beyond CTI consists of only a single text-to-SQL experiment. I believe these results are encouraging, but not sufficient to demonstrate broad applicability.
+
+Finally, the paper reports only point estimates. No confidence intervals, bootstrap analysis, statistical significance tests, or multi-seed experiments are provided. Since several reported improvements over GRPO are relatively modest, uncertainty estimates would be important for determining the robustness of the conclusions.
+
+Would at least some individuals in TMLR's audience be interested in knowing the findings of this paper?: Yes
+Explain your answer above:
+I believe this work will be of interest to several communities within TMLR.
+
+Researchers working on reinforcement learning with verifiable rewards may find this paper valuable because it explores an application domain that naturally supports deterministic verification through standardized taxonomies and identifiers. The proposed benchmark also extends RLVR beyond commonly studied domains such as mathematics and code generation.
+
+The paper is also likely to interest researchers in cybersecurity and domain-specific LLM adaptation. Minerva-CTI provides a relatively comprehensive collection of verifier-checkable CTI tasks, and the experimental results demonstrate that RL-based post-training can substantially improve structured CTI prediction tasks.
+
+That said, readers primarily interested in algorithmic advances in reinforcement learning may find the methodological novelty somewhat limited, since MinervaRL mainly combines existing techniques rather than introducing a fundamentally new optimization method.
+
+Requested Changes:
+The following issues should be addressed before I would be comfortable recommending acceptance. Critical 1.Report uncertainty estimates. The paper should include confidence intervals, bootstrap evaluation, or multi-seed experiments for the main comparisons. This is particularly important because several improvements over GRPO are relatively small. 2.Clarify the contribution of answer-conditioned rationale distillation. The current experiments do not distinguish between improved reasoning and additional supervision from gold-answer-conditioned rationales. An answer-only distillation baseline, or another control experiment that isolates the effect of rationale generation, would significantly strengthen the paper. 3.Moderate the generalization claims. The strongest improvements are observed on training-aligned tasks, while gains on tasks outside the training objectives are more limited. The discussion should more clearly reflect this distinction and avoid suggesting broad reasoning improvements that are not directly supported by the experiments. 4.Improve evaluation transparency. The paper should clarify the checkpoint-selection protocol, describe whether AthenaBench-Mini overlaps with downstream evaluation datasets, and provide additional details regarding decoding settings, answer extraction, and evaluation procedures. Would strengthen the paper 1.Provide compute-matched comparisons against stronger GRPO baselines or discuss the trade-off between the reported performance gains and the approximately 39% additional training cost. 2.Report task-family averages instead of relying primarily on a single aggregate average across heterogeneous evaluation metrics. Reframe the theoretical analysis as an intuitive explanation rather than a formal justification, since several assumptions already encode the desired outcome. 3.Reframe the theoretical analysis as an intuitive explanation rather than a formal justification, since several assumptions already encode the desired outcome.
+
+Broader Impact Concerns:
+The paper includes a Broader Impact Statement, and I appreciate that it acknowledges the dual-use nature of cyber threat intelligence. However, I believe this discussion could be expanded.
+
+In particular, the paper demonstrates improved capability on structured CTI tasks that may also facilitate offensive analysis, including vulnerability understanding and attack technique mapping. The authors should discuss how these potential misuse risks influence their plans for releasing models, datasets, and training artifacts.
+
+In addition, the paper could discuss reliability risks more explicitly. Incorrect predictions of CWE labels, ATT&CK techniques, CVSS vectors, or mitigation recommendations may influence downstream security analysis, and verifier-based evaluation alone does not fully capture the quality of analyst-facing explanations.
+
+Additional Comments:
+Overall, I think this is a solid empirical study with a valuable benchmark contribution. The experimental evaluation is extensive, and the benchmark itself is likely to become a useful resource for future research in verifier-based CTI training.
+
+My main reservation concerns the methodological contribution. MinervaRL largely combines existing components—including GRPO, answer-conditioned rationale generation, self-distillation, and periodic supervised updates—into a practical pipeline. While this integration is well executed, I am not convinced that it constitutes a sufficiently strong algorithmic contribution for TMLR without stronger empirical evidence and more rigorous evaluation.
+
+I encourage the authors to strengthen the empirical methodology, clarify the evaluation protocol, and moderate several claims regarding reasoning and generalization. Addressing these issues would substantially improve the paper.

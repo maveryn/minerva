@@ -6,7 +6,7 @@
 
 For hard prompts, MinervaRL generates answer-conditioned rationale (ACR) traces by augmenting the original training prompt with a label-revealing block. The ACR prompt provides the ground-truth label(s), optionally includes a truncated canonical reference, and asks the model to produce a short justification that ends in the same final-answer format required by the original task. The prompt explicitly discourages leakage language, such as stating that the answer was provided. \Cref{fig:acr-template} shows the template.
 
-\begin{figure}[!t]
+\begin{figure}[t]
 \centering
 \begin{tcolorbox}[title=ACR Generation Prompt]
 You are generating a reasoning trace for training.\\
@@ -63,7 +63,7 @@ breaking ties uniformly at random. The selected distillation record pairs the or
 
 \Cref{fig:filter-over-training} tracks the ACR filtering pipeline during training for Llama-3.1-8B-Instruct. We report the fraction of batches that pass the heuristic filter, pass the ML filter, and satisfy UID coverage, meaning that accepted traces span a sufficient number of distinct prompts. These rates increase over training, indicating that as the actor and EMA teacher improve, more ACR candidates are both verifier-correct and suitable for stable original-prompt distillation.
 
-\begin{figure}[!t]
+\begin{figure}[t]
   \centering
   \includegraphics[width=0.8\linewidth]{figures/llama8b-acr-distill-fractions.pdf}
   \caption{Acceptance rates of the ACR self-distillation pipeline over training for Llama-3.1-8B-Instruct: fraction of batches passing the heuristic filter, passing the machine-learning (ML) filter, and meeting unique identifier (UID) coverage.}
@@ -82,7 +82,7 @@ We construct the TextCNN training data from Minerva-CTI prompts. For each prompt
 
 To ensure that the classifier learns rationale quality rather than answer correctness, we first score all responses with the task verifier and retain only reward-correct responses with $\texttt{reward}=1$. These responses are then labeled \texttt{GOOD} or \texttt{BAD} by a rubric-based LLM judge. The judge does not re-grade correctness; instead, it marks a response as \texttt{BAD} if it exhibits any quality failure, including leakage, incoherence, unsupported claims, mismatch between rationale and final answer, answer-only reasoning, refusals, prompt copying, or other artifacts. The judge is instructed to return a single JSON object, as shown in \Cref{fig:llm-judge-prompt}.
 
-\begin{figure}[!t]
+\begin{figure}[t]
 \centering
 \begin{tcolorbox}[title=LLM Judge Prompt]
 You are an expert CTI evaluator. You will be given a Question and a Response.\\
@@ -129,7 +129,7 @@ The model is a standard TextCNN: an embedding layer followed by 1D convolutions 
 \subsection{Validation and Error Analysis}
 \label{subsec:textcnn-error-analysis}
 
-\begin{table}[!t]
+\begin{table}[t]
 \centering
 \caption{Validation confusion matrix for the TextCNN reasoning-quality filter at threshold 0.5.}
 \label{tab:textcnn-confusion}
@@ -160,9 +160,9 @@ This is a common method used by bootkits to persist on systems.
 Therefore, the selected technique ID is \texttt{T1542.003}.
 \end{tcolorbox}
 
-False negatives are \texttt{GOOD} responses rejected by the TextCNN. \Cref{tab:textcnn-fn-breakdown} shows that these are concentrated in open-ended ATT\&CK generation tasks, especially \texttt{scenario\_to\_attack\_mitigations} and \texttt{scenario\_to\_attack\_technique}. These tasks permit diverse valid rationales, so a compact response-only classifier can reject acceptable traces whose style differs from common \texttt{GOOD} examples. This error profile is consistent with the ablations in \Cref{tab:ablation-summary}: removing the full filtering pipeline or only the ML filter reduces AthenaBench-Mini and average performance relative to full MinervaRL, despite occasional TextCNN errors.
+False negatives are \texttt{GOOD} responses rejected by the TextCNN. \Cref{tab:textcnn-fn-breakdown} shows that these are concentrated in open-ended ATT\&CK generation tasks, especially \texttt{scenario\_to\_attack\_mitigations} and \texttt{scenario\_to\_attack\_technique}. These tasks permit diverse valid rationales, so a compact response-only classifier can reject acceptable traces whose style differs from common \texttt{GOOD} examples. This error profile is consistent with the component ablations in \Cref{tab:eval12-ablation-summary}: removing the full filtering pipeline or only the ML filter reduces AthenaBench-Mini and average performance relative to full MinervaRL, despite occasional TextCNN errors.
 
-\begin{table}[!t]
+\begin{table}[t]
 \centering
 \caption{False positives by LLM-judge rubric category for the TextCNN filter at threshold 0.5.}
 \label{tab:textcnn-fp-breakdown}
@@ -179,7 +179,7 @@ Unsupported & 18 & 1.5\% \\
 \end{tabular}
 \end{table}
 
-\begin{table}[!t]
+\begin{table}[t]
 \centering
 \caption{False negatives by task for the TextCNN filter at threshold 0.5.}
 \label{tab:textcnn-fn-breakdown}

@@ -1,14 +1,38 @@
 \section{Introduction}
 
-Cyber threat intelligence (CTI) supports defensive security workflows by converting heterogeneous security artifacts into shared, machine-readable representations for triage, detection engineering, and incident response~\citep{xu2024llm4security}. In practice, analysts map unstructured inputs such as vulnerability descriptions, detection rules, and incident narratives to standardized frameworks and identifiers, including MITRE ATT\&CK for adversary behavior and vulnerability standards such as CVE, CWE, and CVSS~\citep{mitre_attack,nvd,cwe,cvss_v31}. These standards enable consistent reporting and large-scale exchange through formats and protocols such as STIX and TAXII~\citep{strom2020attack,oasis2021stix,oasis2021taxii}. They also make correctness critical: a CTI system must ground outputs to evolving taxonomies, preserve evidence from noisy text, and produce syntactically valid structured artifacts. Even small identifier, schema, or formatting errors can break downstream automation or propagate incorrect intelligence.
+Cyber threat intelligence (CTI) often requires mapping free-text security information into standardized labels, scores, and structured records that downstream tools can use~\citep{xu2024llm4security}. In practice, analysts map unstructured inputs such as vulnerability descriptions, detection rules, and incident narratives to standardized frameworks and identifiers, including MITRE ATT\&CK (Adversarial Tactics, Techniques, and Common Knowledge) for adversary behavior, Common Vulnerabilities and Exposures (CVE) identifiers, Common Weakness Enumeration (CWE) labels, and Common Vulnerability Scoring System (CVSS) vectors and scores~\citep{mitre_attack,nvd,cwe,cvss_v31}. These standards enable consistent reporting and large-scale exchange through formats and protocols such as Structured Threat Information Expression (STIX) and Trusted Automated Exchange of Intelligence Information (TAXII)~\citep{strom2020attack,oasis2021stix,oasis2021taxii}. \Cref{fig:cti-mapping-example} illustrates this setting with a public vulnerability description mapped to canonical CWE and CVSS outputs. These standards also make correctness critical: a CTI system must ground outputs to evolving taxonomies, preserve evidence from noisy text, and produce syntactically valid structured artifacts. Even small identifier, schema, or formatting errors can break downstream automation or propagate incorrect intelligence.
 
 Large language models (LLMs) are a natural fit for CTI because they can read long-form security narratives and generate structured analyst-facing outputs. Prior work shows growing use of LLMs across cybersecurity, and domain-adapted models such as CTI-BERT demonstrate that security-specific pretraining improves CTI-oriented extraction and representation learning~\citep{xu2024llm4security,parkyou2023ctibert}. However, existing CTI benchmarks reveal uneven reliability. Models can often follow analyst-style instructions and recover surface facts, but still fail on workflow-critical outputs such as ATT\&CK technique mapping, mitigation recommendation, and vulnerability root-cause identification~\citep{ji2024sevenllm,alam2024ctibench,liu2024cyberbench}. These failures are especially problematic for deployment, where CTI systems must produce canonical identifiers, valid schemas, and grounded structured predictions, often under constraints that favor smaller specialized models.
+
+\begin{figure}[t]
+\centering
+\begin{tcolorbox}[
+  width=0.92\linewidth,
+  title={Representative CTI mapping},
+  fonttitle=\bfseries\footnotesize
+]
+\footnotesize
+\begin{minipage}[t]{0.57\linewidth}
+\textbf{Input: CVE description}\\[-1mm]
+\emph{CVE-2024-20092.} In vdec, there is a possible out of bounds write due to a missing bounds check. This could lead to local escalation of privilege with System execution \ldots{}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.38\linewidth}
+\textbf{Structured output}\\[-1mm]
+CWE: \texttt{CWE-787}\\
+\resizebox{\linewidth}{!}{CVSS: \texttt{AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H}}\\
+Score/severity: \texttt{7.8 / High}
+\end{minipage}
+\end{tcolorbox}
+\caption{Representative CTI mapping from a CVE description to structured labels and scores.}
+\label{fig:cti-mapping-example}
+\end{figure}
 
 A key observation behind this work is that many CTI tasks are directly verifiable. Unlike open-ended preference tasks, CTI outputs often have canonical targets: an ATT\&CK technique ID, a CWE label, a CVSS vector, a mitigation set, or a structured extraction schema. This makes CTI well-suited to reinforcement learning with verifiable rewards (RLVR), where deterministic programmatic verifiers score model outputs without requiring a learned reward model or human preference labels. RLVR has recently improved reasoning and structured generation in LLMs~\citep{shao2024deepseekmath,deepseekr1,wen2025rlvr}, while avoiding the cost and subjectivity of RLHF-style preference collection~\citep{ouyang2022training}. However, standard on-policy RLVR is limited by empirical support: with a small rollout budget, hard prompts may produce no verified-correct completions, yielding little useful learning signal in that iteration~\citep{wu2025invisibleleash}. We find this sparse-reward regime common in CTI, especially for long-tail identifiers and strict structured outputs.
 
 We introduce \textbf{Minerva}, a unified CTI training suite and RLVR pipeline for specializing open-weight LLMs to verifier-checkable CTI workflows. Minerva-CTI contains 16 training tasks spanning three broad families: vulnerability-centric mapping, such as CVE $\rightarrow$ CWE/CVSS/ATT\&CK; detection-centric mapping, such as Sigma, Microsoft Sentinel, and Splunk rules $\rightarrow$ ATT\&CK; and procedure-oriented mapping, such as scenarios or behaviors $\rightarrow$ techniques, tactics, mitigations, or threat actors. All tasks are normalized to canonical target spaces and paired with deterministic verifiers.
 
-To train reliably under sparse verifier feedback, we propose \textbf{MinervaRL}. MinervaRL augments the standard GRPO-based RLVR loop with hardness-gated answer-conditioned rationale generation. When the current policy fails to produce a fully verified rollout for a prompt, MinervaRL temporarily reveals the gold label during training to elicit a short rationale trace, filters the generated candidates for correctness and quality, and distills accepted traces back onto the original answer-free prompt. Thus, the deployed model never receives label hints, while training can seed verified trajectories for prompts that would otherwise remain outside the empirical support of small-budget RLVR.
+To train reliably under sparse verifier feedback, we propose \textbf{MinervaRL}. MinervaRL augments the standard GRPO-based RLVR loop with hardness-gated answer-conditioned rationale generation. When the current policy fails to produce a fully verified rollout for a prompt, MinervaRL temporarily reveals the gold label during training to elicit a short rationale trace, filters the generated candidates for correctness and quality, and distills accepted traces back onto the original answer-free prompt. At evaluation time, MinervaRL uses the same answer-free prompts as GRPO and receives no label hints.
 
 Our contributions are:
 \begin{itemize}
