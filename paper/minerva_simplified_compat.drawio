@@ -1,0 +1,109 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0">
+  <diagram name="Page-1" id="yWNXGS3r4BV89RP594hU">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1050" pageHeight="560" background="none" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="lane-grpo" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#eaf3ff;strokeColor=#5b8bd6;strokeWidth=2;connectable=0;" vertex="1" parent="1">
+          <mxGeometry x="25" y="35" width="1000" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-minerva" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#fff4e6;strokeColor=#d9902f;strokeWidth=2;connectable=0;" vertex="1" parent="1">
+          <mxGeometry x="25" y="240" width="1000" height="275" as="geometry" />
+        </mxCell>
+        <mxCell id="label-grpo" value="Standard GRPO / RLVR update (every step)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="55" y="50" width="390" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="label-minerva" value="MinervaRL auxiliary ACR distillation (hard prompts, every I steps)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="55" y="255" width="560" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="rl-batch" value="RL batch&lt;br&gt;original prompt x" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="55" y="105" width="125" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="actor" value="Actor policy" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="230" y="105" width="125" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="verifier" value="Verifier" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="420" y="105" width="125" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="grpo" value="GRPO update" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="610" y="105" width="135" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="hard-gate" value="Hard-prompt gate&lt;br&gt;max reward &amp;amp;lt; 1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="420" y="295" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="label-ref" value="Label reference&lt;br&gt;y*" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="355" width="125" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cond-prompt" value="Label-conditioned&lt;br&gt;prompt" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="230" y="305" width="145" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="acr-buffer" value="ACR prompt&lt;br&gt;buffer" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="230" y="420" width="145" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ema" value="EMA teacher" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="610" y="295" width="135" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="filter" value="Verifier + filters" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="815" y="295" width="145" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="distill-buffer" value="Distillation buffer&lt;br&gt;(x, y_acr)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="815" y="420" width="145" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="sample" value="Sample M pairs" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="610" y="420" width="135" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="sft" value="Auxiliary SFT&lt;br&gt;update" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fontSize=16;spacing=8;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="420" y="420" width="145" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" value="Solid arrows: per-step computation. Dashed arrows: conditional or periodic updates." style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="540" y="522" width="470" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="sample" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#2d6fb7;fontSize=13;" edge="1" parent="1" source="rl-batch" target="actor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="rollouts" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#2d6fb7;fontSize=13;" edge="1" parent="1" source="actor" target="verifier">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="rewards" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#2d6fb7;fontSize=13;" edge="1" parent="1" source="verifier" target="grpo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="policy update" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#2d6fb7;fontSize=13;dashed=1;dashPattern=8 5;" edge="1" parent="1" source="grpo" target="actor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="hard prompts" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;dashed=1;dashPattern=8 5;" edge="1" parent="1" source="verifier" target="hard-gate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;" edge="1" parent="1" source="hard-gate" target="cond-prompt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;" edge="1" parent="1" source="label-ref" target="cond-prompt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;" edge="1" parent="1" source="cond-prompt" target="acr-buffer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="periodic" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;dashed=1;dashPattern=8 5;" edge="1" parent="1" source="acr-buffer" target="ema">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="ACR rollouts" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;" edge="1" parent="1" source="ema" target="filter">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;" edge="1" parent="1" source="filter" target="distill-buffer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;" edge="1" parent="1" source="distill-buffer" target="sample">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;" edge="1" parent="1" source="sample" target="sft">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="distill to actor" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;dashed=1;dashPattern=8 5;" edge="1" parent="1" source="sft" target="actor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="EMA update" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#c87800;fontSize=13;dashed=1;dashPattern=8 5;" edge="1" parent="1" source="grpo" target="ema">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

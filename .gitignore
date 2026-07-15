@@ -329,7 +329,8 @@ paper/latex_submitted_baseline/**
 !paper/**/*.py
 !paper/**/*.md
 !paper/**/*.sh
-paper/scripts/generate_minerva_simplified_figure.py
+# Keep editable figure sources and their generators.
+!paper/*.drawio
 !paper/**/*.bat
 !paper/valacc/*.csv
 !paper/expansion/*.csv
