@@ -17,7 +17,7 @@ A central challenge in CTI RLVR is reward sparsity: for some prompts, none of th
   \label{fig:zero-solve-fraction}
 \end{figure}
 
-\Cref{fig:validation-accuracy-dynamics} shows that the reduction in zero-solve prompts is accompanied by improved validation performance. Across all four backbones, MinervaRL reaches the best GRPO validation accuracy during training and then continues improving beyond it. This indicates that the support-seeding mechanism does more than change rollout diversity: it converts sparse-reward prompts into useful training signal that improves verifier-scored validation accuracy.
+\Cref{fig:validation-accuracy-dynamics} shows that the reduction in zero-solve prompts is accompanied by improved validation performance. Across all four backbones, MinervaRL reaches the best GRPO validation accuracy during training and then continues improving beyond it. This association is consistent with filtered ACR distillation making fully verified outputs more detectable under the rollout budget, although it does not by itself isolate the causal contribution of the hard-prompt gate.
 
 \begin{figure}[t]
   \centering

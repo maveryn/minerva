@@ -4,6 +4,29 @@
 \paragraph{Bootstrap protocol.}
 We use 2000 paired bootstrap resamples. For each task, backbone, and baseline comparison, examples are resampled within the task, both systems are evaluated on the same resampled examples, the original task metric is recomputed, and the percentile interval of MinervaRL minus the baseline is reported.
 
+\subsection{Checkpoint-Selection Overlap Sensitivity}
+\label{app:checkpoint-overlap}
+
+AthenaBench-Mini, which is used for checkpoint selection, is not fully instance-disjoint from the Athena-derived final-evaluation tasks: overlapping Mini instances are subsets of CKT, RCM, VSP, ATE, and RMS by prompt hash or CVE identifier. To assess sensitivity to this overlap, we remove the Mini instances and recompute MinervaRL minus GRPO on the remaining examples in those five tasks. \Cref{tab:app-athena-nonmini} reports their five-task macro-average differences. The differences remain positive for both Llama backbones and Qwen3-8B, whereas the Qwen3-4B difference is negative on the non-Mini subset.
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Sensitivity analysis after removing AthenaBench-Mini instances from CKT, RCM, VSP, ATE, and RMS. Each row reports the five-task macro-average difference between MinervaRL and GRPO, with a paired-bootstrap 95\% confidence interval, in percentage points.}
+\label{tab:app-athena-nonmini}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lr}
+\toprule
+Backbone & MinervaRL $-$ GRPO \\
+\midrule
+Llama-3.1-8B & $+7.7$ [6.4, 9.0] \\
+Llama-3.2-3B & $+11.9$ [10.8, 13.1] \\
+Qwen3-8B & $+8.6$ [7.6, 9.7] \\
+Qwen3-4B & $-1.3$ [$-2.1$, $-0.5$] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \begin{table}[!htbp]
 \centering
 \scriptsize

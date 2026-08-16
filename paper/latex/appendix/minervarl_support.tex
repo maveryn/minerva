@@ -1,8 +1,8 @@
 % -------------------------------------------------------------------------
-% Appendix: Detailed theory for empirical support seeding in MinervaRL.
+% Appendix: Finite-budget detectability analysis for MinervaRL.
 % -------------------------------------------------------------------------
 
-\section{Additional Support for MinervaRL}
+\section{Additional Analysis for MinervaRL}
 \label{app:minervarl-support-bridging}
 
 \subsection{Target-Level Reward Sparsity}
@@ -168,23 +168,23 @@ identifiers clustered near the attempt cap and below one successful response per
 % model to derive it.
 
 
-\subsection{Why MinervaRL Can Expand Empirical Support}
+\subsection{Conditional Finite-Budget Detectability}
 \label{app:minervarl-support-formalization}
 
-\paragraph{Answer-level view.}
+\paragraph{Verifier-success view.}
 Consider a training instance $(x,a^\star)$, where $x\in\mathcal{X}$ is the original prompt and
 $a^\star\in\mathcal{A}$ is the ground-truth structured answer, such as an ATT\&CK technique ID,
-a set of mitigation IDs, or a CVSS vector. Let $g:\mathcal{Y}\to\mathcal{A}$ denote the
-task-specific extractor that maps a model output sequence $y\in\mathcal{Y}$ to its final extracted answer.
-For this analysis, we focus on the event of full verification and write
+a set of mitigation IDs, or a CWE set. Because task verifiers include normalization, alias matching,
+set-valued scoring, and graded rewards, equality of extracted strings is not a general definition of
+correctness. We instead define full verifier success directly as
 \begin{equation}
     S(x,y;a^\star)
     :=
-    \mathbb{1}\!\left[g(y)=a^\star\right].
+    \mathbb{1}\!\left\{
+    R_{\textsc{minerva}}(x,y,a^\star)=1
+    \right\}.
 \end{equation}
-Task-specific partial credit can be viewed as additional shaping, while the support issue studied here
-concerns whether the policy samples a fully verifier-correct answer. A policy $\pi_\theta(\cdot\mid x)$
-therefore induces the answer-level success probability
+A policy $\pi_\theta(\cdot\mid x)$ therefore induces the full-verifier-success probability
 \begin{equation}
     p_\theta(a^\star\mid x)
     :=
@@ -208,28 +208,28 @@ For a failure tolerance $\zeta\in(0,1)$, define the exact detectability threshol
     \approx
     \frac{-\log \zeta}{k}.
 \end{equation}
-This is the minimum answer-level probability needed to make the chance of missing the correct answer
+This is the minimum full-success probability needed to make the chance of missing a fully verified response
 in $k$ samples at most $\zeta$.
 
 \begin{lemma}[Finite-sample detectability]
 \label{lem:detectability}
-Fix a prompt $x$, an answer $a\in\mathcal{A}$, and a rollout budget $k$. If
-$p_\theta(a\mid x)\ge \varepsilon_{k,\zeta}$, then
+Fix a prompt $x$, target $a^\star\in\mathcal{A}$, and rollout budget $k$. If
+$p_\theta(a^\star\mid x)\ge \varepsilon_{k,\zeta}$, then
 \begin{equation}
-    \Pr[\text{$a$ is not observed in $k$ rollouts}]
+    \Pr[\text{no full verifier success in $k$ rollouts}]
     \le
     \zeta .
 \end{equation}
-Equivalently, observing no successful rollout is a level-$\zeta$ event under any policy that assigns
-probability at least $\varepsilon_{k,\zeta}$ to the correct answer.
+Equivalently, observing no fully verified rollout is a level-$\zeta$ event under any policy whose
+full-success probability is at least $\varepsilon_{k,\zeta}$.
 \end{lemma}
 
 \noindent\emph{Proof.}
-If $p_\theta(a\mid x)\ge 1-\zeta^{1/k}$, then
+If $p_\theta(a^\star\mid x)\ge 1-\zeta^{1/k}$, then
 \[
-    \Pr[\text{$a$ is not observed}]
+    \Pr[\text{no full verifier success}]
     =
-    (1-p_\theta(a\mid x))^k
+    (1-p_\theta(a^\star\mid x))^k
     \le
     (\zeta^{1/k})^k
     =
@@ -237,9 +237,9 @@ If $p_\theta(a\mid x)\ge 1-\zeta^{1/k}$, then
 \]
 \hfill$\square$
 
-\paragraph{Small-budget all-zero regime.}
+\paragraph{Low full-success detectability.}
 The detectability threshold above characterizes when a success is reliably observable. A stronger
-``all-zero'' regime occurs when the answer probability is so small that even one success is unlikely.
+miss regime occurs when the full-success probability is so small that even one full success is unlikely.
 For $\eta\in(0,1)$, define
 \begin{equation}
     \delta_{k,\eta}
@@ -250,26 +250,13 @@ For $\eta\in(0,1)$, define
 \end{equation}
 If $p_\theta(a^\star\mid x)\le \delta_{k,\eta}$, then the probability of seeing no fully verified
 completion in $k$ rollouts is at least $1-\eta$. Thus, when $p_\theta(a^\star\mid x)\ll 1/k$,
-the prompt can repeatedly produce all-zero rollout groups.
+the prompt can repeatedly produce rollout groups without a fully verified response. This event is not
+equivalent to an all-zero reward group. If some completions receive unequal partial rewards, GRPO can
+still obtain nonzero within-group advantages even though $S=0$ for every completion. Only the stricter
+event $\max_j R_{\textsc{minerva}}(x,y_j,a^\star)=0$ is counted by our zero-solve diagnostic.
 
-\begin{theorem}[Small-budget support barrier for on-policy RLVR]
-\label{thm:rlvr-barrier}
-Fix a prompt $x$ and rollout budget $k$. Suppose that, at iteration $t$,
-$p_t:=p_{\theta_t}(a^\star\mid x)\le \delta_{k,\eta}$. Then, with probability at least $1-\eta$,
-the $k$ on-policy rollouts for $x$ contain no fully verified completion. On this event, any per-prompt
-update rule whose direct positive signal for $a^\star$ comes only from observed verifier-correct
-rollouts receives no direct evidence for increasing the probability of $a^\star$ in that iteration.
-\end{theorem}
-
-\noindent\emph{Proof sketch.}
-The probability of no fully verified rollout is $(1-p_t)^k$. Since
-$p_t\le 1-(1-\eta)^{1/k}$, we have $(1-p_t)^k\ge 1-\eta$. Conditioning on this event, all sampled
-trajectories fail to reveal the correct answer, so an on-policy update that depends only on observed
-verified successes has no per-prompt positive example of $a^\star$ to reinforce. \hfill$\square$
-
-\paragraph{MinervaRL as support seeding.}
-MinervaRL adds an auxiliary mechanism for prompts that fall into this sparse-support regime. When the
-base rollouts for a prompt $x$ contain no fully verified completion, MinervaRL constructs an
+\paragraph{MinervaRL and the detectability threshold.}
+When the base rollouts for a prompt $x$ contain no fully verified completion, MinervaRL constructs an
 answer-conditioned prompt
 \[
     \tilde{x}=\mathrm{ACR}(x,a^\star,\mathrm{ref}(a^\star)),
@@ -279,10 +266,10 @@ samples ACR candidates from $\pi_\phi(\cdot\mid \tilde{x})$. A candidate is acce
 verifier-correct under the original task target and passes the leakage and quality filters. The accepted
 trace is then distilled onto the original prompt $x$, not onto $\tilde{x}$.
 
-We model this mechanism at the answer level through two finite-sampling assumptions. The first captures
+We model this mechanism through two finite-sampling assumptions. The first captures
 the probability that answer-conditioned generation yields an accepted verified trace; the second captures
 the effect of distilling that trace onto the original prompt. Under these assumptions, the theorem below
-characterizes when repeated accepted traces raise the correct-answer probability above the detectability
+characterizes when repeated accepted traces raise the full-success probability above the detectability
 threshold for a fixed rollout budget.
 
 \begin{assumption}[Answer-conditioned exposure]
@@ -311,7 +298,7 @@ reached:
 \end{equation}
 \end{assumption}
 
-\begin{theorem}[Empirical support seeding via MinervaRL]
+\begin{theorem}[Conditional threshold crossing under effective distillation]
 \label{thm:minervarl-bridging}
 Fix a prompt-answer pair $(x,a^\star)$, rollout budget $k$, and failure tolerance $\zeta$. Let
 $\varepsilon_{k,\zeta}=1-\zeta^{1/k}$ and let
@@ -332,7 +319,7 @@ successful original-prompt distillation updates, we have
 \end{equation}
 The expected number of ACR-generation cycles needed to obtain these $L$ accepted traces is at most
 $L/\alpha$. Consequently, once this threshold is reached, the probability that standard RLVR still
-misses the correct answer in $k$ rollouts is at most $\zeta$.
+samples no fully verified response in $k$ rollouts is at most $\zeta$.
 \end{theorem}
 
 \noindent\emph{Proof sketch.}
@@ -342,13 +329,17 @@ $\varepsilon_{k,\zeta}$ is reached. Therefore $L$ accepted distillation updates 
 Assumption~\ref{ass:exposure}, each ACR-generation cycle produces an accepted trace with conditional probability
 at least $\alpha$, so the expected number of cycles required to obtain $L$ accepted traces is at most
 $L/\alpha$. Finally, once $p_\theta(a^\star\mid x)\ge\varepsilon_{k,\zeta}$,
-Lemma~\ref{lem:detectability} implies that the probability of missing the correct answer in $k$ standard
-RLVR rollouts is at most $\zeta$. \hfill$\square$
+Lemma~\ref{lem:detectability} implies that the probability of sampling no fully verified response in
+$k$ standard RLVR rollouts is at most $\zeta$. \hfill$\square$
 
 \paragraph{Scope and limitations.}
-This argument is intentionally narrow. It explains how MinervaRL can reduce the incidence of
-zero-success rollout groups under a fixed, small rollout budget by seeding verified traces and distilling
-them onto the original prompt. It does not claim that ACR traces are faithful proofs, that every accepted
-trace improves general reasoning, or that answer conditioning is sufficient in domains where knowing the
-final answer does not help construct a valid derivation.
-It also does not analyze gradient interference between GRPO and SFT, partial-credit reward dynamics, checkpoint selection, or full language-model fine-tuning dynamics.
+This argument is intentionally narrow and conditional. Because it assumes
+$p_{\theta_0}(a^\star\mid x)>0$, it concerns finite-budget detectability rather than expansion of the
+policy's mathematical support. More importantly, Assumption~\ref{ass:distill} posits the improvement
+whose optimization dynamics would otherwise need to be established. The theorem therefore gives the
+number of effective accepted updates sufficient to cross a sampling threshold; it does not prove that
+joint GRPO--SFT training produces those updates. It also does not analyze gradient interference across
+prompts, partial-credit reward dynamics, checkpoint selection, or full language-model fine-tuning
+dynamics. Nor does it claim that ACR traces are faithful proofs, that every accepted trace improves
+general reasoning, or that answer conditioning is sufficient in domains where knowing the final answer
+does not help construct a valid derivation.

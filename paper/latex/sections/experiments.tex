@@ -55,6 +55,8 @@ Qwen3-4B-MinervaRL & 70.0 & 80.0 & 64.0 & 59.9 & 80.0 & \underline{25.4} & 5.1 &
 \paragraph{Contamination and overlap considerations.}
 Because CTI benchmarks often draw on shared public standards and threat intelligence resources, fully eliminating train-test overlap is difficult. We therefore design Minerva-CTI to minimize direct leakage where possible. We exclude multiple-choice formats during training to reduce overlap with CKT and CyberMetric. SOCEval is derived from threat-intelligence reports that are not used as training targets. For CVE-based tasks, Minerva-CTI uses pre-2025 CVEs, while AthenaBench RCM and VSP evaluations emphasize 2025-era entries. For ATT\&CK scenario tasks, Minerva-CTI uses ATT\&CK-derived training scenarios, whereas ATE and RMS evaluation use independently curated model-generated scenarios conditioned on technique descriptions. Finally, ElasticRule, APTNER, LANCE, AnnoCTR, and AZERG are used only for evaluation and are not included as supervised training objectives.
 
+AthenaBench-Mini, which is used for checkpoint selection, overlaps at the instance level with five Athena-derived final-evaluation tasks: CKT, RCM, VSP, ATE, and RMS. After removing the overlapping Mini instances, the MinervaRL--GRPO difference remains positive for both Llama backbones and Qwen3-8B, but is negative for Qwen3-4B. \Cref{app:checkpoint-overlap} reports the full sensitivity analysis and paired-bootstrap confidence intervals.
+
 
 
 

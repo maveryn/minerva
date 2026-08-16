@@ -1,15 +1,24 @@
-\subsection{Expanding Empirical Support with MinervaRL}
+\subsection{A Stylized View of Finite-Budget Detectability}
 \label{sec:minervarl-support-bridging}
 
-Let $a^\star$ denote the correct structured answer for prompt $x$, and let
+Let $a^\star$ denote the ground-truth structured answer for prompt $x$. We define full verifier success directly through the task reward,
+\[
+    S(x,y;a^\star)
+    :=
+    \mathbb{1}\!\left\{
+    R_{\textsc{minerva}}(x,y,a^\star)=1
+    \right\},
+\]
+and let
 \[
     p_\theta(a^\star\mid x)
     :=
-    \Pr_{y\sim\pi_\theta(\cdot\mid x)}[g(y)=a^\star],
+    \Pr_{y\sim\pi_\theta(\cdot\mid x)}
+    \left[S(x,y;a^\star)=1\right].
 \]
-where $g(\cdot)$ is the task-specific answer extractor. With $k$ independent rollouts, the probability that the rollout group contains no verifier-correct completion is
+This definition uses the verifier rather than equality of extracted answers, thereby covering normalization, aliases, set-valued outputs, and graded task rewards. With $k$ independent rollouts, the probability that the rollout group contains no fully verified completion is
 \begin{equation}
-    \Pr[\text{no success in $k$ rollouts}]
+    \Pr[\text{no full success in $k$ rollouts}]
     =
     \left(1-p_\theta(a^\star\mid x)\right)^k .
 \end{equation}
@@ -21,6 +30,10 @@ For a failure tolerance $\zeta\in(0,1)$, define the detectability threshold
     \approx
     \frac{-\log \zeta}{k}.
 \end{equation}
-If $p_\theta(a^\star\mid x)<\varepsilon_{k,\zeta}$, then the correct answer is not reliably observed under the available rollout budget, so the prompt may repeatedly produce all-zero rollout groups and provide little direct positive signal to GRPO.
+If $p_\theta(a^\star\mid x)<\varepsilon_{k,\zeta}$, then a fully verified response is not reliably observed under the available rollout budget.
 
-MinervaRL addresses this finite-sampling barrier by temporarily using the gold label during training to seed a verified trajectory for hard prompts. For a hard prompt, the answer-conditioned prompt $x^{\mathrm{acr}}=x\oplus b(y^\star,d)$ makes it more likely that the EMA teacher will generate a verifier-correct trace. After verifier and quality filtering, the accepted trace is distilled back onto the original prompt $x$, without any label hint. This supervised step aims to increase $p_\theta(a^\star\mid x)$ under the original prompt so that future RLVR rollouts can observe verifier-correct completions under the same budget $k$. Thus, MinervaRL does not change the inference-time task or require label hints at deployment; it expands the set of prompts for which verifier feedback is empirically observable during training. This analysis isolates a finite-sampling support effect: ACR distillation can move hard prompts into the empirical support of a limited rollout budget. A conditional formalization of this support-expansion view, including assumptions, theorem statements, and proof sketches, is provided in \Cref{app:minervarl-support-bridging}.
+This full-success event should not be conflated with an all-zero reward group. Writing $m=\max_j R_{\textsc{minerva}}(x,y_j,a^\star)$, MinervaRL's ACR gate uses $m<1$, whereas the zero-solve statistic in \Cref{sec:reward-sparsity-dynamics} uses $m=0$. When $0<m<1$, no rollout is fully verified, but unequal partial-credit rewards can still give GRPO nonzero relative advantages. The calculation above concerns only whether full verifier success is detectable; it does not characterize all learning signal carried by partial rewards.
+
+For a gated prompt, the answer-conditioned prompt $x^{\mathrm{acr}}=x\oplus b(a^\star,d)$ makes it more likely that the EMA teacher will generate a fully verified trace. After verifier and quality filtering, an accepted trace is distilled onto the original prompt $x$, without a label hint. This step is intended to raise the original-prompt probability of full success so that later on-policy rollouts can observe it under the same budget $k$.
+
+The corresponding appendix result is deliberately conditional and stylized. It assumes both that ACR generation yields an accepted trace with probability at least $\alpha$ and that each effective original-prompt distillation update raises the log probability of full verifier success by at least $\Delta$. Given those assumptions, it bounds the number of accepted updates needed to cross the finite-budget detectability threshold. It does not establish that the assumed increase occurs, nor does it model joint GRPO--SFT optimization, gradient interference across prompts, or partial-credit reward dynamics. We therefore use the result only as finite-sampling intuition for the method, not as an optimization or convergence theory of MinervaRL. Appendix~\ref{app:minervarl-support-bridging} gives the formal statement and its scope.
