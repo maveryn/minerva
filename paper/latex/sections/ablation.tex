@@ -7,7 +7,7 @@
 
 
 
-A central challenge in CTI RLVR is reward sparsity: for some prompts, none of the sampled rollouts receives any verifier reward, leaving GRPO with little direct learning signal for that example. We track this failure mode using the zero-solve fraction, defined as the fraction of prompts whose rollout group has maximum verifier reward equal to $0$. As shown in \Cref{fig:zero-solve-fraction}, MinervaRL reduces the zero-solve fraction relative to GRPO across all four backbone families. For Llama-3.1-8B, increasing the GRPO rollout budget from $N=8$ to $N=12$ also reduces zero-solve frequency, but does not close the gap to MinervaRL. This suggests that MinervaRL's gains are not merely due to additional sampling; answer-conditioned trace generation and original-prompt distillation help the policy reach verifier-detectable outputs under the same sparse-reward setting.
+A central challenge in CTI RLVR is reward sparsity: for some prompts, none of the sampled rollouts receives any verifier reward, leaving GRPO with no within-prompt reward contrast for that example. We track this failure mode using the zero-solve fraction, defined as the fraction of prompts whose rollout group has maximum verifier reward equal to $0$. Unlike the ACR gate, which uses $m_i<1$, this diagnostic excludes partial-credit groups with $0<m_i<1$. As shown in \Cref{fig:zero-solve-fraction}, MinervaRL reduces the zero-solve fraction relative to GRPO across all four backbone families. For Llama-3.1-8B, increasing the GRPO rollout budget from $N=8$ to $N=12$ also reduces zero-solve frequency, but does not close the gap to MinervaRL. This suggests that MinervaRL's gains are not merely due to additional sampling; answer-conditioned trace generation and original-prompt distillation help the policy reach verifier-detectable outputs under the same sparse-reward setting.
 
 
 \begin{figure}[t]
@@ -17,7 +17,7 @@ A central challenge in CTI RLVR is reward sparsity: for some prompts, none of th
   \label{fig:zero-solve-fraction}
 \end{figure}
 
-\Cref{fig:validation-accuracy-dynamics} shows that the reduction in zero-solve prompts is accompanied by improved validation performance. Across all four backbones, MinervaRL reaches the best GRPO validation accuracy during training and then continues improving beyond it. This indicates that the support-seeding mechanism does more than change rollout diversity: it converts sparse-reward prompts into useful training signal that improves verifier-scored validation accuracy.
+\Cref{fig:validation-accuracy-dynamics} shows that the reduction in zero-solve prompts is accompanied by improved validation performance. Across all four backbones, MinervaRL reaches the best GRPO validation accuracy during training and then continues improving beyond it. Taken together, these trends are consistent with MinervaRL supplying verified original-prompt supervision for zero-solve prompts, but they do not isolate the gate's causal contribution.
 
 \begin{figure}[t]
   \centering

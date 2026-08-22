@@ -8,7 +8,7 @@ This appendix describes the three additional training-method baselines reported 
 
 STaR-CTI adapts STaR~\citep{NEURIPS2022_639a9a17} to verifier-scored CTI tasks. For each training example $(x,y^\star)$ in a round, we generate one \emph{original} trace from the original prompt $x$ and one \emph{rationalization} trace from a prompt that additionally reveals the gold answer $y^\star$. Both traces are scored by the Minerva verifier. We keep the original trace if it is verifier-correct; otherwise, we keep the rationalization trace if it is verifier-correct; otherwise, the example contributes no trace in that round.
 
-The selected traces form that round's SFT dataset. We train a fresh copy of the base model for each round rather than continuing from the previous SFT checkpoint. The resulting checkpoint is then used as the generator for the next round. Checkpoints are selected with the same validation criterion used for the RL baselines: the average of Minerva-Dev and AthenaBench-Mini validation performance. The validation suite contains 1{,}200 Minerva-Dev examples and 950 Athena CTI examples covering ATE, CKT, RCM, RMS, TAA, and VSP.
+The selected traces form that round's SFT dataset. We train a fresh copy of the base model for each round rather than continuing from the previous SFT checkpoint. The resulting checkpoint is then used as the generator for the next round. Checkpoints are selected with the same validation criterion used for the RL baselines: the average of Minerva-Dev and AthenaBench-Mini validation performance. The validation suite contains 1{,}200 Minerva-Dev examples and 950 Athena CTI examples covering ATE, CKT, RCM, RMS, Threat Actor Attribution (TAA), and VSP.
 
 \subsection{DART-CTI}
 \label{app:dart-cti}

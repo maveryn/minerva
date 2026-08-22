@@ -1,0 +1,11 @@
+# Reviewer 1 Follow-up Response
+
+Thank you for the careful follow-up. We made the requested clarifications in the revised manuscript.
+
+**Verifier-consistent finite-budget analysis.** Revised Sec. 4.3 and Appendix J now define full success as the event that the task verifier returns 1, and use this event consistently throughout the analysis. We also present the result explicitly as a stylized finite-budget detectability argument: the improvement from a successful distillation update is an assumption rather than a consequence derived from joint GRPO/SFT optimization, and the result is not presented as an optimization guarantee or expansion of mathematical support.
+
+**ACR gate and zero-solve diagnostic.** Revised Sec. 4.2 distinguishes the ACR gate, which applies when the maximum rollout reward is below 1, from the stricter zero-solve event, in which the maximum rollout reward is 0. Groups whose maximum reward lies strictly between 0 and 1 contain no fully verified rollout but may still provide relative GRPO signal through partial-credit differences. Revised Sec. 7.1 correspondingly identifies Figure 4 as measuring only the zero-solve diagnostic.
+
+**Alternative gate controls.** We agree that always-on, random-prompt, and strict-zero-only controls would help isolate the allocation policy. We were unable to add a new gate-control experiment in this revision because a compute-matched comparison is not a simple gate substitution. With the existing cap of at most 256 accepted traces per distillation interval, changing eligibility changes the buffer composition and fill rate and may displace the no-full-success prompts the gate is designed to prioritize; matching accepted-trace exposure instead can require different ACR-generation or SFT compute. The Limitations section now notes this issue. Accordingly, the current ablations evaluate the complete MinervaRL allocation policy; isolating the gate itself remains future work.
+
+**Notation and pseudocode.** Revised Sec. 4.2 and Algorithm 1 define `Filter_i` as the deterministic heuristic filter separately from the TextCNN score, apply the SFT step only when buffer `Q` is nonempty, and consistently use `r_{i,j}` for the original-prompt verifier rewards. Appendix H.1 now expands TAA as Threat Actor Attribution at first use.

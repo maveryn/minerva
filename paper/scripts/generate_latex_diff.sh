@@ -26,13 +26,24 @@ fi
 BASE_ARG="$1"
 ROOT="$(git rev-parse --show-toplevel)"
 SRC_DIR="$ROOT/paper/latex"
-OUT_DIR="${2:-$ROOT/paper/latex_diff}"
+if [[ -z "${2:-}" ]]; then
+  OUT_DIR="$ROOT/paper/latex_diff"
+elif [[ "$2" = /* ]]; then
+  OUT_DIR="$2"
+else
+  OUT_DIR="$ROOT/$2"
+fi
 TMP_DIR="$(mktemp -d)"
 MOVED_NEW_BBL=""
+MOVED_BASE_BBL=""
+BASE_MAIN=""
 
 cleanup() {
   if [[ -n "$MOVED_NEW_BBL" && -f "$MOVED_NEW_BBL" && ! -f "$SRC_DIR/minerva-tmlr.bbl" ]]; then
     mv "$MOVED_NEW_BBL" "$SRC_DIR/minerva-tmlr.bbl"
+  fi
+  if [[ -n "$MOVED_BASE_BBL" && -f "$MOVED_BASE_BBL" && ! -f "${BASE_MAIN%.tex}.bbl" ]]; then
+    mv "$MOVED_BASE_BBL" "${BASE_MAIN%.tex}.bbl"
   fi
   rm -rf "$TMP_DIR"
 }
@@ -87,11 +98,30 @@ if [[ -f "$SRC_DIR/minerva-tmlr.bbl" ]]; then
   mv "$SRC_DIR/minerva-tmlr.bbl" "$MOVED_NEW_BBL"
 fi
 
-latexdiff --flatten "$BASE_MAIN" "$NEW_MAIN" > minerva-tmlr-diff.tex
+BASE_BBL="${BASE_MAIN%.tex}.bbl"
+if [[ -f "$BASE_BBL" ]]; then
+  MOVED_BASE_BBL="$TMP_DIR/baseline.bbl"
+  mv "$BASE_BBL" "$MOVED_BASE_BBL"
+fi
+
+latexdiff --flatten --math-markup=whole "$BASE_MAIN" "$NEW_MAIN" > minerva-tmlr-diff.tex
+
+# The submitted baseline source may contain author metadata even though the
+# review-mode PDF hides it. Remove the complete author diff so both the PDF
+# and the generated TeX remain safe for double-blind supplementary upload.
+perl -0pi -e 's{\\author\{.*?\n(?=%DIF PREAMBLE EXTENSION ADDED BY LATEXDIFF)}{\\author{Anonymous authors}\n}sg' minerva-tmlr-diff.tex
+
+# Keep the label of the deleted ablation table active so references inside
+# deleted text render normally instead of as ``??'' in the diff PDF.
+sed -i 's|\\DIFdelbeginFL %DIFDELCMD < \\label{tab:ablation-summary}|\\DIFdelbeginFL \\label{tab:ablation-summary} %DIFDELCMD < \\label{tab:ablation-summary}|' minerva-tmlr-diff.tex
 
 if [[ -n "$MOVED_NEW_BBL" && -f "$MOVED_NEW_BBL" ]]; then
   mv "$MOVED_NEW_BBL" "$SRC_DIR/minerva-tmlr.bbl"
   MOVED_NEW_BBL=""
+fi
+if [[ -n "$MOVED_BASE_BBL" && -f "$MOVED_BASE_BBL" ]]; then
+  mv "$MOVED_BASE_BBL" "$BASE_BBL"
+  MOVED_BASE_BBL=""
 fi
 
 latexmk -pdf -bibtex -interaction=nonstopmode -halt-on-error minerva-tmlr-diff.tex

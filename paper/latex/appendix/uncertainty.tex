@@ -26,6 +26,10 @@ LUFFY & +3.3 [2.5, 4.1] & +2.9 [2.1, 4.0] & +0.1 [-0.6, 0.8] & +4.0 [3.0, 4.7] \
 }
 \end{table}
 
+\subsection{Checkpoint-Selection Sensitivity}
+\label{app:checkpoint-selection-sensitivity}
+AthenaBench-Mini is not instance-disjoint from the final CKT, RCM, VSP, ATE, and RMS evaluations; its 950 examples are contained in those five evaluation sets. After excluding those examples, the MinervaRL--GRPO five-task macro-average differences (paired 95\% CIs) are $+7.7$ [6.4, 9.0], $+11.9$ [10.8, 13.1], $+8.6$ [7.6, 9.7], and $-1.3$ [$-2.1$, $-0.5$] points for Llama-3.1-8B, Llama-3.2-3B, Qwen3-8B, and Qwen3-4B, respectively. The first three remain positive, while Qwen3-4B is negative, consistent with our qualified claims.
+
 \subsection{Full Pairwise Confidence Intervals}
 \label{app:pairwise-ci}
 

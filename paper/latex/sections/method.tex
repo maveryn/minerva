@@ -170,7 +170,7 @@ The expectation is over sampled training pairs and their completion groups. This
 \subsection{MinervaRL}
 \label{sec:minervarl}
 
-Minerva-CTI tasks are verifier-checkable, but they are not uniformly easy for on-policy RLVR. Many tasks require selecting an exact identifier, or a small set of identifiers, from a large, finite, and long-tailed label space. For example, our January 2026 snapshots contain 944 CWE identifiers and 44 MITRE Enterprise mitigation identifiers, with many labels appearing rarely in public pretraining data compared to more common schemas, such as ATT\&CK techniques. Under a small rollout budget, the policy may therefore fail to sample any fully correct completion for hard prompts. In such cases, all completions in the group receive either no reward or only partial reward, and the resulting GRPO update provides little signal about the correct structured answer. This reward-sparsity regime motivates an auxiliary mechanism that can seed verified trajectories for hard prompts while preserving the original answer-free inference setting.
+Minerva-CTI tasks are verifier-checkable, but they are not uniformly easy for on-policy RLVR. Many tasks require selecting an exact identifier, or a small set of identifiers, from a large, finite, and long-tailed label space. For example, our January 2026 snapshots contain 944 CWE identifiers and 44 MITRE Enterprise mitigation identifiers, with many labels appearing rarely in public pretraining data compared to more common schemas, such as ATT\&CK techniques. Under a small rollout budget, the policy may therefore fail to sample any fully verified completion for hard prompts. This finite-budget no-full-success regime motivates an auxiliary mechanism that can generate verified training traces while preserving the original answer-free inference setting.
 
 \begin{figure}[t]
   \centering
@@ -181,7 +181,7 @@ Minerva-CTI tasks are verifier-checkable, but they are not uniformly easy for on
 
 MinervaRL augments the standard GRPO-based RLVR loop with hardness-gated answer-conditioned self-training. The central idea is simple: when the current policy cannot solve a prompt within the available rollout budget, we temporarily reveal the ground-truth label during training to elicit a short rationale that justifies it. We call the resulting trace an \emph{answer-conditioned rationale} (ACR). Importantly, the label-revealing prompt is used only to generate candidate training traces. Before distillation, each candidate is checked by the task verifier and filtered for leakage and rationale quality. Accepted traces are then distilled back into the actor using the original task prompt, without any label hint. Thus, MinervaRL uses labels to construct additional verified supervision during training, but all reported evaluations use the same answer-free prompts as the GRPO baseline.
 
-The procedure runs on two coupled timescales. At every training step, the actor performs the ordinary on-policy GRPO update on verifier-scored rollouts from the original prompts, so the primary RLVR objective is unchanged. In parallel, MinervaRL identifies hard prompts whose rollout group contains no fully verified completion, i.e., prompts with maximum verifier reward below $1$. These prompts are added to an ACR buffer $\mathcal{P}$ together with a label-conditioned generation prompt. Every $I$ steps, an exponential moving average (EMA) teacher samples ACR candidates for the buffered prompts. Candidates that are verifier-correct and pass the filtering pipeline are stored in a distillation buffer $\mathcal{Q}$ as pairs of the original prompt and the accepted trace. The actor then receives a lightweight supervised update on samples from $\mathcal{Q}$, after which the buffers are reset. In this way, MinervaRL preserves on-policy RLVR as the main training signal while periodically converting otherwise signal-poor hard prompts into verified original-prompt training examples.
+The procedure runs on two coupled timescales. At every training step, the actor performs the ordinary on-policy GRPO update on verifier-scored rollouts from the original prompts, so the primary RLVR objective is unchanged. In parallel, MinervaRL identifies hard prompts whose rollout group contains no fully verified completion, i.e., prompts with maximum verifier reward below $1$. These prompts are added to an ACR buffer $\mathcal{P}$ together with a label-conditioned generation prompt. Every $I$ steps, an exponential moving average (EMA) teacher samples ACR candidates for the buffered prompts. Candidates that are verifier-correct and pass the filtering pipeline are stored in a distillation buffer $\mathcal{Q}$ as pairs of the original prompt and the accepted trace. The actor then receives a lightweight supervised update on samples from $\mathcal{Q}$, after which the buffers are reset. In this way, MinervaRL preserves on-policy RLVR as the main training signal while periodically adding verified original-prompt training examples for selected hard prompts.
 
 
 
@@ -214,7 +214,7 @@ The procedure runs on two coupled timescales. At every training step, the actor 
 
 
 \paragraph{Notation.}
-Let $\mathcal{D}=\{(x_i,y_i^\star)\}_{i=1}^{n}$ be the Minerva-CTI training set, where $x_i\in\mathcal{X}$ is the original answer-free prompt and $y_i^\star\in\mathcal{A}$ is the ground-truth structured target. The actor $\pi_\theta$ and EMA teacher $\pi_\phi$ both generate output sequences $y\in\mathcal{Y}$, including ordinary RLVR responses and ACR traces. The buffers $\mathcal{P}$ and $\mathcal{Q}$ store ACR-generation prompts and accepted original-prompt distillation pairs, respectively. We write $x_i\oplus b(y_i^\star,d_i)$ for concatenating $x_i$ with a label-conditioned ACR suffix $b(\cdot)$, where $d_i$ denotes optional canonical reference details, and $\mathrm{task}(x_i)$ for the task type of prompt $x_i$.
+Let $\mathcal{D}=\{(x_i,y_i^\star)\}_{i=1}^{n}$ be the Minerva-CTI training set, where $x_i\in\mathcal{X}$ is the original answer-free prompt and $y_i^\star\in\mathcal{A}$ is the ground-truth structured target. The actor $\pi_\theta$ and EMA teacher $\pi_\phi$ both generate output sequences $y\in\mathcal{Y}$, including ordinary RLVR responses and ACR traces. The buffers $\mathcal{P}$ and $\mathcal{Q}$ store ACR-generation prompts and accepted original-prompt distillation pairs, respectively. We write $x_i\oplus b(y_i^\star,d_i)$ for concatenating $x_i$ with a label-conditioned ACR suffix $b(\cdot)$, where $d_i$ denotes optional canonical reference details, and $\mathrm{task}(x_i)$ for the task type of prompt $x_i$. The instance-specific heuristic filter $\mathrm{Filter}_i:\mathcal{Y}\to\{0,1\}$ returns $1$ when a candidate passes the deterministic leakage and quality checks using the prompt and reference context; the TextCNN score is applied separately. Below, $r_{i,j}$ is the reward $r_j$ from Section~\ref{sec:rlvr} with the prompt index made explicit.
 
 \paragraph{Step 1 (\Cref{alg:minervarl}): RLVR rollouts and GRPO update.}
 At step $t$, we sample a batch $\mathcal{B}_t\subset\mathcal{D}$. For each $(x_i,y_i^\star)\in\mathcal{B}_t$, the actor samples $N=8$ completions from the original prompt,
@@ -224,7 +224,7 @@ At step $t$, we sample a batch $\mathcal{B}_t\subset\mathcal{D}$. For each $(x_i
 \end{equation}
 which are scored by the verifier:
 \begin{equation}
-    r_{i,j}^{\mathrm{base}}
+    r_{i,j}
     =
     R_{\textsc{minerva}}\!\left(x_i,y_{i,j}^{\mathrm{rlvr}},y_i^\star\right).
 \end{equation}
@@ -256,10 +256,10 @@ The actor is updated with GRPO using only these on-policy, original-prompt traje
   \STATE $\mathcal{B}_t\gets\textsc{SampleBatch}(\mathcal{D})$
   \FORALL{$(x_i,y_i^\star)\in\mathcal{B}_t$}
     \STATE $Y_i^{\mathrm{rlvr}}\gets\{y_{i,j}^{\mathrm{rlvr}}\sim\pi_\theta(\cdot\mid x_i)\}_{j=1}^{N}$
-    \STATE $\mathbf{r}_i^{\mathrm{base}}\gets\{r_{i,j}^{\mathrm{base}}=R_{\textsc{minerva}}(x_i,y_{i,j}^{\mathrm{rlvr}},y_i^\star)\}_{j=1}^{N}$
-    \STATE $m_i\gets\max_j r_{i,j}^{\mathrm{base}}$
+    \STATE $\mathbf{r}_i\gets\{r_{i,j}=R_{\textsc{minerva}}(x_i,y_{i,j}^{\mathrm{rlvr}},y_i^\star)\}_{j=1}^{N}$
+    \STATE $m_i\gets\max_j r_{i,j}$
   \ENDFOR
-  \STATE $\theta\gets\textsc{GRPO}\!\left(\theta,\mathcal{B}_t,\{Y_i^{\mathrm{rlvr}},\mathbf{r}_i^{\mathrm{base}}\}_{i}\right)$;\quad
+  \STATE $\theta\gets\textsc{GRPO}\!\left(\theta,\mathcal{B}_t,\{Y_i^{\mathrm{rlvr}},\mathbf{r}_i\}_{i}\right)$;\quad
   $\phi\gets\alpha\phi+(1-\alpha)\theta$
 
   \STATE \textbf{Step 2: Buffer hard prompts for ACR}
@@ -276,7 +276,7 @@ The actor is updated with GRPO using only these on-policy, original-prompt traje
       \STATE $\mathcal{E}_i\gets
       \{k:
       R_{\textsc{minerva}}(x_i,y_{i,k}^{\mathrm{acr}},y_i^\star)=1
-      \wedge \mathrm{Filter}(y_{i,k}^{\mathrm{acr}})=1
+      \wedge \mathrm{Filter}_i(y_{i,k}^{\mathrm{acr}})=1
       \wedge q_{i,k}\ge\tau_q\}$
       \IF{$\mathcal{E}_i\ne\emptyset$}
         \STATE $k^\star\gets\arg\max_{k\in\mathcal{E}_i}q_{i,k}$;\quad
@@ -285,9 +285,11 @@ The actor is updated with GRPO using only these on-policy, original-prompt traje
     \ENDFOR
 
     \STATE \textbf{Step 4: Distill accepted traces on original prompts}
-    \STATE $\mathcal{S}\gets\textsc{Sample}(\mathcal{Q},M)$;\quad
-    $\theta\gets\textsc{SFT}\!\left(\theta,\mathcal{S},\gamma\,\mathrm{lr}_{\mathrm{rlvr}}\right)$;\quad
-    $\mathcal{P},\mathcal{Q}\gets\emptyset$
+    \IF{$\mathcal{Q}\ne\emptyset$}
+      \STATE $\mathcal{S}\gets\textsc{Sample}(\mathcal{Q},M)$;\quad
+      $\theta\gets\textsc{SFT}\!\left(\theta,\mathcal{S},\gamma\,\mathrm{lr}_{\mathrm{rlvr}}\right)$
+    \ENDIF
+    \STATE $\mathcal{P},\mathcal{Q}\gets\emptyset$
   \ENDIF
 \ENDFOR
 \end{algorithmic}
@@ -308,13 +310,13 @@ The actor is updated with GRPO using only these on-policy, original-prompt traje
 \paragraph{Step 2 (\Cref{alg:minervarl}): Hard-prompt buffering.}
 For each prompt, compute the best rollout reward
 \begin{equation}
-    m_i=\max_{j\in\{1,\ldots,N\}} r_{i,j}^{\mathrm{base}} .
+    m_i=\max_{j\in\{1,\ldots,N\}} r_{i,j} .
 \end{equation}
-We call $x_i$ hard at step $t$ if $m_i<1$, i.e., none of the sampled completions is fully verified. For each hard prompt, excluding CVSS, we construct an answer-conditioned rationale prompt
+We call $x_i$ hard at step $t$ if $m_i<1$, i.e., none of the sampled completions is fully verified. This gate is broader than the zero-solve statistic in \Cref{sec:reward-sparsity-dynamics}: $m_i=0$ denotes an all-zero group with no within-prompt GRPO contrast, whereas $0<m_i<1$ denotes a partial-credit group that may still contribute relative GRPO signal. For each hard prompt, excluding CVSS, we construct an answer-conditioned rationale prompt
 \begin{equation}
     x_i^{\mathrm{acr}} = x_i \oplus b(y_i^\star,d_i),
 \end{equation}
-where $b(\cdot)$ reveals the gold target and asks for a short rationale, and $d_i$ optionally contains truncated canonical reference details. We add $(x_i,x_i^{\mathrm{acr}},y_i^\star)$ to the ACR buffer $\mathcal{P}$. This gate is dynamic: a prompt stops entering $\mathcal{P}$ once the actor begins producing fully verified rollouts. We exclude CVSS because its verifier already provides dense graded feedback through CVSS base-score distance, unlike long-tail identifier tasks where incorrect IDs often yield no useful signal.
+where $b(\cdot)$ reveals the gold target and asks for a short rationale, and $d_i$ optionally contains truncated canonical reference details. We add $(x_i,x_i^{\mathrm{acr}},y_i^\star)$ to the ACR buffer $\mathcal{P}$. This gate is dynamic: a prompt stops entering $\mathcal{P}$ once the actor begins producing fully verified rollouts, focusing ACR generation on prompts without a fully verified rollout. We exclude CVSS because its verifier already provides dense graded feedback through CVSS base-score distance, unlike long-tail identifier tasks where incorrect IDs often yield no useful signal.
 
 \paragraph{Step 3 (\Cref{alg:minervarl}): ACR generation and filtering.}
 Every $I=10$ steps, the EMA teacher samples $K=4$ ACR candidates for each buffered prompt:
@@ -332,19 +334,19 @@ using temperature $0.7$ and nucleus sampling with $p=0.9$. We retain only candid
     k :
     R_{\textsc{minerva}}\!\left(x_i,y_{i,k}^{\mathrm{acr}},y_i^\star\right)=1
     \ \wedge\
-    \mathrm{Filter}\!\left(y_{i,k}^{\mathrm{acr}}\right)=1
+    \mathrm{Filter}_i\!\left(y_{i,k}^{\mathrm{acr}}\right)=1
     \ \wedge\
     q_{i,k}\ge\tau_q
     \right\},
 \end{equation}
-where $q_{i,k}$ is the TextCNN \textsc{good} probability and $\tau_q=0.5$. If $\mathcal{E}_i\neq\varnothing$, we select
+where $q_{i,k}$ is the separate TextCNN \textsc{good} probability and $\tau_q=0.5$. If $\mathcal{E}_i\neq\varnothing$, we select
 \begin{equation}
     k^\star=\arg\max_{k\in\mathcal{E}_i} q_{i,k}
 \end{equation}
 and enqueue the original-prompt distillation pair $(x_i,y_{i,k^\star}^{\mathrm{acr}})$ into $\mathcal{Q}$. Keeping at most one trace per prompt per interval prevents repeated generations from dominating the supervised update.
 
 \paragraph{Step 4 (\Cref{alg:minervarl}): Original-prompt distillation.}
-At each distillation interval, we sample up to $M=256$ pairs $\mathcal{S}\subseteq\mathcal{Q}$ and apply one supervised update:
+At each distillation interval, if $\mathcal{Q}\neq\varnothing$, we sample up to $M=256$ pairs $\mathcal{S}\subseteq\mathcal{Q}$ and apply one supervised update:
 \begin{equation}
     \mathcal{L}_{\mathrm{sft}}(\theta)
     =
@@ -354,4 +356,4 @@ At each distillation interval, we sample up to $M=256$ pairs $\mathcal{S}\subset
     \log \pi_\theta(y\mid x)
     \right].
 \end{equation}
-The update uses learning rate $\gamma\cdot\mathrm{lr}_{\mathrm{rlvr}}$ with $\gamma=0.05$, after which $\mathcal{P}$ and $\mathcal{Q}$ are reset. Because distillation is performed on the original prompt $x_i$, not on $x_i^{\mathrm{acr}}$, the actor learns from verified traces without relying on label hints at inference time.
+The update uses learning rate $\gamma\cdot\mathrm{lr}_{\mathrm{rlvr}}$ with $\gamma=0.05$. The buffers $\mathcal{P}$ and $\mathcal{Q}$ are then reset. Because distillation is performed on the original prompt $x_i$, not on $x_i^{\mathrm{acr}}$, the actor learns from verified traces without relying on label hints at inference time.
